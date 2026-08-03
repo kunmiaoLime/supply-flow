@@ -1,0 +1,44 @@
+import { z } from "zod";
+
+export const sessionStatuses = ["starting", "running", "stopped", "failed"] as const;
+
+export const SessionStatusSchema = z.enum(sessionStatuses);
+
+export const SessionRecordSchema = z.object({
+  schemaVersion: z.literal(1),
+  id: z.string().min(1),
+  providerId: z.string().min(1),
+  workspacePath: z.string().min(1),
+  tmuxSessionName: z.string().min(1),
+  status: SessionStatusSchema,
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  lastError: z.string().min(1).optional()
+});
+
+export type SessionRecord = z.infer<typeof SessionRecordSchema>;
+export type SessionStatus = z.infer<typeof SessionStatusSchema>;
+
+export const SessionEventSchema = z.object({
+  schemaVersion: z.literal(1),
+  sessionId: z.string().min(1),
+  timestamp: z.string().datetime(),
+  type: z.enum(["created", "started", "stopped", "failed", "terminal-output"]),
+  message: z.string(),
+  data: z.record(z.string(), z.unknown()).optional()
+});
+
+export type SessionEvent = z.infer<typeof SessionEventSchema>;
+
+export type SessionUpdate = Pick<SessionRecord, "status"> & {
+  lastError?: string;
+};
+
+export interface SessionStore {
+  create(record: SessionRecord): Promise<SessionRecord>;
+  get(id: string): Promise<SessionRecord | null>;
+  list(): Promise<SessionRecord[]>;
+  update(id: string, update: SessionUpdate): Promise<SessionRecord>;
+  appendEvent(event: SessionEvent): Promise<void>;
+  readEvents(id: string): Promise<SessionEvent[]>;
+}

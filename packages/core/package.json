@@ -1,0 +1,19 @@
+{
+  "name": "@supply-flow/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./file-session-store": "./src/file-session-store.ts",
+    "./providers": "./src/providers.ts",
+    "./session": "./src/session.ts",
+    "./tmux": "./src/tmux.ts"
+  },
+  "scripts": {
+    "test": "tsx --test src/file-session-store.test.ts src/tmux.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "supply-flow",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI session control plane with tmux-backed provider adapters.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22",
+    "npm": ">=11"
+  },
+  "scripts": {
+    "build": "npm run build --workspace=@supply-flow/web",
+    "dev": "npm run dev --workspace=@supply-flow/web",
+    "dev:runner": "npm run dev --workspace=@supply-flow/runner",
+    "runner": "npm run start --workspace=@supply-flow/runner --",
+    "runner:doctor": "npm run doctor --workspace=@supply-flow/runner",
+    "test": "npm run test --workspace=@supply-flow/core",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "tsx": "^4.23.5",
+    "typescript": "^5.8.3"
+  }
+}

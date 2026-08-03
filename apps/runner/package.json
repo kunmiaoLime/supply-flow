@@ -1,0 +1,15 @@
+{
+  "name": "@supply-flow/runner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "doctor": "tsx src/index.ts doctor",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supply-flow/core": "*"
+  }
+}
