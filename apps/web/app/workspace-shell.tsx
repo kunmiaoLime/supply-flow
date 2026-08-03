@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type {
   ProjectRecord,
   ProjectRepository,
@@ -24,7 +26,7 @@ import {
   Trash2,
   type LucideIcon
 } from "lucide-react";
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 type TabId = "project" | "task-plan" | "code-implementation" | "pr" | "settings";
 type RepositoryDialogMode = "add" | "edit" | null;
@@ -33,6 +35,7 @@ type RequirementDialogMode = "add" | "edit" | null;
 interface NavigationTab {
   id: TabId;
   label: string;
+  href: string;
   icon: LucideIcon;
 }
 
@@ -69,11 +72,16 @@ const requirementSourceOptions: readonly {
 ];
 
 const navigationTabs: readonly NavigationTab[] = [
-  { id: "project", label: "Project", icon: FolderKanban },
-  { id: "task-plan", label: "Task plan", icon: ListTodo },
-  { id: "code-implementation", label: "Code implementation", icon: Code2 },
-  { id: "pr", label: "PR", icon: GitPullRequest },
-  { id: "settings", label: "Settings", icon: Settings2 }
+  { id: "project", label: "Project", href: "/project", icon: FolderKanban },
+  { id: "task-plan", label: "Task plan", href: "/task_plan", icon: ListTodo },
+  {
+    id: "code-implementation",
+    label: "Code implementation",
+    href: "/code_implementation",
+    icon: Code2
+  },
+  { id: "pr", label: "PR", href: "/pr", icon: GitPullRequest },
+  { id: "settings", label: "Settings", href: "/settings", icon: Settings2 }
 ];
 
 const tabHeadings: Record<TabId, { eyebrow: string; title: string; description: string }> = {
@@ -104,10 +112,15 @@ const tabHeadings: Record<TabId, { eyebrow: string; title: string; description: 
   }
 };
 
-export function WorkspaceShell() {
-  const [activeTab, setActiveTab] = useState<TabId>("project");
+export function WorkspaceShell({
+  projectId,
+  tab
+}: {
+  projectId?: string;
+  tab: TabId;
+}) {
+  const router = useRouter();
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState("");
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
@@ -130,8 +143,8 @@ export function WorkspaceShell() {
   const projectNameInput = useRef<HTMLInputElement>(null);
   const repositoryLocalPathInput = useRef<HTMLInputElement>(null);
   const requirementLinkInput = useRef<HTMLInputElement>(null);
-  const tabPanelId = useId();
-  const heading = tabHeadings[activeTab];
+  const selectedProjectId = projectId ?? "";
+  const heading = tabHeadings[tab];
   const selectedProject = projects.find((project) => project.project_id === selectedProjectId);
   const panelEyebrow = selectedProject
     ? `${selectedProject.project_name} / ${heading.eyebrow}`
@@ -250,6 +263,12 @@ export function WorkspaceShell() {
     }
   }
 
+  function selectProject(projectId: string) {
+    const currentTab = navigationTabs.find((navigationTab) => navigationTab.id === tab);
+    const pathname = currentTab?.href ?? "/project";
+    router.push(projectId ? `${pathname}/${encodeURIComponent(projectId)}` : pathname);
+  }
+
   async function createProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const name = newProjectName.trim();
@@ -275,7 +294,7 @@ export function WorkspaceShell() {
       }
 
       setProjects((currentProjects) => [data.project as ProjectRecord, ...currentProjects]);
-      setSelectedProjectId(data.project.project_id);
+      selectProject(data.project.project_id);
       setIsCreateProjectDialogOpen(false);
       setNewProjectName("");
     } catch (error) {
@@ -587,10 +606,10 @@ export function WorkspaceShell() {
             <span className="sr-only">Current project</span>
             <select
               aria-label="Current project"
-              onChange={(event) => setSelectedProjectId(event.target.value)}
+              onChange={(event) => selectProject(event.target.value)}
               value={selectedProjectId}
             >
-              <option disabled value="">
+              <option value="">
                 {isLoadingProjects ? "Loading projects..." : "Select a project"}
               </option>
               {projects.map((project) => (
@@ -616,25 +635,25 @@ export function WorkspaceShell() {
       </header>
 
       <aside className="workspace-sidebar" aria-label="Workspace navigation">
-        <nav className="workspace-nav" role="tablist" aria-orientation="vertical">
-          {navigationTabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = tab.id === activeTab;
+        <nav className="workspace-nav">
+          {navigationTabs.map((navigationTab) => {
+            const Icon = navigationTab.icon;
+            const isActive = navigationTab.id === tab;
 
             return (
-              <button
-                aria-controls={tabPanelId}
-                aria-selected={isActive}
+              <Link
+                aria-current={isActive ? "page" : undefined}
                 className={`workspace-nav-tab${isActive ? " is-active" : ""}`}
-                id={`tab-${tab.id}`}
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                role="tab"
-                type="button"
+                href={
+                  selectedProjectId
+                    ? `${navigationTab.href}/${encodeURIComponent(selectedProjectId)}`
+                    : navigationTab.href
+                }
+                key={navigationTab.id}
               >
                 <Icon aria-hidden="true" />
-                <span>{tab.label}</span>
-              </button>
+                <span>{navigationTab.label}</span>
+              </Link>
             );
           })}
         </nav>
@@ -651,15 +670,10 @@ export function WorkspaceShell() {
       </aside>
 
       <main className="workspace-main">
-        <section
-          aria-labelledby={`tab-${activeTab}`}
-          className="workspace-panel"
-          id={tabPanelId}
-          role="tabpanel"
-        >
+        <section aria-labelledby="workspace-heading" className="workspace-panel">
           <div className="panel-heading">
             <p>{panelEyebrow}</p>
-            <h1>{heading.title}</h1>
+            <h1 id="workspace-heading">{heading.title}</h1>
             {panelDescription ? <span>{panelDescription}</span> : null}
           </div>
           <PanelContent
@@ -674,7 +688,7 @@ export function WorkspaceShell() {
             project={selectedProject}
             repositoryListError={repositoryListError}
             requirementListError={requirementListError}
-            tab={activeTab}
+            tab={tab}
           />
         </section>
       </main>

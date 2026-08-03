@@ -1,5 +1,5 @@
-import { WorkspaceShell } from "./workspace-shell";
+import { redirect } from "next/navigation";
 
 export default function Home() {
-  return <WorkspaceShell />;
+  redirect("/project");
 }

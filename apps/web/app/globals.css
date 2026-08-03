@@ -133,6 +133,7 @@ button:focus-visible {
   cursor: pointer;
   font-size: 13px;
   text-align: left;
+  text-decoration: none;
   white-space: nowrap;
 }
 
@@ -151,6 +152,11 @@ button:focus-visible {
   border-color: #304138;
   background: var(--sidebar-raised);
   color: var(--sidebar-ink);
+}
+
+.workspace-nav-tab:focus-visible {
+  outline: 3px solid rgba(63, 189, 150, 0.7);
+  outline-offset: 2px;
 }
 
 .workspace-nav-tab.is-active {
