@@ -4,13 +4,15 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./file-project-store": "./src/file-project-store.ts",
     "./file-session-store": "./src/file-session-store.ts",
+    "./project": "./src/project.ts",
     "./providers": "./src/providers.ts",
     "./session": "./src/session.ts",
     "./tmux": "./src/tmux.ts"
   },
   "scripts": {
-    "test": "tsx --test src/file-session-store.test.ts src/tmux.test.ts",
+    "test": "tsx --test src/file-project-store.test.ts src/file-session-store.test.ts src/tmux.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

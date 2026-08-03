@@ -15,6 +15,7 @@
   --sidebar-line: #2d3c33;
   --sidebar-ink: #edf5ef;
   --sidebar-muted: #a9b8ae;
+  --topbar-height: 68px;
 }
 
 * {
@@ -42,15 +43,19 @@ button:focus-visible {
   display: grid;
   min-height: 100vh;
   grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-rows: var(--topbar-height) minmax(0, 1fr);
 }
 
 .workspace-sidebar {
+  grid-column: 1;
+  grid-row: 2;
   position: sticky;
-  top: 0;
+  top: var(--topbar-height);
+  align-self: start;
   display: flex;
-  min-height: 100vh;
+  min-height: calc(100vh - var(--topbar-height));
   flex-direction: column;
-  padding: 22px 14px 16px;
+  padding: 16px 14px;
   border-right: 1px solid var(--sidebar-line);
   background: var(--sidebar);
   color: var(--sidebar-ink);
@@ -60,7 +65,7 @@ button:focus-visible {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 10px 26px;
+  min-width: max-content;
 }
 
 .workspace-brand strong,
@@ -75,7 +80,7 @@ button:focus-visible {
 
 .workspace-brand span {
   margin-top: 3px;
-  color: var(--sidebar-muted);
+  color: var(--muted);
   font-size: 11px;
 }
 
@@ -192,48 +197,126 @@ button:focus-visible {
 }
 
 .workspace-main {
+  grid-column: 2;
+  grid-row: 2;
   min-width: 0;
   padding: 0 38px 48px;
 }
 
 .workspace-topbar {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  position: sticky;
+  top: 0;
+  z-index: 10;
   display: flex;
   min-height: 66px;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
+  padding: 0 24px;
   border-bottom: 1px solid var(--line);
+  background: var(--surface);
 }
 
-.workspace-location,
+.project-controls,
 .local-status {
   display: flex;
   align-items: center;
 }
 
-.workspace-location {
+.project-controls {
+  min-width: 0;
   gap: 8px;
-  color: var(--muted);
-  font-size: 13px;
 }
 
-.workspace-location svg {
-  width: 16px;
-  height: 16px;
+.project-selector {
+  display: flex;
+  width: min(300px, 38vw);
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface-soft);
+  color: var(--ink);
+}
+
+.project-selector:focus-within {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(8, 124, 105, 0.14);
+}
+
+.project-selector svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
   color: var(--teal);
 }
 
-.workspace-location strong {
-  color: var(--ink);
-  font-weight: 750;
+.project-selector select {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
 }
 
-.location-divider {
-  color: var(--line-strong);
+.project-selector.is-placeholder select {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.create-project-button {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 1px solid var(--teal);
+  border-radius: 6px;
+  background: var(--teal);
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.create-project-button:hover:not(:disabled) {
+  background: #066a5a;
+}
+
+.create-project-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.create-project-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .local-status {
   gap: 7px;
+  margin-left: auto;
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
@@ -447,19 +530,166 @@ code {
   font-size: 12px;
 }
 
+.dialog-backdrop {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(24, 33, 29, 0.42);
+}
+
+.create-project-dialog {
+  width: min(420px, 100%);
+  padding: 24px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 18px 48px rgba(24, 33, 29, 0.24);
+}
+
+.create-project-dialog h2 {
+  margin: 0 0 20px;
+  color: var(--ink);
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.project-name-field {
+  display: grid;
+  gap: 7px;
+}
+
+.project-name-field > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.project-name-field input {
+  min-height: 40px;
+  width: 100%;
+  padding: 0 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}
+
+.project-name-field input::placeholder {
+  color: var(--muted);
+}
+
+.project-name-field input:focus {
+  outline: 3px solid rgba(8, 124, 105, 0.18);
+  outline-offset: 0;
+  border-color: var(--teal);
+}
+
+.create-project-error {
+  margin: 12px 0 0;
+  color: #ab3429;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.dialog-cancel-button {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dialog-cancel-button:hover:not(:disabled) {
+  background: var(--surface-soft);
+}
+
+.dialog-cancel-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
 @media (max-width: 760px) {
+  :root {
+    --topbar-height: auto;
+  }
+
   .workspace-shell {
     grid-template-columns: 1fr;
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  .workspace-topbar {
+    grid-column: 1;
+    grid-row: 1;
+    position: static;
+    min-height: 64px;
+    gap: 12px;
+    padding: 10px 16px;
+  }
+
+  .project-controls {
+    flex: 1;
+    gap: 10px;
+  }
+
+  .workspace-brand {
+    gap: 7px;
+  }
+
+  .workspace-brand strong {
+    font-size: 13px;
+  }
+
+  .workspace-brand span {
+    display: none;
+  }
+
+  .brand-mark {
+    width: 25px;
+    height: 25px;
+  }
+
+  .project-selector {
+    width: auto;
+    min-width: 0;
+    flex: 1;
+    min-height: 36px;
+    gap: 6px;
+    padding: 0 8px;
+  }
+
+  .project-selector select {
+    font-size: 12px;
+  }
+
+  .create-project-button {
+    min-height: 36px;
+    padding: 0 10px;
+    font-size: 12px;
   }
 
   .workspace-sidebar {
     position: static;
+    grid-column: 1;
+    grid-row: 2;
     min-height: 0;
-    padding: 14px 16px 12px;
-  }
-
-  .workspace-brand {
-    padding: 0 3px 14px;
+    padding: 10px 16px 12px;
   }
 
   .workspace-nav {
@@ -494,11 +724,9 @@ code {
   }
 
   .workspace-main {
+    grid-column: 1;
+    grid-row: 3;
     padding: 0 16px 32px;
-  }
-
-  .workspace-topbar {
-    min-height: 54px;
   }
 
   .workspace-panel {
@@ -513,5 +741,36 @@ code {
     grid-template-columns: 1fr;
     gap: 4px;
     padding: 15px;
+  }
+}
+
+@media (max-width: 540px) {
+  .workspace-topbar {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    row-gap: 8px;
+  }
+
+  .workspace-brand {
+    order: 1;
+  }
+
+  .project-controls {
+    order: 3;
+    width: 100%;
+    flex: 1 0 100%;
+  }
+
+  .local-status {
+    order: 2;
+    margin-left: auto;
+  }
+
+  .dialog-backdrop {
+    padding: 16px;
+  }
+
+  .create-project-dialog {
+    padding: 20px;
   }
 }

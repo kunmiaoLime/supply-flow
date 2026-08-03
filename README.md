@@ -54,9 +54,14 @@ session. The provider must already be installed and authenticated by the host.
 
 ```text
 .supply-flow/
+  projects/<project-id>/project.json
   sessions/<session-id>/meta.json
   sessions/<session-id>/events.ndjson
 ```
+
+Project IDs are derived from the display name as lowercase kebab-case. A
+duplicate name receives a numeric suffix, such as `customer-acme-sync-2`.
+Each `project.json` contains only `project_name` and `project_id`.
 
 No provider credentials are written to this directory. Provider authentication
 remains the responsibility of each CLI and its host environment.

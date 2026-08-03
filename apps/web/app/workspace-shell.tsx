@@ -1,18 +1,19 @@
 "use client";
 
+import type { ProjectRecord } from "@supply-flow/core/project";
 import {
   Braces,
   CheckCircle2,
   Code2,
-  FileText,
+  FolderKanban,
   GitPullRequest,
   ListTodo,
-  PanelLeft,
+  Plus,
   Settings2,
   TerminalSquare,
   type LucideIcon
 } from "lucide-react";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 
 type TabId = "project" | "task-plan" | "code-implementation" | "pr" | "settings";
 
@@ -23,7 +24,7 @@ interface NavigationTab {
 }
 
 const navigationTabs: readonly NavigationTab[] = [
-  { id: "project", label: "Project", icon: FileText },
+  { id: "project", label: "Project", icon: FolderKanban },
   { id: "task-plan", label: "Task plan", icon: ListTodo },
   { id: "code-implementation", label: "Code implementation", icon: Code2 },
   { id: "pr", label: "PR", icon: GitPullRequest },
@@ -60,12 +61,128 @@ const tabHeadings: Record<TabId, { eyebrow: string; title: string; description: 
 
 export function WorkspaceShell() {
   const [activeTab, setActiveTab] = useState<TabId>("project");
+  const [projects, setProjects] = useState<ProjectRecord[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+  const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [creationError, setCreationError] = useState("");
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const projectNameInput = useRef<HTMLInputElement>(null);
   const tabPanelId = useId();
   const heading = tabHeadings[activeTab];
+  const selectedProject = projects.find((project) => project.project_id === selectedProjectId);
+  const panelEyebrow = selectedProject
+    ? `${selectedProject.project_name} / ${heading.eyebrow}`
+    : heading.eyebrow;
+  const panelDescription = selectedProject
+    ? heading.description
+    : "Select a project from the top panel to view this content.";
+
+  useEffect(() => {
+    let ignoreResult = false;
+
+    async function loadProjects() {
+      try {
+        const response = await fetch("/api/projects", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("Unable to load projects.");
+        }
+
+        const data = (await response.json()) as { projects?: ProjectRecord[] };
+        if (!ignoreResult) {
+          setProjects(data.projects ?? []);
+        }
+      } catch {
+        if (!ignoreResult) {
+          setProjects([]);
+        }
+      } finally {
+        if (!ignoreResult) {
+          setIsLoadingProjects(false);
+        }
+      }
+    }
+
+    void loadProjects();
+    return () => {
+      ignoreResult = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isCreateProjectDialogOpen) {
+      projectNameInput.current?.focus();
+    }
+  }, [isCreateProjectDialogOpen]);
+
+  useEffect(() => {
+    if (!isCreateProjectDialogOpen) {
+      return;
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && !isCreatingProject) {
+        setIsCreateProjectDialogOpen(false);
+        setCreationError("");
+      }
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [isCreateProjectDialogOpen, isCreatingProject]);
+
+  function openCreateProjectDialog() {
+    setNewProjectName("");
+    setCreationError("");
+    setIsCreateProjectDialogOpen(true);
+  }
+
+  function closeCreateProjectDialog() {
+    if (!isCreatingProject) {
+      setIsCreateProjectDialogOpen(false);
+      setCreationError("");
+    }
+  }
+
+  async function createProject(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = newProjectName.trim();
+
+    if (!name) {
+      setCreationError("Enter a project name.");
+      return;
+    }
+
+    setIsCreatingProject(true);
+    setCreationError("");
+
+    try {
+      const response = await fetch("/api/projects", {
+        body: JSON.stringify({ name }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      });
+      const data = (await response.json()) as { error?: string; project?: ProjectRecord };
+
+      if (!response.ok || !data.project) {
+        throw new Error(data.error ?? "Unable to create the project.");
+      }
+
+      setProjects((currentProjects) => [data.project as ProjectRecord, ...currentProjects]);
+      setSelectedProjectId(data.project.project_id);
+      setIsCreateProjectDialogOpen(false);
+      setNewProjectName("");
+    } catch (error) {
+      setCreationError(error instanceof Error ? error.message : "Unable to create the project.");
+    } finally {
+      setIsCreatingProject(false);
+    }
+  }
 
   return (
     <div className="workspace-shell">
-      <aside className="workspace-sidebar" aria-label="Workspace navigation">
+      <header className="workspace-topbar">
         <div className="workspace-brand">
           <div className="brand-mark" aria-hidden="true">
             <span />
@@ -78,6 +195,43 @@ export function WorkspaceShell() {
           </div>
         </div>
 
+        <div className="project-controls">
+          <label
+            className={`project-selector${selectedProject ? "" : " is-placeholder"}`}
+          >
+            <FolderKanban aria-hidden="true" />
+            <span className="sr-only">Current project</span>
+            <select
+              aria-label="Current project"
+              onChange={(event) => setSelectedProjectId(event.target.value)}
+              value={selectedProjectId}
+            >
+              <option disabled value="">
+                {isLoadingProjects ? "Loading projects..." : "Select a project"}
+              </option>
+              {projects.map((project) => (
+                <option key={project.project_id} value={project.project_id}>
+                  {project.project_name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            className="create-project-button"
+            onClick={openCreateProjectDialog}
+            type="button"
+          >
+            <Plus aria-hidden="true" />
+            <span>Create project</span>
+          </button>
+        </div>
+        <span className="local-status">
+          <span />
+          Local
+        </span>
+      </header>
+
+      <aside className="workspace-sidebar" aria-label="Workspace navigation">
         <nav className="workspace-nav" role="tablist" aria-orientation="vertical">
           {navigationTabs.map((tab) => {
             const Icon = tab.icon;
@@ -113,19 +267,6 @@ export function WorkspaceShell() {
       </aside>
 
       <main className="workspace-main">
-        <header className="workspace-topbar">
-          <div className="workspace-location">
-            <PanelLeft aria-hidden="true" />
-            <span>Supply Flow</span>
-            <span className="location-divider">/</span>
-            <strong>{heading.title}</strong>
-          </div>
-          <span className="local-status">
-            <span />
-            Local
-          </span>
-        </header>
-
         <section
           aria-labelledby={`tab-${activeTab}`}
           className="workspace-panel"
@@ -133,18 +274,91 @@ export function WorkspaceShell() {
           role="tabpanel"
         >
           <div className="panel-heading">
-            <p>{heading.eyebrow}</p>
+            <p>{panelEyebrow}</p>
             <h1>{heading.title}</h1>
-            <span>{heading.description}</span>
+            <span>{panelDescription}</span>
           </div>
-          <PanelContent tab={activeTab} />
+          <PanelContent project={selectedProject} tab={activeTab} />
         </section>
       </main>
+
+      {isCreateProjectDialogOpen ? (
+        <div
+          className="dialog-backdrop"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) {
+              closeCreateProjectDialog();
+            }
+          }}
+        >
+          <section
+            aria-labelledby="create-project-title"
+            aria-modal="true"
+            className="create-project-dialog"
+            role="dialog"
+          >
+            <h2 id="create-project-title">Create project</h2>
+            <form onSubmit={createProject}>
+              <label className="project-name-field" htmlFor="project-name">
+                <span>Project name</span>
+                <input
+                  autoComplete="off"
+                  id="project-name"
+                  maxLength={120}
+                  onChange={(event) => setNewProjectName(event.target.value)}
+                  placeholder="Project name"
+                  ref={projectNameInput}
+                  required
+                  type="text"
+                  value={newProjectName}
+                />
+              </label>
+              {creationError ? (
+                <p className="create-project-error" role="alert">
+                  {creationError}
+                </p>
+              ) : null}
+              <div className="dialog-actions">
+                <button
+                  className="dialog-cancel-button"
+                  disabled={isCreatingProject}
+                  onClick={closeCreateProjectDialog}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button className="create-project-button" disabled={isCreatingProject} type="submit">
+                  <Plus aria-hidden="true" />
+                  <span>{isCreatingProject ? "Creating..." : "Create project"}</span>
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function PanelContent({ tab }: { tab: TabId }) {
+function PanelContent({
+  project,
+  tab
+}: {
+  project: ProjectRecord | undefined;
+  tab: TabId;
+}) {
+  if (!project) {
+    return (
+      <div className="empty-state project-selection-state">
+        <FolderKanban aria-hidden="true" />
+        <div>
+          <strong>Select a project</strong>
+          <span>Select a project from the top panel to view {tabHeadings[tab].title}.</span>
+        </div>
+      </div>
+    );
+  }
+
   switch (tab) {
     case "project":
       return (
