@@ -61,7 +61,13 @@ session. The provider must already be installed and authenticated by the host.
 
 Project IDs are derived from the display name as lowercase kebab-case. A
 duplicate name receives a numeric suffix, such as `customer-acme-sync-2`.
-Each `project.json` contains only `project_name` and `project_id`.
+Each `project.json` contains `project_name`, `project_id`, and a `repos`
+array. Every repository entry stores a `name`, local checkout `local` path,
+and a Git-origin `remote`, which is `null` when the checkout has no `origin`.
+Adding a repository validates its local path with Git, derives its remote and
+name from the enclosing repository, and retains the selected local path as the
+project scope. A local path may begin with `~/` as shorthand for the current
+user's home directory.
 
 No provider credentials are written to this directory. Provider authentication
 remains the responsibility of each CLI and its host environment.

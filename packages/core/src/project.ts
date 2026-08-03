@@ -2,17 +2,29 @@ import { z } from "zod";
 
 const PROJECT_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+export const ProjectRepositorySchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  remote: z.string().trim().min(1).max(2_048).nullable(),
+  local: z.string().trim().min(1).max(4_096)
+});
+
+export const ProjectRepositoriesSchema = z.array(ProjectRepositorySchema);
+
 export const ProjectRecordSchema = z.object({
   project_name: z.string().trim().min(1).max(120),
-  project_id: z.string().regex(PROJECT_ID_PATTERN)
+  project_id: z.string().regex(PROJECT_ID_PATTERN),
+  repos: ProjectRepositoriesSchema.default([])
 });
 
 export type ProjectRecord = z.infer<typeof ProjectRecordSchema>;
+export type ProjectRepository = z.infer<typeof ProjectRepositorySchema>;
+export type ProjectUpdate = Pick<ProjectRecord, "repos">;
 
 export interface ProjectStore {
   create(record: ProjectRecord): Promise<ProjectRecord>;
   get(id: string): Promise<ProjectRecord | null>;
   list(): Promise<ProjectRecord[]>;
+  update(id: string, update: ProjectUpdate): Promise<ProjectRecord>;
 }
 
 export function createProjectId(name: string, existingProjectIds: Iterable<string>): string {

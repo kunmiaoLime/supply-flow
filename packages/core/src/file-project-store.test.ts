@@ -13,13 +13,23 @@ test("stores project records beneath the local projects directory", async () => 
   try {
     await store.create({
       project_name: "First project",
-      project_id: "first-project"
+      project_id: "first-project",
+      repos: []
     });
     await store.create({
       project_name: "Second project",
-      project_id: "second-project"
+      project_id: "second-project",
+      repos: []
     });
 
+    const repository = {
+      name: "Web application",
+      remote: "git@github.com:lime/supply-flow.git",
+      local: "/Users/example/code/supply-flow"
+    };
+    const updated = await store.update("first-project", { repos: [repository] });
+
+    assert.deepEqual(updated.repos, [repository]);
     assert.equal((await store.get("first-project"))?.project_name, "First project");
     assert.deepEqual(
       JSON.parse(
@@ -30,7 +40,8 @@ test("stores project records beneath the local projects directory", async () => 
       ),
       {
         project_name: "First project",
-        project_id: "first-project"
+        project_id: "first-project",
+        repos: [repository]
       }
     );
     assert.deepEqual(
@@ -40,7 +51,8 @@ test("stores project records beneath the local projects directory", async () => 
     await assert.rejects(
       store.create({
         project_name: "Duplicate project",
-        project_id: "first-project"
+        project_id: "first-project",
+        repos: []
       }),
       /already exists/
     );

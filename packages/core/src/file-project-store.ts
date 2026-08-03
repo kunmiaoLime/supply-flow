@@ -4,8 +4,9 @@ import path from "node:path";
 import {
   ProjectRecordSchema,
   type ProjectRecord,
-  type ProjectStore
-} from "./project";
+  type ProjectStore,
+  type ProjectUpdate
+} from "@supply-flow/core/project";
 
 const PROJECT_METADATA_FILE = "project.json";
 
@@ -58,6 +59,21 @@ export class FileProjectStore implements ProjectStore {
 
       throw error;
     }
+  }
+
+  public async update(id: string, update: ProjectUpdate): Promise<ProjectRecord> {
+    const current = await this.get(id);
+    if (!current) {
+      throw new Error(`Unknown project "${id}".`);
+    }
+
+    const updated = ProjectRecordSchema.parse({
+      ...current,
+      ...update
+    });
+
+    await writeJsonAtomically(this.projectPath(id), updated);
+    return updated;
   }
 
   private projectsDirectory(): string {

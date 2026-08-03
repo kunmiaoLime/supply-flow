@@ -530,6 +530,204 @@ code {
   font-size: 12px;
 }
 
+.repository-section {
+  margin-top: 42px;
+}
+
+.repository-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.repository-section-header p {
+  margin: 0;
+  color: var(--teal);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.repository-section-header h2 {
+  margin: 6px 0 0;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.add-repository-button,
+.dialog-primary-button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1px solid var(--teal);
+  border-radius: 6px;
+  background: var(--teal);
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.add-repository-button:hover:not(:disabled),
+.dialog-primary-button:hover:not(:disabled) {
+  background: #066a5a;
+}
+
+.add-repository-button:disabled,
+.dialog-primary-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.add-repository-button svg,
+.dialog-primary-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.repository-empty-state,
+.repository-list {
+  margin: 18px 0 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.repository-empty-state {
+  display: flex;
+  min-height: 120px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.repository-empty-state svg {
+  width: 22px;
+  height: 22px;
+  color: var(--teal);
+}
+
+.repository-empty-state strong,
+.repository-empty-state span {
+  display: block;
+}
+
+.repository-empty-state strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.repository-empty-state span {
+  margin-top: 3px;
+  font-size: 12px;
+}
+
+.repository-list {
+  padding: 0;
+  list-style: none;
+}
+
+.repository-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  padding: 17px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.repository-list li:last-child {
+  border-bottom: 0;
+}
+
+.repository-details strong {
+  display: block;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.repository-details dl {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+}
+
+.repository-details dl div {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.repository-details dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.repository-details dd {
+  min-width: 0;
+  margin: 0;
+}
+
+.repository-details code {
+  display: inline;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+
+.repository-missing-value {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.repository-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.repository-icon-button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.repository-icon-button:hover:not(:disabled) {
+  border-color: var(--teal);
+  color: var(--teal);
+}
+
+.repository-icon-button.is-danger:hover:not(:disabled) {
+  border-color: #ab3429;
+  color: #ab3429;
+}
+
+.repository-icon-button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.repository-icon-button svg {
+  width: 15px;
+  height: 15px;
+}
+
 .dialog-backdrop {
   position: fixed;
   z-index: 20;
@@ -556,18 +754,27 @@ code {
   line-height: 1.2;
 }
 
-.project-name-field {
+.project-name-field,
+.repository-form-fields {
+  display: grid;
+  gap: 14px;
+}
+
+.project-name-field,
+.repository-form-fields label {
   display: grid;
   gap: 7px;
 }
 
-.project-name-field > span {
+.project-name-field > span,
+.repository-form-fields label > span {
   color: var(--muted);
   font-size: 12px;
   font-weight: 750;
 }
 
-.project-name-field input {
+.project-name-field input,
+.repository-form-fields input {
   min-height: 40px;
   width: 100%;
   padding: 0 11px;
@@ -579,11 +786,13 @@ code {
   font-size: 14px;
 }
 
-.project-name-field input::placeholder {
+.project-name-field input::placeholder,
+.repository-form-fields input::placeholder {
   color: var(--muted);
 }
 
-.project-name-field input:focus {
+.project-name-field input:focus,
+.repository-form-fields input:focus {
   outline: 3px solid rgba(8, 124, 105, 0.18);
   outline-offset: 0;
   border-color: var(--teal);
@@ -742,6 +951,14 @@ code {
     gap: 4px;
     padding: 15px;
   }
+
+  .repository-list li {
+    grid-template-columns: 1fr;
+  }
+
+  .repository-actions {
+    justify-self: start;
+  }
 }
 
 @media (max-width: 540px) {
@@ -772,5 +989,10 @@ code {
 
   .create-project-dialog {
     padding: 20px;
+  }
+
+  .repository-section-header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

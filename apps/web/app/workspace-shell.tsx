@@ -1,27 +1,43 @@
 "use client";
 
-import type { ProjectRecord } from "@supply-flow/core/project";
+import type { ProjectRecord, ProjectRepository } from "@supply-flow/core/project";
 import {
   Braces,
   CheckCircle2,
   Code2,
   FolderKanban,
+  GitBranch,
   GitPullRequest,
   ListTodo,
+  Pencil,
   Plus,
   Settings2,
   TerminalSquare,
+  Trash2,
   type LucideIcon
 } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 
 type TabId = "project" | "task-plan" | "code-implementation" | "pr" | "settings";
+type RepositoryDialogMode = "add" | "edit" | null;
 
 interface NavigationTab {
   id: TabId;
   label: string;
   icon: LucideIcon;
 }
+
+interface RepositoryForm {
+  name: string;
+  remote: string;
+  local: string;
+}
+
+const emptyRepositoryForm: RepositoryForm = {
+  name: "",
+  remote: "",
+  local: ""
+};
 
 const navigationTabs: readonly NavigationTab[] = [
   { id: "project", label: "Project", icon: FolderKanban },
@@ -35,7 +51,7 @@ const tabHeadings: Record<TabId, { eyebrow: string; title: string; description: 
   project: {
     eyebrow: "Workspace",
     title: "Project",
-    description: "Project environment and runtime assumptions."
+    description: ""
   },
   "task-plan": {
     eyebrow: "Delivery",
@@ -68,7 +84,15 @@ export function WorkspaceShell() {
   const [newProjectName, setNewProjectName] = useState("");
   const [creationError, setCreationError] = useState("");
   const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [repositoryDialogMode, setRepositoryDialogMode] =
+    useState<RepositoryDialogMode>(null);
+  const [editingRepositoryIndex, setEditingRepositoryIndex] = useState<number | null>(null);
+  const [repositoryForm, setRepositoryForm] = useState<RepositoryForm>(emptyRepositoryForm);
+  const [repositoryError, setRepositoryError] = useState("");
+  const [repositoryListError, setRepositoryListError] = useState("");
+  const [isSavingRepository, setIsSavingRepository] = useState(false);
   const projectNameInput = useRef<HTMLInputElement>(null);
+  const repositoryLocalPathInput = useRef<HTMLInputElement>(null);
   const tabPanelId = useId();
   const heading = tabHeadings[activeTab];
   const selectedProject = projects.find((project) => project.project_id === selectedProjectId);
@@ -117,6 +141,12 @@ export function WorkspaceShell() {
   }, [isCreateProjectDialogOpen]);
 
   useEffect(() => {
+    if (repositoryDialogMode) {
+      repositoryLocalPathInput.current?.focus();
+    }
+  }, [repositoryDialogMode]);
+
+  useEffect(() => {
     if (!isCreateProjectDialogOpen) {
       return;
     }
@@ -131,6 +161,22 @@ export function WorkspaceShell() {
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [isCreateProjectDialogOpen, isCreatingProject]);
+
+  useEffect(() => {
+    if (!repositoryDialogMode) {
+      return;
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && !isSavingRepository) {
+        setRepositoryDialogMode(null);
+        setRepositoryError("");
+      }
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [isSavingRepository, repositoryDialogMode]);
 
   function openCreateProjectDialog() {
     setNewProjectName("");
@@ -177,6 +223,163 @@ export function WorkspaceShell() {
       setCreationError(error instanceof Error ? error.message : "Unable to create the project.");
     } finally {
       setIsCreatingProject(false);
+    }
+  }
+
+  function openAddRepositoryDialog() {
+    setRepositoryForm(emptyRepositoryForm);
+    setEditingRepositoryIndex(null);
+    setRepositoryError("");
+    setRepositoryDialogMode("add");
+  }
+
+  function openEditRepositoryDialog(index: number) {
+    const repository = selectedProject?.repos[index];
+    if (!repository) {
+      return;
+    }
+
+    setRepositoryForm({
+      ...repository,
+      remote: repository.remote ?? ""
+    });
+    setEditingRepositoryIndex(index);
+    setRepositoryError("");
+    setRepositoryDialogMode("edit");
+  }
+
+  function closeRepositoryDialog() {
+    if (!isSavingRepository) {
+      setRepositoryDialogMode(null);
+      setRepositoryError("");
+    }
+  }
+
+  async function persistRepositories(repos: ProjectRepository[]): Promise<ProjectRecord> {
+    if (!selectedProject) {
+      throw new Error("Select a project before managing repositories.");
+    }
+
+    const response = await fetch(
+      `/api/projects/${encodeURIComponent(selectedProject.project_id)}`,
+      {
+        body: JSON.stringify({ repos }),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH"
+      }
+    );
+    const data = (await response.json()) as { error?: string; project?: ProjectRecord };
+
+    if (!response.ok || !data.project) {
+      throw new Error(data.error ?? "Unable to update repositories.");
+    }
+
+    const updatedProject = data.project;
+    setProjects((currentProjects) =>
+      currentProjects.map((project) =>
+        project.project_id === updatedProject.project_id ? updatedProject : project
+      )
+    );
+    return updatedProject;
+  }
+
+  async function addRepositoryFromLocalPath(local: string): Promise<ProjectRecord> {
+    if (!selectedProject) {
+      throw new Error("Select a project before managing repositories.");
+    }
+
+    const response = await fetch(
+      `/api/projects/${encodeURIComponent(selectedProject.project_id)}`,
+      {
+        body: JSON.stringify({ local }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      }
+    );
+    const data = (await response.json()) as { error?: string; project?: ProjectRecord };
+
+    if (!response.ok || !data.project) {
+      throw new Error(data.error ?? "Unable to add the repository.");
+    }
+
+    const updatedProject = data.project;
+    setProjects((currentProjects) =>
+      currentProjects.map((project) =>
+        project.project_id === updatedProject.project_id ? updatedProject : project
+      )
+    );
+    return updatedProject;
+  }
+
+  async function saveRepository(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !repositoryDialogMode) {
+      return;
+    }
+
+    const local = repositoryForm.local.trim();
+    if (!local) {
+      setRepositoryError("Enter a local path.");
+      return;
+    }
+
+    if (repositoryDialogMode === "edit" && editingRepositoryIndex === null) {
+      return;
+    }
+
+    setIsSavingRepository(true);
+    setRepositoryError("");
+    setRepositoryListError("");
+
+    try {
+      if (repositoryDialogMode === "add") {
+        await addRepositoryFromLocalPath(local);
+      } else {
+        const repository: ProjectRepository = {
+          name: repositoryForm.name.trim(),
+          remote: repositoryForm.remote.trim() || null,
+          local
+        };
+
+        if (!repository.name) {
+          setRepositoryError("Enter a repository name.");
+          return;
+        }
+
+        await persistRepositories(
+          selectedProject.repos.map((currentRepository, index) =>
+            index === editingRepositoryIndex ? repository : currentRepository
+          )
+        );
+      }
+      setRepositoryDialogMode(null);
+      setEditingRepositoryIndex(null);
+      setRepositoryForm(emptyRepositoryForm);
+    } catch (error) {
+      setRepositoryError(error instanceof Error ? error.message : "Unable to update repositories.");
+    } finally {
+      setIsSavingRepository(false);
+    }
+  }
+
+  async function removeRepository(index: number) {
+    if (!selectedProject || isSavingRepository || !selectedProject.repos[index]) {
+      return;
+    }
+
+    setIsSavingRepository(true);
+    setRepositoryListError("");
+
+    try {
+      await persistRepositories(
+        selectedProject.repos.filter((_, repositoryIndex) => repositoryIndex !== index)
+      );
+    } catch (error) {
+      setRepositoryListError(
+        error instanceof Error ? error.message : "Unable to remove the repository."
+      );
+    } finally {
+      setIsSavingRepository(false);
     }
   }
 
@@ -276,9 +479,17 @@ export function WorkspaceShell() {
           <div className="panel-heading">
             <p>{panelEyebrow}</p>
             <h1>{heading.title}</h1>
-            <span>{panelDescription}</span>
+            {panelDescription ? <span>{panelDescription}</span> : null}
           </div>
-          <PanelContent project={selectedProject} tab={activeTab} />
+          <PanelContent
+            isSavingRepositories={isSavingRepository}
+            onAddRepository={openAddRepositoryDialog}
+            onEditRepository={openEditRepositoryDialog}
+            onRemoveRepository={removeRepository}
+            project={selectedProject}
+            repositoryListError={repositoryListError}
+            tab={activeTab}
+          />
         </section>
       </main>
 
@@ -336,15 +547,132 @@ export function WorkspaceShell() {
           </section>
         </div>
       ) : null}
+
+      {repositoryDialogMode ? (
+        <div
+          className="dialog-backdrop"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) {
+              closeRepositoryDialog();
+            }
+          }}
+        >
+          <section
+            aria-labelledby="repository-dialog-title"
+            aria-modal="true"
+            className="create-project-dialog repository-dialog"
+            role="dialog"
+          >
+            <h2 id="repository-dialog-title">
+              {repositoryDialogMode === "add" ? "Add repository" : "Edit repository"}
+            </h2>
+            <form onSubmit={saveRepository}>
+              <div className="repository-form-fields">
+                {repositoryDialogMode === "edit" ? (
+                  <>
+                    <label htmlFor="repository-name">
+                      <span>Name</span>
+                      <input
+                        autoComplete="off"
+                        id="repository-name"
+                        maxLength={120}
+                        onChange={(event) =>
+                          setRepositoryForm((current) => ({ ...current, name: event.target.value }))
+                        }
+                        placeholder="Repository name"
+                        required
+                        type="text"
+                        value={repositoryForm.name}
+                      />
+                    </label>
+                    <label htmlFor="repository-remote">
+                      <span>Remote origin (optional)</span>
+                      <input
+                        autoCapitalize="none"
+                        autoComplete="off"
+                        id="repository-remote"
+                        maxLength={2048}
+                        onChange={(event) =>
+                          setRepositoryForm((current) => ({ ...current, remote: event.target.value }))
+                        }
+                        placeholder="git@github.com:owner/repository.git"
+                        spellCheck={false}
+                        type="text"
+                        value={repositoryForm.remote}
+                      />
+                    </label>
+                  </>
+                ) : null}
+                <label htmlFor="repository-local">
+                  <span>Local path</span>
+                  <input
+                    autoComplete="off"
+                    id="repository-local"
+                    maxLength={4096}
+                    onChange={(event) =>
+                      setRepositoryForm((current) => ({ ...current, local: event.target.value }))
+                    }
+                    placeholder="~/code/path/to/repository"
+                    ref={repositoryLocalPathInput}
+                    required
+                    spellCheck={false}
+                    type="text"
+                    value={repositoryForm.local}
+                  />
+                </label>
+              </div>
+              {repositoryError ? (
+                <p className="create-project-error" role="alert">
+                  {repositoryError}
+                </p>
+              ) : null}
+              <div className="dialog-actions">
+                <button
+                  className="dialog-cancel-button"
+                  disabled={isSavingRepository}
+                  onClick={closeRepositoryDialog}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button
+                  className="dialog-primary-button"
+                  disabled={isSavingRepository}
+                  type="submit"
+                >
+                  <Plus aria-hidden="true" />
+                  <span>
+                    {isSavingRepository
+                      ? "Saving..."
+                      : repositoryDialogMode === "add"
+                        ? "Add repository"
+                        : "Save repository"}
+                  </span>
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }
 
 function PanelContent({
+  isSavingRepositories,
+  onAddRepository,
+  onEditRepository,
+  onRemoveRepository,
   project,
+  repositoryListError,
   tab
 }: {
+  isSavingRepositories: boolean;
+  onAddRepository: () => void;
+  onEditRepository: (index: number) => void;
+  onRemoveRepository: (index: number) => void;
   project: ProjectRecord | undefined;
+  repositoryListError: string;
   tab: TabId;
 }) {
   if (!project) {
@@ -362,24 +690,14 @@ function PanelContent({
   switch (tab) {
     case "project":
       return (
-        <dl className="detail-list">
-          <div>
-            <dt>Session runtime</dt>
-            <dd>tmux-backed terminal sessions</dd>
-          </div>
-          <div>
-            <dt>Provider boundary</dt>
-            <dd>Codex, Claude Code, and Gemini CLI adapters</dd>
-          </div>
-          <div>
-            <dt>Workspace isolation</dt>
-            <dd>One Git worktree per AI session</dd>
-          </div>
-          <div>
-            <dt>Local persistence</dt>
-            <dd>JSON metadata and NDJSON event history</dd>
-          </div>
-        </dl>
+        <RepositorySection
+          isSaving={isSavingRepositories}
+          onAdd={onAddRepository}
+          onEdit={onEditRepository}
+          onRemove={onRemoveRepository}
+          repositories={project.repos}
+          repositoryListError={repositoryListError}
+        />
       );
     case "task-plan":
       return (
@@ -474,4 +792,106 @@ function PanelContent({
         </dl>
       );
   }
+}
+
+function RepositorySection({
+  isSaving,
+  onAdd,
+  onEdit,
+  onRemove,
+  repositories,
+  repositoryListError
+}: {
+  isSaving: boolean;
+  onAdd: () => void;
+  onEdit: (index: number) => void;
+  onRemove: (index: number) => void;
+  repositories: ProjectRepository[];
+  repositoryListError: string;
+}) {
+  return (
+    <section aria-labelledby="repositories-heading" className="repository-section">
+      <div className="repository-section-header">
+        <div>
+          <p>Project sources</p>
+          <h2 id="repositories-heading">Repositories</h2>
+        </div>
+        <button
+          className="add-repository-button"
+          disabled={isSaving}
+          onClick={onAdd}
+          type="button"
+        >
+          <Plus aria-hidden="true" />
+          <span>Add repository</span>
+        </button>
+      </div>
+
+      {repositoryListError ? (
+        <p className="create-project-error" role="alert">
+          {repositoryListError}
+        </p>
+      ) : null}
+
+      {repositories.length === 0 ? (
+        <div className="repository-empty-state">
+          <GitBranch aria-hidden="true" />
+          <div>
+            <strong>No repositories</strong>
+            <span>Add the first associated repository.</span>
+          </div>
+        </div>
+      ) : (
+        <ul className="repository-list">
+          {repositories.map((repository, index) => (
+            <li key={`${repository.name}-${repository.remote}-${repository.local}-${index}`}>
+              <div className="repository-details">
+                <strong>{repository.name}</strong>
+                <dl>
+                  <div>
+                    <dt>Remote</dt>
+                    <dd>
+                      {repository.remote ? (
+                        <code>{repository.remote}</code>
+                      ) : (
+                        <span className="repository-missing-value">No origin configured</span>
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Local</dt>
+                    <dd>
+                      <code>{repository.local}</code>
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+              <div className="repository-actions">
+                <button
+                  aria-label={`Edit ${repository.name}`}
+                  className="repository-icon-button"
+                  disabled={isSaving}
+                  onClick={() => onEdit(index)}
+                  title={`Edit ${repository.name}`}
+                  type="button"
+                >
+                  <Pencil aria-hidden="true" />
+                </button>
+                <button
+                  aria-label={`Remove ${repository.name}`}
+                  className="repository-icon-button is-danger"
+                  disabled={isSaving}
+                  onClick={() => onRemove(index)}
+                  title={`Remove ${repository.name}`}
+                  type="button"
+                >
+                  <Trash2 aria-hidden="true" />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
 }

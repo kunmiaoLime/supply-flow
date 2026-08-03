@@ -30,7 +30,8 @@ export async function POST(request: Request) {
     project_id: createProjectId(
       name,
       (await store.list()).map((project) => project.project_id)
-    )
+    ),
+    repos: []
   });
 
   return NextResponse.json({ project }, { status: 201 });
