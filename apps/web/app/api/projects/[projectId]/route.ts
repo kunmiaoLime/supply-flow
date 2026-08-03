@@ -1,8 +1,8 @@
 import path from "node:path";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
 import {
-  ProjectRepositoriesSchema,
-  type ProjectRepository
+  ProjectUpdateSchema,
+  type ProjectUpdate
 } from "@supply-flow/core/project";
 import {
   inspectGitRepository,
@@ -63,10 +63,10 @@ export async function POST(request: Request, context: ProjectRouteContext) {
 }
 
 export async function PATCH(request: Request, context: ProjectRouteContext) {
-  const repos = await parseRepositories(request);
-  if (!repos) {
+  const update = await parseProjectUpdate(request);
+  if (!update) {
     return NextResponse.json(
-      { error: "Each repository requires a name and local path." },
+      { error: "Project updates require valid repositories or requirement sources." },
       { status: 400 }
     );
   }
@@ -74,7 +74,7 @@ export async function PATCH(request: Request, context: ProjectRouteContext) {
   const { projectId } = await context.params;
 
   try {
-    const project = await new FileProjectStore(dataDirectory).update(projectId, { repos });
+    const project = await new FileProjectStore(dataDirectory).update(projectId, update);
     return NextResponse.json({ project });
   } catch (error) {
     return NextResponse.json(
@@ -103,15 +103,11 @@ async function parseLocalPath(request: Request): Promise<string | null> {
   }
 }
 
-async function parseRepositories(request: Request): Promise<ProjectRepository[] | null> {
+async function parseProjectUpdate(request: Request): Promise<ProjectUpdate | null> {
   try {
     const body: unknown = await request.json();
-    if (typeof body !== "object" || body === null || !("repos" in body)) {
-      return null;
-    }
-
-    const parsedRepositories = ProjectRepositoriesSchema.safeParse(body.repos);
-    return parsedRepositories.success ? parsedRepositories.data : null;
+    const parsedUpdate = ProjectUpdateSchema.safeParse(body);
+    return parsedUpdate.success ? parsedUpdate.data : null;
   } catch {
     return null;
   }

@@ -1,14 +1,22 @@
 "use client";
 
-import type { ProjectRecord, ProjectRepository } from "@supply-flow/core/project";
+import type {
+  ProjectRecord,
+  ProjectRepository,
+  RequirementSource,
+  RequirementSourceType
+} from "@supply-flow/core/project";
 import {
   Braces,
   CheckCircle2,
   Code2,
+  ExternalLink,
+  FileText,
   FolderKanban,
   GitBranch,
   GitPullRequest,
   ListTodo,
+  MessageSquare,
   Pencil,
   Plus,
   Settings2,
@@ -20,6 +28,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 
 type TabId = "project" | "task-plan" | "code-implementation" | "pr" | "settings";
 type RepositoryDialogMode = "add" | "edit" | null;
+type RequirementDialogMode = "add" | "edit" | null;
 
 interface NavigationTab {
   id: TabId;
@@ -33,11 +42,31 @@ interface RepositoryForm {
   local: string;
 }
 
+interface RequirementForm {
+  type: RequirementSourceType;
+  link: string;
+}
+
 const emptyRepositoryForm: RepositoryForm = {
   name: "",
   remote: "",
   local: ""
 };
+
+const emptyRequirementForm: RequirementForm = {
+  type: "google-doc",
+  link: ""
+};
+
+const requirementSourceOptions: readonly {
+  type: RequirementSourceType;
+  label: string;
+}[] = [
+  { type: "google-doc", label: "Google Doc" },
+  { type: "confluence", label: "Confluence" },
+  { type: "figma", label: "Figma" },
+  { type: "slack", label: "Slack" }
+];
 
 const navigationTabs: readonly NavigationTab[] = [
   { id: "project", label: "Project", icon: FolderKanban },
@@ -91,8 +120,16 @@ export function WorkspaceShell() {
   const [repositoryError, setRepositoryError] = useState("");
   const [repositoryListError, setRepositoryListError] = useState("");
   const [isSavingRepository, setIsSavingRepository] = useState(false);
+  const [requirementDialogMode, setRequirementDialogMode] =
+    useState<RequirementDialogMode>(null);
+  const [editingRequirementIndex, setEditingRequirementIndex] = useState<number | null>(null);
+  const [requirementForm, setRequirementForm] = useState<RequirementForm>(emptyRequirementForm);
+  const [requirementError, setRequirementError] = useState("");
+  const [requirementListError, setRequirementListError] = useState("");
+  const [isSavingRequirement, setIsSavingRequirement] = useState(false);
   const projectNameInput = useRef<HTMLInputElement>(null);
   const repositoryLocalPathInput = useRef<HTMLInputElement>(null);
+  const requirementLinkInput = useRef<HTMLInputElement>(null);
   const tabPanelId = useId();
   const heading = tabHeadings[activeTab];
   const selectedProject = projects.find((project) => project.project_id === selectedProjectId);
@@ -147,6 +184,12 @@ export function WorkspaceShell() {
   }, [repositoryDialogMode]);
 
   useEffect(() => {
+    if (requirementDialogMode) {
+      requirementLinkInput.current?.focus();
+    }
+  }, [requirementDialogMode]);
+
+  useEffect(() => {
     if (!isCreateProjectDialogOpen) {
       return;
     }
@@ -177,6 +220,22 @@ export function WorkspaceShell() {
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [isSavingRepository, repositoryDialogMode]);
+
+  useEffect(() => {
+    if (!requirementDialogMode) {
+      return;
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && !isSavingRequirement) {
+        setRequirementDialogMode(null);
+        setRequirementError("");
+      }
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [isSavingRequirement, requirementDialogMode]);
 
   function openCreateProjectDialog() {
     setNewProjectName("");
@@ -383,6 +442,128 @@ export function WorkspaceShell() {
     }
   }
 
+  function openAddRequirementDialog() {
+    setRequirementForm(emptyRequirementForm);
+    setEditingRequirementIndex(null);
+    setRequirementError("");
+    setRequirementDialogMode("add");
+  }
+
+  function openEditRequirementDialog(index: number) {
+    const requirement = selectedProject?.requirements[index];
+    if (!requirement) {
+      return;
+    }
+
+    setRequirementForm(requirement);
+    setEditingRequirementIndex(index);
+    setRequirementError("");
+    setRequirementDialogMode("edit");
+  }
+
+  function closeRequirementDialog() {
+    if (!isSavingRequirement) {
+      setRequirementDialogMode(null);
+      setRequirementError("");
+    }
+  }
+
+  async function persistRequirements(
+    requirements: RequirementSource[]
+  ): Promise<ProjectRecord> {
+    if (!selectedProject) {
+      throw new Error("Select a project before managing requirements.");
+    }
+
+    const response = await fetch(
+      `/api/projects/${encodeURIComponent(selectedProject.project_id)}`,
+      {
+        body: JSON.stringify({ requirements }),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH"
+      }
+    );
+    const data = (await response.json()) as { error?: string; project?: ProjectRecord };
+
+    if (!response.ok || !data.project) {
+      throw new Error(data.error ?? "Unable to update requirements.");
+    }
+
+    const updatedProject = data.project;
+    setProjects((currentProjects) =>
+      currentProjects.map((project) =>
+        project.project_id === updatedProject.project_id ? updatedProject : project
+      )
+    );
+    return updatedProject;
+  }
+
+  async function saveRequirement(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !requirementDialogMode) {
+      return;
+    }
+
+    const requirement: RequirementSource = {
+      type: requirementForm.type,
+      link: requirementForm.link.trim()
+    };
+    if (!requirement.link) {
+      setRequirementError("Enter a source link.");
+      return;
+    }
+
+    if (requirementDialogMode === "edit" && editingRequirementIndex === null) {
+      return;
+    }
+
+    setIsSavingRequirement(true);
+    setRequirementError("");
+    setRequirementListError("");
+
+    try {
+      await persistRequirements(
+        requirementDialogMode === "add"
+          ? [...selectedProject.requirements, requirement]
+          : selectedProject.requirements.map((currentRequirement, index) =>
+              index === editingRequirementIndex ? requirement : currentRequirement
+            )
+      );
+      setRequirementDialogMode(null);
+      setEditingRequirementIndex(null);
+      setRequirementForm(emptyRequirementForm);
+    } catch (error) {
+      setRequirementError(
+        error instanceof Error ? error.message : "Unable to update requirements."
+      );
+    } finally {
+      setIsSavingRequirement(false);
+    }
+  }
+
+  async function removeRequirement(index: number) {
+    if (!selectedProject || isSavingRequirement || !selectedProject.requirements[index]) {
+      return;
+    }
+
+    setIsSavingRequirement(true);
+    setRequirementListError("");
+
+    try {
+      await persistRequirements(
+        selectedProject.requirements.filter(
+          (_, requirementIndex) => requirementIndex !== index
+        )
+      );
+    } catch (error) {
+      setRequirementListError(
+        error instanceof Error ? error.message : "Unable to remove the requirement."
+      );
+    } finally {
+      setIsSavingRequirement(false);
+    }
+  }
+
   return (
     <div className="workspace-shell">
       <header className="workspace-topbar">
@@ -483,11 +664,16 @@ export function WorkspaceShell() {
           </div>
           <PanelContent
             isSavingRepositories={isSavingRepository}
+            isSavingRequirements={isSavingRequirement}
             onAddRepository={openAddRepositoryDialog}
+            onAddRequirement={openAddRequirementDialog}
             onEditRepository={openEditRepositoryDialog}
+            onEditRequirement={openEditRequirementDialog}
             onRemoveRepository={removeRepository}
+            onRemoveRequirement={removeRequirement}
             project={selectedProject}
             repositoryListError={repositoryListError}
+            requirementListError={requirementListError}
             tab={activeTab}
           />
         </section>
@@ -654,25 +840,127 @@ export function WorkspaceShell() {
           </section>
         </div>
       ) : null}
+
+      {requirementDialogMode ? (
+        <div
+          className="dialog-backdrop"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) {
+              closeRequirementDialog();
+            }
+          }}
+        >
+          <section
+            aria-labelledby="requirement-dialog-title"
+            aria-modal="true"
+            className="create-project-dialog requirement-dialog"
+            role="dialog"
+          >
+            <h2 id="requirement-dialog-title">
+              {requirementDialogMode === "add" ? "Add requirement" : "Edit requirement"}
+            </h2>
+            <form onSubmit={saveRequirement}>
+              <div className="requirement-form-fields">
+                <label htmlFor="requirement-type">
+                  <span>Source type</span>
+                  <select
+                    id="requirement-type"
+                    onChange={(event) =>
+                      setRequirementForm((current) => ({
+                        ...current,
+                        type: event.target.value as RequirementSourceType
+                      }))
+                    }
+                    value={requirementForm.type}
+                  >
+                    {requirementSourceOptions.map((source) => (
+                      <option key={source.type} value={source.type}>
+                        {source.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label htmlFor="requirement-link">
+                  <span>Link</span>
+                  <input
+                    autoCapitalize="none"
+                    autoComplete="off"
+                    id="requirement-link"
+                    maxLength={2048}
+                    onChange={(event) =>
+                      setRequirementForm((current) => ({ ...current, link: event.target.value }))
+                    }
+                    placeholder="https://..."
+                    ref={requirementLinkInput}
+                    required
+                    spellCheck={false}
+                    type="url"
+                    value={requirementForm.link}
+                  />
+                </label>
+              </div>
+              {requirementError ? (
+                <p className="create-project-error" role="alert">
+                  {requirementError}
+                </p>
+              ) : null}
+              <div className="dialog-actions">
+                <button
+                  className="dialog-cancel-button"
+                  disabled={isSavingRequirement}
+                  onClick={closeRequirementDialog}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button
+                  className="dialog-primary-button"
+                  disabled={isSavingRequirement}
+                  type="submit"
+                >
+                  <Plus aria-hidden="true" />
+                  <span>
+                    {isSavingRequirement
+                      ? "Saving..."
+                      : requirementDialogMode === "add"
+                        ? "Add requirement"
+                        : "Save requirement"}
+                  </span>
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }
 
 function PanelContent({
   isSavingRepositories,
+  isSavingRequirements,
   onAddRepository,
+  onAddRequirement,
   onEditRepository,
+  onEditRequirement,
   onRemoveRepository,
+  onRemoveRequirement,
   project,
   repositoryListError,
+  requirementListError,
   tab
 }: {
   isSavingRepositories: boolean;
+  isSavingRequirements: boolean;
   onAddRepository: () => void;
+  onAddRequirement: () => void;
   onEditRepository: (index: number) => void;
+  onEditRequirement: (index: number) => void;
   onRemoveRepository: (index: number) => void;
+  onRemoveRequirement: (index: number) => void;
   project: ProjectRecord | undefined;
   repositoryListError: string;
+  requirementListError: string;
   tab: TabId;
 }) {
   if (!project) {
@@ -690,14 +978,24 @@ function PanelContent({
   switch (tab) {
     case "project":
       return (
-        <RepositorySection
-          isSaving={isSavingRepositories}
-          onAdd={onAddRepository}
-          onEdit={onEditRepository}
-          onRemove={onRemoveRepository}
-          repositories={project.repos}
-          repositoryListError={repositoryListError}
-        />
+        <>
+          <RequirementSection
+            isSaving={isSavingRequirements}
+            onAdd={onAddRequirement}
+            onEdit={onEditRequirement}
+            onRemove={onRemoveRequirement}
+            requirementListError={requirementListError}
+            requirements={project.requirements}
+          />
+          <RepositorySection
+            isSaving={isSavingRepositories}
+            onAdd={onAddRepository}
+            onEdit={onEditRepository}
+            onRemove={onRemoveRepository}
+            repositories={project.repos}
+            repositoryListError={repositoryListError}
+          />
+        </>
       );
     case "task-plan":
       return (
@@ -792,6 +1090,102 @@ function PanelContent({
         </dl>
       );
   }
+}
+
+function RequirementSection({
+  isSaving,
+  onAdd,
+  onEdit,
+  onRemove,
+  requirementListError,
+  requirements
+}: {
+  isSaving: boolean;
+  onAdd: () => void;
+  onEdit: (index: number) => void;
+  onRemove: (index: number) => void;
+  requirementListError: string;
+  requirements: RequirementSource[];
+}) {
+  return (
+    <section aria-labelledby="requirements-heading" className="requirements-section">
+      <div className="requirements-section-header">
+        <div>
+          <p>Product inputs</p>
+          <h2 id="requirements-heading">Requirements</h2>
+        </div>
+        <button
+          className="add-requirement-button"
+          disabled={isSaving}
+          onClick={onAdd}
+          type="button"
+        >
+          <Plus aria-hidden="true" />
+          <span>Add requirement</span>
+        </button>
+      </div>
+
+      {requirementListError ? (
+        <p className="create-project-error" role="alert">
+          {requirementListError}
+        </p>
+      ) : null}
+
+      {requirements.length === 0 ? (
+        <div className="requirement-empty-state">
+          <FileText aria-hidden="true" />
+          <div>
+            <strong>No requirements</strong>
+            <span>Add a requirement source.</span>
+          </div>
+        </div>
+      ) : (
+        <ul className="requirement-list">
+          {requirements.map((requirement, index) => {
+            const sourceLabel = requirementSourceLabel(requirement.type);
+            const SourceIcon = requirement.type === "slack" ? MessageSquare : FileText;
+
+            return (
+              <li key={`${requirement.type}-${requirement.link}-${index}`}>
+                <div className="requirement-details">
+                  <div className="requirement-source-type">
+                    <SourceIcon aria-hidden="true" />
+                    <strong>{sourceLabel}</strong>
+                  </div>
+                  <a href={requirement.link} rel="noreferrer" target="_blank">
+                    <ExternalLink aria-hidden="true" />
+                    <code>{requirement.link}</code>
+                  </a>
+                </div>
+                <div className="repository-actions">
+                  <button
+                    aria-label={`Edit ${sourceLabel} requirement`}
+                    className="repository-icon-button"
+                    disabled={isSaving}
+                    onClick={() => onEdit(index)}
+                    title={`Edit ${sourceLabel} requirement`}
+                    type="button"
+                  >
+                    <Pencil aria-hidden="true" />
+                  </button>
+                  <button
+                    aria-label={`Remove ${sourceLabel} requirement`}
+                    className="repository-icon-button is-danger"
+                    disabled={isSaving}
+                    onClick={() => onRemove(index)}
+                    title={`Remove ${sourceLabel} requirement`}
+                    type="button"
+                  >
+                    <Trash2 aria-hidden="true" />
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
 }
 
 function RepositorySection({
@@ -894,4 +1288,8 @@ function RepositorySection({
       )}
     </section>
   );
+}
+
+function requirementSourceLabel(type: RequirementSourceType): string {
+  return requirementSourceOptions.find((source) => source.type === type)?.label ?? type;
 }

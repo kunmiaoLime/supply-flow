@@ -31,7 +31,8 @@ export async function POST(request: Request) {
       name,
       (await store.list()).map((project) => project.project_id)
     ),
-    repos: []
+    repos: [],
+    requirements: []
   });
 
   return NextResponse.json({ project }, { status: 201 });

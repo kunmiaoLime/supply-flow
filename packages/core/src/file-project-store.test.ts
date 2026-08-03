@@ -14,12 +14,14 @@ test("stores project records beneath the local projects directory", async () => 
     await store.create({
       project_name: "First project",
       project_id: "first-project",
-      repos: []
+      repos: [],
+      requirements: []
     });
     await store.create({
       project_name: "Second project",
       project_id: "second-project",
-      repos: []
+      repos: [],
+      requirements: []
     });
 
     const repository = {
@@ -27,9 +29,17 @@ test("stores project records beneath the local projects directory", async () => 
       remote: "git@github.com:lime/supply-flow.git",
       local: "/Users/example/code/supply-flow"
     };
-    const updated = await store.update("first-project", { repos: [repository] });
+    const requirement = {
+      type: "figma" as const,
+      link: "https://www.figma.com/design/requirements"
+    };
+    const updated = await store.update("first-project", {
+      repos: [repository],
+      requirements: [requirement]
+    });
 
     assert.deepEqual(updated.repos, [repository]);
+    assert.deepEqual(updated.requirements, [requirement]);
     assert.equal((await store.get("first-project"))?.project_name, "First project");
     assert.deepEqual(
       JSON.parse(
@@ -41,7 +51,8 @@ test("stores project records beneath the local projects directory", async () => 
       {
         project_name: "First project",
         project_id: "first-project",
-        repos: [repository]
+        repos: [repository],
+        requirements: [requirement]
       }
     );
     assert.deepEqual(
@@ -52,7 +63,8 @@ test("stores project records beneath the local projects directory", async () => 
       store.create({
         project_name: "Duplicate project",
         project_id: "first-project",
-        repos: []
+        repos: [],
+        requirements: []
       }),
       /already exists/
     );

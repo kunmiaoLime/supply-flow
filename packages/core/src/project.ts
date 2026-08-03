@@ -10,15 +10,43 @@ export const ProjectRepositorySchema = z.object({
 
 export const ProjectRepositoriesSchema = z.array(ProjectRepositorySchema);
 
+export const RequirementSourceTypeSchema = z.enum([
+  "google-doc",
+  "confluence",
+  "figma",
+  "slack"
+]);
+
+export const RequirementSourceSchema = z.object({
+  type: RequirementSourceTypeSchema,
+  link: z.string().trim().url().max(2_048)
+});
+
+export const ProjectRequirementsSchema = z.array(RequirementSourceSchema);
+
 export const ProjectRecordSchema = z.object({
   project_name: z.string().trim().min(1).max(120),
   project_id: z.string().regex(PROJECT_ID_PATTERN),
-  repos: ProjectRepositoriesSchema.default([])
+  repos: ProjectRepositoriesSchema.default([]),
+  requirements: ProjectRequirementsSchema.default([])
 });
 
 export type ProjectRecord = z.infer<typeof ProjectRecordSchema>;
 export type ProjectRepository = z.infer<typeof ProjectRepositorySchema>;
-export type ProjectUpdate = Pick<ProjectRecord, "repos">;
+export type RequirementSource = z.infer<typeof RequirementSourceSchema>;
+export type RequirementSourceType = z.infer<typeof RequirementSourceTypeSchema>;
+
+export const ProjectUpdateSchema = z
+  .object({
+    repos: ProjectRepositoriesSchema.optional(),
+    requirements: ProjectRequirementsSchema.optional()
+  })
+  .refine(
+    (update) => update.repos !== undefined || update.requirements !== undefined,
+    "A project update requires repositories or requirements."
+  );
+
+export type ProjectUpdate = z.infer<typeof ProjectUpdateSchema>;
 
 export interface ProjectStore {
   create(record: ProjectRecord): Promise<ProjectRecord>;

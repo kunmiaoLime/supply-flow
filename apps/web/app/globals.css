@@ -530,11 +530,13 @@ code {
   font-size: 12px;
 }
 
-.repository-section {
+.repository-section,
+.requirements-section {
   margin-top: 42px;
 }
 
-.repository-section-header {
+.repository-section-header,
+.requirements-section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -543,7 +545,8 @@ code {
   border-bottom: 1px solid var(--line);
 }
 
-.repository-section-header p {
+.repository-section-header p,
+.requirements-section-header p {
   margin: 0;
   color: var(--teal);
   font-size: 11px;
@@ -551,13 +554,15 @@ code {
   text-transform: uppercase;
 }
 
-.repository-section-header h2 {
+.repository-section-header h2,
+.requirements-section-header h2 {
   margin: 6px 0 0;
   font-size: 18px;
   line-height: 1.2;
 }
 
 .add-repository-button,
+.add-requirement-button,
 .dialog-primary-button {
   display: inline-flex;
   min-height: 36px;
@@ -576,31 +581,37 @@ code {
 }
 
 .add-repository-button:hover:not(:disabled),
+.add-requirement-button:hover:not(:disabled),
 .dialog-primary-button:hover:not(:disabled) {
   background: #066a5a;
 }
 
 .add-repository-button:disabled,
+.add-requirement-button:disabled,
 .dialog-primary-button:disabled {
   cursor: wait;
   opacity: 0.72;
 }
 
 .add-repository-button svg,
+.add-requirement-button svg,
 .dialog-primary-button svg {
   width: 15px;
   height: 15px;
 }
 
 .repository-empty-state,
-.repository-list {
+.requirement-empty-state,
+.repository-list,
+.requirement-list {
   margin: 18px 0 0;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--surface);
 }
 
-.repository-empty-state {
+.repository-empty-state,
+.requirement-empty-state {
   display: flex;
   min-height: 120px;
   align-items: center;
@@ -611,33 +622,40 @@ code {
   text-align: center;
 }
 
-.repository-empty-state svg {
+.repository-empty-state svg,
+.requirement-empty-state svg {
   width: 22px;
   height: 22px;
   color: var(--teal);
 }
 
 .repository-empty-state strong,
-.repository-empty-state span {
+.repository-empty-state span,
+.requirement-empty-state strong,
+.requirement-empty-state span {
   display: block;
 }
 
-.repository-empty-state strong {
+.repository-empty-state strong,
+.requirement-empty-state strong {
   color: var(--ink);
   font-size: 13px;
 }
 
-.repository-empty-state span {
+.repository-empty-state span,
+.requirement-empty-state span {
   margin-top: 3px;
   font-size: 12px;
 }
 
-.repository-list {
+.repository-list,
+.requirement-list {
   padding: 0;
   list-style: none;
 }
 
-.repository-list li {
+.repository-list li,
+.requirement-list li {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 16px;
@@ -645,7 +663,8 @@ code {
   border-bottom: 1px solid var(--line);
 }
 
-.repository-list li:last-child {
+.repository-list li:last-child,
+.requirement-list li:last-child {
   border-bottom: 0;
 }
 
@@ -686,6 +705,52 @@ code {
 
 .repository-missing-value {
   color: var(--muted);
+  font-size: 11px;
+}
+
+.requirement-details {
+  min-width: 0;
+}
+
+.requirement-source-type {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+}
+
+.requirement-source-type svg {
+  width: 17px;
+  height: 17px;
+  color: var(--teal);
+}
+
+.requirement-source-type strong {
+  font-size: 14px;
+}
+
+.requirement-details a {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  color: var(--teal);
+  text-decoration: none;
+}
+
+.requirement-details a:hover {
+  text-decoration: underline;
+}
+
+.requirement-details a svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.requirement-details a code {
+  overflow-wrap: anywhere;
   font-size: 11px;
 }
 
@@ -755,26 +820,32 @@ code {
 }
 
 .project-name-field,
-.repository-form-fields {
+.repository-form-fields,
+.requirement-form-fields {
   display: grid;
   gap: 14px;
 }
 
 .project-name-field,
-.repository-form-fields label {
+.repository-form-fields label,
+.requirement-form-fields label {
   display: grid;
   gap: 7px;
 }
 
 .project-name-field > span,
-.repository-form-fields label > span {
+.repository-form-fields label > span,
+.requirement-form-fields label > span {
   color: var(--muted);
   font-size: 12px;
   font-weight: 750;
 }
 
 .project-name-field input,
-.repository-form-fields input {
+.repository-form-fields input,
+.repository-form-fields select,
+.requirement-form-fields input,
+.requirement-form-fields select {
   min-height: 40px;
   width: 100%;
   padding: 0 11px;
@@ -787,12 +858,16 @@ code {
 }
 
 .project-name-field input::placeholder,
-.repository-form-fields input::placeholder {
+.repository-form-fields input::placeholder,
+.requirement-form-fields input::placeholder {
   color: var(--muted);
 }
 
 .project-name-field input:focus,
-.repository-form-fields input:focus {
+.repository-form-fields input:focus,
+.repository-form-fields select:focus,
+.requirement-form-fields input:focus,
+.requirement-form-fields select:focus {
   outline: 3px solid rgba(8, 124, 105, 0.18);
   outline-offset: 0;
   border-color: var(--teal);
@@ -952,7 +1027,8 @@ code {
     padding: 15px;
   }
 
-  .repository-list li {
+  .repository-list li,
+  .requirement-list li {
     grid-template-columns: 1fr;
   }
 
@@ -991,7 +1067,8 @@ code {
     padding: 20px;
   }
 
-  .repository-section-header {
+  .repository-section-header,
+  .requirements-section-header {
     align-items: flex-start;
     flex-direction: column;
   }
