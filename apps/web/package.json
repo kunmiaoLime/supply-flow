@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@supply-flow/core": "*",
+    "lucide-react": "^1.28.0",
     "next": "^16.2.12",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
