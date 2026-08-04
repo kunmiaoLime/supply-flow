@@ -1,6 +1,6 @@
 import { execFile as execFileCallback } from "node:child_process";
 import { promisify } from "node:util";
-import type { ProviderLaunchSpec } from "./providers.js";
+import type { ProviderLaunchSpec } from "@supply-flow/core/providers";
 
 const execFile = promisify(execFileCallback);
 
@@ -15,6 +15,7 @@ export interface CreateTmuxSessionInput {
   sessionName: string;
   workspacePath: string;
   launch: ProviderLaunchSpec;
+  outputPath?: string;
 }
 
 export class TmuxAdapter {
@@ -38,12 +39,46 @@ export class TmuxAdapter {
       input.workspacePath,
       command
     ]);
+
+    if (input.outputPath) {
+      await this.run([
+        "pipe-pane",
+        "-o",
+        "-t",
+        input.sessionName,
+        `cat >> ${quoteForShell(input.outputPath)}`
+      ]);
+    }
   }
 
   public async sendInput(sessionName: string, input: string): Promise<void> {
     assertSessionName(sessionName);
     await this.run(["send-keys", "-t", sessionName, "-l", input]);
     await this.run(["send-keys", "-t", sessionName, "Enter"]);
+  }
+
+  public async sendTerminalInput(sessionName: string, input: string): Promise<void> {
+    assertSessionName(sessionName);
+    if (!input) {
+      return;
+    }
+
+    await this.run(["send-keys", "-t", sessionName, "-l", input]);
+  }
+
+  public async resizeSession(sessionName: string, columns: number, rows: number): Promise<void> {
+    assertSessionName(sessionName);
+    assertTerminalDimension(columns, "columns");
+    assertTerminalDimension(rows, "rows");
+    await this.run([
+      "resize-window",
+      "-t",
+      sessionName,
+      "-x",
+      String(columns),
+      "-y",
+      String(rows)
+    ]);
   }
 
   public async captureOutput(sessionName: string, lines = 200): Promise<string> {
@@ -98,5 +133,11 @@ function quoteForShell(value: string): string {
 function assertSessionName(value: string): void {
   if (!/^sf_[A-Za-z0-9_-]+$/.test(value)) {
     throw new Error(`Invalid tmux session name: "${value}".`);
+  }
+}
+
+function assertTerminalDimension(value: number, label: string): void {
+  if (!Number.isInteger(value) || value < 1 || value > 1_000) {
+    throw new Error(`Invalid terminal ${label}: "${value}".`);
   }
 }

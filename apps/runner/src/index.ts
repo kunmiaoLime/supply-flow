@@ -56,9 +56,10 @@ async function listSessions(): Promise<void> {
 }
 
 async function startSession(arguments_: string[]): Promise<void> {
-  const [providerId, workspaceArgument] = arguments_;
-  if (!providerId || !workspaceArgument) {
-    throw new Error("Usage: start <provider-id> <absolute-worktree-path>");
+  const [providerId, workspaceArgument, ...goalArguments] = arguments_;
+  const goal = goalArguments.join(" ").trim();
+  if (!providerId || !workspaceArgument || !goal) {
+    throw new Error("Usage: start <provider-id> <absolute-worktree-path> <goal>");
   }
 
   const provider = findProvider(providerId);
@@ -73,6 +74,8 @@ async function startSession(arguments_: string[]): Promise<void> {
   const record: SessionRecord = {
     schemaVersion: 1,
     id,
+    title: `${provider.displayName} session`,
+    goal,
     providerId: provider.id,
     workspacePath,
     tmuxSessionName,
@@ -94,7 +97,7 @@ async function startSession(arguments_: string[]): Promise<void> {
     await tmux.createSession({
       sessionName: tmuxSessionName,
       workspacePath,
-      launch: provider.createLaunchSpec()
+      launch: provider.createLaunchSpec({ initialPrompt: goal })
     });
     await store.update(id, { status: "running" });
     await store.appendEvent({
@@ -148,7 +151,7 @@ function printHelp(): void {
   console.log("Commands:");
   console.log("  doctor");
   console.log("  list");
-  console.log("  start <provider-id> <absolute-worktree-path>");
+  console.log("  start <provider-id> <absolute-worktree-path> <goal>");
   console.log("  stop <session-id>");
 }
 

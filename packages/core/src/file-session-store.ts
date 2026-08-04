@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import {
@@ -8,7 +8,7 @@ import {
   type SessionRecord,
   type SessionStore,
   type SessionUpdate
-} from "./session.js";
+} from "@supply-flow/core/session";
 
 const META_FILE = "meta.json";
 const EVENTS_FILE = "events.ndjson";
@@ -78,6 +78,10 @@ export class FileSessionStore implements SessionStore {
 
     await writeJsonAtomically(path.join(this.sessionDirectory(id), META_FILE), updated);
     return updated;
+  }
+
+  public async remove(id: string): Promise<void> {
+    await rm(this.sessionDirectory(id), { recursive: true, force: true });
   }
 
   public async appendEvent(event: SessionEvent): Promise<void> {

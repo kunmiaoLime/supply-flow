@@ -7,6 +7,8 @@ export const SessionStatusSchema = z.enum(sessionStatuses);
 export const SessionRecordSchema = z.object({
   schemaVersion: z.literal(1),
   id: z.string().min(1),
+  title: z.string().trim().min(1).max(120),
+  goal: z.string().trim().min(1).max(16_000),
   providerId: z.string().min(1),
   workspacePath: z.string().min(1),
   tmuxSessionName: z.string().min(1),
@@ -39,6 +41,7 @@ export interface SessionStore {
   get(id: string): Promise<SessionRecord | null>;
   list(): Promise<SessionRecord[]>;
   update(id: string, update: SessionUpdate): Promise<SessionRecord>;
+  remove(id: string): Promise<void>;
   appendEvent(event: SessionEvent): Promise<void>;
   readEvents(id: string): Promise<SessionEvent[]>;
 }

@@ -14,6 +14,8 @@ test("stores session metadata and append-only events", async () => {
     await store.create({
       schemaVersion: 1,
       id: "session_01",
+      title: "Review repository",
+      goal: "Review the repository and report the highest-risk issues.",
       providerId: "codex",
       workspacePath: "/tmp/worktree",
       tmuxSessionName: "sf_session_01",
@@ -37,6 +39,10 @@ test("stores session metadata and append-only events", async () => {
     assert.equal(events.length, 1);
     assert.equal(events[0]?.type, "created");
     assert.deepEqual((await store.list()).map((session) => session.id), ["session_01"]);
+
+    await store.remove("session_01");
+    assert.equal(await store.get("session_01"), null);
+    assert.deepEqual(await store.list(), []);
   } finally {
     await rm(rootDirectory, { recursive: true, force: true });
   }

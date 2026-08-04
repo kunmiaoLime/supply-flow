@@ -1,0 +1,286 @@
+"use client";
+
+import type { SessionRecord } from "@supply-flow/core/session";
+import type { FitAddon } from "@xterm/addon-fit";
+import type { Terminal } from "@xterm/xterm";
+import "@xterm/xterm/css/xterm.css";
+import { useEffect, useRef, useState } from "react";
+
+interface SessionDetailResponse {
+  session?: SessionRecord;
+  output?: string;
+  outputOffset?: number;
+  outputSize?: number;
+  outputTruncated?: boolean;
+  error?: string;
+}
+
+export function TmuxTerminal({
+  projectId,
+  session,
+  onSessionUpdated,
+  onTerminalError
+}: {
+  projectId: string;
+  session: SessionRecord;
+  onSessionUpdated: (session: SessionRecord) => void;
+  onTerminalError: (message: string) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const terminalRef = useRef<Terminal | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
+  const sessionStatusRef = useRef(session.status);
+  const onSessionUpdatedRef = useRef(onSessionUpdated);
+  const onTerminalErrorRef = useRef(onTerminalError);
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    sessionStatusRef.current = session.status;
+  }, [session.status]);
+
+  useEffect(() => {
+    onSessionUpdatedRef.current = onSessionUpdated;
+  }, [onSessionUpdated]);
+
+  useEffect(() => {
+    onTerminalErrorRef.current = onTerminalError;
+  }, [onTerminalError]);
+
+  useEffect(() => {
+    if (!containerRef.current) {
+      return;
+    }
+
+    let disposed = false;
+    let inputDisposable: { dispose: () => void } | undefined;
+    let resizeFrame: number | undefined;
+
+    async function mountTerminal() {
+      const [{ FitAddon }, { Terminal }] = await Promise.all([
+        import("@xterm/addon-fit"),
+        import("@xterm/xterm")
+      ]);
+      if (disposed || !containerRef.current) {
+        return;
+      }
+
+      const terminal = new Terminal({
+        allowTransparency: false,
+        convertEol: false,
+        cursorBlink: true,
+        fontFamily: '"SF Mono", SFMono-Regular, Consolas, monospace',
+        fontSize: 12,
+        scrollback: 5_000,
+        theme: {
+          background: "#111412",
+          black: "#111412",
+          blue: "#7eb8ff",
+          brightBlack: "#607068",
+          brightBlue: "#a8caff",
+          brightCyan: "#86e6e4",
+          brightGreen: "#8ad4ac",
+          brightMagenta: "#e5b6ed",
+          brightRed: "#ffaaa1",
+          brightWhite: "#ffffff",
+          brightYellow: "#f8d78a",
+          cursor: "#d9efe2",
+          cursorAccent: "#111412",
+          cyan: "#58c8c5",
+          foreground: "#dbe7df",
+          green: "#54b983",
+          magenta: "#bf8aca",
+          red: "#e5786f",
+          selectionBackground: "rgba(217, 239, 226, 0.18)",
+          white: "#dbe7df",
+          yellow: "#d9ad50"
+        }
+      });
+      const fitAddon = new FitAddon();
+
+      terminal.loadAddon(fitAddon);
+      terminal.open(containerRef.current);
+      terminalRef.current = terminal;
+      fitAddonRef.current = fitAddon;
+      fitAddon.fit();
+      resizeFrame = window.requestAnimationFrame(() => fitAddon.fit());
+
+      inputDisposable = terminal.onData((data) => {
+        if (!isInteractiveStatus(sessionStatusRef.current)) {
+          return;
+        }
+
+        void sendTerminalInput(projectId, session.id, data).catch((error: unknown) => {
+          onTerminalErrorRef.current(
+            error instanceof Error ? error.message : "Unable to send terminal input."
+          );
+        });
+      });
+      setIsReady(true);
+      terminal.focus();
+    }
+
+    void mountTerminal();
+    return () => {
+      disposed = true;
+      if (resizeFrame !== undefined) {
+        window.cancelAnimationFrame(resizeFrame);
+      }
+      inputDisposable?.dispose();
+      terminalRef.current?.dispose();
+      terminalRef.current = null;
+      fitAddonRef.current = null;
+      setIsReady(false);
+    };
+  }, [projectId, session.id]);
+
+  useEffect(() => {
+    if (!isReady || !wrapperRef.current) {
+      return;
+    }
+
+    let resizeTimer: number | undefined;
+
+    function resizeTerminal() {
+      const terminal = terminalRef.current;
+      const fitAddon = fitAddonRef.current;
+      if (!terminal || !fitAddon) {
+        return;
+      }
+
+      fitAddon.fit();
+      if (!isInteractiveStatus(sessionStatusRef.current)) {
+        return;
+      }
+
+      if (resizeTimer) {
+        window.clearTimeout(resizeTimer);
+      }
+      resizeTimer = window.setTimeout(() => {
+        void resizeTmuxTerminal(projectId, session.id, terminal.cols, terminal.rows);
+      }, 100);
+    }
+
+    const observer = new ResizeObserver(resizeTerminal);
+    observer.observe(wrapperRef.current);
+    resizeTerminal();
+
+    return () => {
+      observer.disconnect();
+      if (resizeTimer) {
+        window.clearTimeout(resizeTimer);
+      }
+    };
+  }, [isReady, projectId, session.id]);
+
+  useEffect(() => {
+    if (!isReady) {
+      return;
+    }
+
+    let cancelled = false;
+    let pollTimer: number | undefined;
+    let outputOffset = 0;
+
+    async function pollTerminal() {
+      const terminal = terminalRef.current;
+      if (!terminal || cancelled) {
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `${sessionUrl(projectId, session.id)}?offset=${outputOffset}`,
+          { cache: "no-store" }
+        );
+        const data = (await response.json()) as SessionDetailResponse;
+        if (!response.ok || !data.session) {
+          throw new Error(data.error ?? "Unable to read terminal output.");
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        if (data.outputTruncated) {
+          terminal.reset();
+        }
+        if (data.output) {
+          terminal.write(data.output);
+        }
+        outputOffset = data.outputSize ?? outputOffset;
+        onSessionUpdatedRef.current(data.session);
+
+        if (isInteractiveStatus(data.session.status)) {
+          pollTimer = window.setTimeout(() => {
+            void pollTerminal();
+          }, 750);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          onTerminalErrorRef.current(
+            error instanceof Error ? error.message : "Unable to read terminal output."
+          );
+        }
+      }
+    }
+
+    void pollTerminal();
+    return () => {
+      cancelled = true;
+      if (pollTimer) {
+        window.clearTimeout(pollTimer);
+      }
+    };
+  }, [isReady, projectId, session.id]);
+
+  return (
+    <div className="tmux-terminal-viewport" onMouseDown={() => terminalRef.current?.focus()} ref={wrapperRef}>
+      <div className="tmux-terminal-canvas" ref={containerRef} />
+    </div>
+  );
+}
+
+function isInteractiveStatus(status: SessionRecord["status"]): boolean {
+  return status === "starting" || status === "running";
+}
+
+async function sendTerminalInput(projectId: string, sessionId: string, input: string): Promise<void> {
+  const response = await fetch(`${sessionUrl(projectId, sessionId)}/stdin`, {
+    body: JSON.stringify({ data: encodeBase64(input) }),
+    headers: { "Content-Type": "application/json" },
+    method: "POST"
+  });
+  if (!response.ok) {
+    const data = (await response.json()) as { error?: string };
+    throw new Error(data.error ?? "Unable to send terminal input.");
+  }
+}
+
+async function resizeTmuxTerminal(
+  projectId: string,
+  sessionId: string,
+  columns: number,
+  rows: number
+): Promise<void> {
+  await fetch(`${sessionUrl(projectId, sessionId)}/resize`, {
+    body: JSON.stringify({ columns, rows }),
+    headers: { "Content-Type": "application/json" },
+    method: "POST"
+  });
+}
+
+function sessionUrl(projectId: string, sessionId: string): string {
+  return `/api/projects/${encodeURIComponent(projectId)}/sessions/${encodeURIComponent(sessionId)}`;
+}
+
+function encodeBase64(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+
+  return btoa(binary);
+}

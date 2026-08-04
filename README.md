@@ -43,7 +43,7 @@ The web app starts at <http://localhost:3000>.
 ```sh
 npm run runner:doctor
 npm run runner -- list
-npm run runner -- start codex /absolute/path/to/worktree
+npm run runner -- start codex /absolute/path/to/worktree "Review the repository"
 npm run runner -- stop <session-id>
 ```
 
@@ -55,8 +55,10 @@ session. The provider must already be installed and authenticated by the host.
 ```text
 .supply-flow/
   projects/<project-id>/project.json
-  sessions/<session-id>/meta.json
-  sessions/<session-id>/events.ndjson
+  projects/<project-id>/sessions/<session-id>/meta.json
+  projects/<project-id>/sessions/<session-id>/events.ndjson
+  projects/<project-id>/sessions/<session-id>/terminal.log
+  sessions/<session-id>/... (manual runner sessions)
 ```
 
 Project IDs are derived from the display name as lowercase kebab-case. A

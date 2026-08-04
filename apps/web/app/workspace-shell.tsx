@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { AiSessionsPanel } from "./ai-sessions-panel";
 import type {
   DocumentSource,
   DocumentSourceType,
@@ -28,7 +29,13 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
-type TabId = "project" | "task-plan" | "code-implementation" | "pr" | "settings";
+type TabId =
+  | "project"
+  | "task-plan"
+  | "code-implementation"
+  | "pr"
+  | "settings"
+  | "ai-sessions";
 type RepositoryDialogMode = "add" | "edit" | null;
 type RequirementDialogMode = "add" | "edit" | null;
 
@@ -81,7 +88,8 @@ const navigationTabs: readonly NavigationTab[] = [
     icon: Code2
   },
   { id: "pr", label: "PR", href: "/pr", icon: GitPullRequest },
-  { id: "settings", label: "Settings", href: "/settings", icon: Settings2 }
+  { id: "settings", label: "Settings", href: "/settings", icon: Settings2 },
+  { id: "ai-sessions", label: "AI sessions", href: "/ai_sessions", icon: MessageSquare }
 ];
 
 const tabHeadings: Record<TabId, { eyebrow: string; title: string; description: string }> = {
@@ -109,6 +117,11 @@ const tabHeadings: Record<TabId, { eyebrow: string; title: string; description: 
     eyebrow: "Workspace",
     title: "Settings",
     description: "Local runner and session defaults."
+  },
+  "ai-sessions": {
+    eyebrow: "Workspace",
+    title: "AI sessions",
+    description: "AI provider sessions for the current project."
   }
 };
 
@@ -670,12 +683,18 @@ export function WorkspaceShell({
       </aside>
 
       <main className="workspace-main">
-        <section aria-labelledby="workspace-heading" className="workspace-panel">
-          <div className="panel-heading">
-            <p>{panelEyebrow}</p>
-            <h1 id="workspace-heading">{heading.title}</h1>
-            {panelDescription ? <span>{panelDescription}</span> : null}
-          </div>
+        <section
+          aria-label={tab === "ai-sessions" ? "AI sessions" : undefined}
+          aria-labelledby={tab === "ai-sessions" ? undefined : "workspace-heading"}
+          className={`workspace-panel${tab === "ai-sessions" ? " is-session-panel" : ""}`}
+        >
+          {tab === "ai-sessions" ? null : (
+            <div className="panel-heading">
+              <p>{panelEyebrow}</p>
+              <h1 id="workspace-heading">{heading.title}</h1>
+              {panelDescription ? <span>{panelDescription}</span> : null}
+            </div>
+          )}
           <PanelContent
             isSavingRepositories={isSavingRepository}
             isSavingRequirements={isSavingRequirement}
@@ -1103,6 +1122,8 @@ function PanelContent({
           </div>
         </dl>
       );
+    case "ai-sessions":
+      return <AiSessionsPanel project={project} />;
   }
 }
 

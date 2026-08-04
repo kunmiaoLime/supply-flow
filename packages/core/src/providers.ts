@@ -5,10 +5,14 @@ export interface ProviderLaunchSpec {
   arguments: string[];
 }
 
+export interface ProviderLaunchOptions {
+  initialPrompt?: string;
+}
+
 export interface ProviderAdapter {
   readonly id: ProviderId;
   readonly displayName: string;
-  createLaunchSpec(): ProviderLaunchSpec;
+  createLaunchSpec(options?: ProviderLaunchOptions): ProviderLaunchSpec;
 }
 
 class CliProviderAdapter implements ProviderAdapter {
@@ -18,10 +22,15 @@ class CliProviderAdapter implements ProviderAdapter {
     private readonly executable: string
   ) {}
 
-  public createLaunchSpec(): ProviderLaunchSpec {
+  public createLaunchSpec(options?: ProviderLaunchOptions): ProviderLaunchSpec {
+    const initialPrompt = options?.initialPrompt?.trim();
+
     return {
       executable: this.executable,
-      arguments: []
+      arguments: [
+        ...(this.id === "codex" ? ["--no-alt-screen"] : []),
+        ...(initialPrompt ? [initialPrompt] : [])
+      ]
     };
   }
 }

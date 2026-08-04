@@ -341,6 +341,16 @@ button:focus-visible {
   padding-top: 70px;
 }
 
+.workspace-panel.is-session-panel {
+  display: flex;
+  width: 100%;
+  height: calc(100vh - var(--topbar-height) - 48px);
+  min-height: 420px;
+  max-width: none;
+  flex-direction: column;
+  padding-top: 34px;
+}
+
 .panel-heading {
   padding-bottom: 28px;
   border-bottom: 1px solid var(--line);
@@ -534,6 +544,311 @@ code {
 .empty-state span {
   margin-top: 3px;
   font-size: 12px;
+}
+
+.ai-sessions-section {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  margin-top: 0;
+}
+
+.ai-sessions-toolbar {
+  display: flex;
+  min-width: 0;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.add-session-button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1px solid var(--teal);
+  border-radius: 6px;
+  background: var(--teal);
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.add-session-button:hover {
+  background: #066a5a;
+}
+
+.add-session-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.ai-sessions-loading,
+.ai-sessions-empty {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.ai-sessions-loading {
+  padding: 20px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.ai-sessions-empty {
+  display: flex;
+  min-height: 150px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.ai-sessions-empty svg {
+  width: 24px;
+  height: 24px;
+  color: var(--teal);
+}
+
+.ai-sessions-empty strong,
+.ai-sessions-empty span {
+  display: block;
+}
+
+.ai-sessions-empty strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.ai-sessions-empty span {
+  margin-top: 3px;
+  font-size: 12px;
+}
+
+.ai-session-tab-list {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 0 0 1px;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.ai-session-tab {
+  display: inline-flex;
+  max-width: 220px;
+  min-height: 39px;
+  align-items: center;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ai-session-tab-select {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 37px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 5px 0 11px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.ai-session-tab-select:focus-visible {
+  outline: 3px solid rgba(8, 124, 105, 0.35);
+  outline-offset: -2px;
+}
+
+.ai-session-tab:hover,
+.ai-session-tab.is-active {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.ai-session-tab.is-active {
+  box-shadow: inset 0 2px 0 var(--teal);
+}
+
+.ai-session-tab-select svg {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  fill: currentColor;
+}
+
+.ai-session-tab-select svg.is-running {
+  color: #2d986c;
+}
+
+.ai-session-tab-select > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ai-session-tab-close {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  margin-right: 4px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.ai-session-tab-close:hover:not(:disabled) {
+  border-color: #c88780;
+  background: #fff4f2;
+  color: #9f3329;
+}
+
+.ai-session-tab-close:focus-visible {
+  outline: 3px solid rgba(8, 124, 105, 0.35);
+  outline-offset: -2px;
+}
+
+.ai-session-tab-close:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.ai-session-tab-close svg {
+  width: 14px;
+  height: 14px;
+}
+
+.ai-session-workspace {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  margin-top: 20px;
+}
+
+.ai-session-terminal {
+  display: flex;
+  min-height: 0;
+  height: auto;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  margin-top: 20px;
+  border: 1px solid #26342c;
+  border-radius: 6px;
+  background: #17201c;
+}
+
+.ai-session-terminal-header {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 9px 0 13px;
+  border-bottom: 1px solid #2d3c33;
+  color: #dce8df;
+}
+
+.ai-session-terminal-header > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-session-terminal-header > div:first-child > span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #76857b;
+}
+
+.ai-session-terminal-header > div:first-child > span.is-running {
+  background: #3fbd96;
+  box-shadow: 0 0 0 3px rgba(63, 189, 150, 0.14);
+}
+
+.ai-session-terminal-header strong {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.ai-session-terminal-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.session-icon-button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #b5c4bb;
+  cursor: pointer;
+}
+
+.session-icon-button:hover:not(:disabled) {
+  border-color: #3d5146;
+  background: #26342c;
+  color: #edf5ef;
+}
+
+.session-icon-button.is-danger:hover:not(:disabled) {
+  border-color: #a54238;
+  color: #ffafa3;
+}
+
+.session-icon-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.session-icon-button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.tmux-terminal-viewport {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 5px;
+  background: #111412;
+}
+
+.tmux-terminal-canvas,
+.tmux-terminal-canvas .xterm {
+  width: 100%;
+  height: 100%;
 }
 
 .repository-section,
@@ -827,21 +1142,24 @@ code {
 
 .project-name-field,
 .repository-form-fields,
-.requirement-form-fields {
+.requirement-form-fields,
+.session-form-fields {
   display: grid;
   gap: 14px;
 }
 
 .project-name-field,
 .repository-form-fields label,
-.requirement-form-fields label {
+.requirement-form-fields label,
+.session-form-fields label {
   display: grid;
   gap: 7px;
 }
 
 .project-name-field > span,
 .repository-form-fields label > span,
-.requirement-form-fields label > span {
+.requirement-form-fields label > span,
+.session-form-fields label > span {
   color: var(--muted);
   font-size: 12px;
   font-weight: 750;
@@ -851,7 +1169,9 @@ code {
 .repository-form-fields input,
 .repository-form-fields select,
 .requirement-form-fields input,
-.requirement-form-fields select {
+.requirement-form-fields select,
+.session-form-fields input,
+.session-form-fields textarea {
   min-height: 40px;
   width: 100%;
   padding: 0 11px;
@@ -865,7 +1185,9 @@ code {
 
 .project-name-field input::placeholder,
 .repository-form-fields input::placeholder,
-.requirement-form-fields input::placeholder {
+.requirement-form-fields input::placeholder,
+.session-form-fields input::placeholder,
+.session-form-fields textarea::placeholder {
   color: var(--muted);
 }
 
@@ -873,10 +1195,19 @@ code {
 .repository-form-fields input:focus,
 .repository-form-fields select:focus,
 .requirement-form-fields input:focus,
-.requirement-form-fields select:focus {
+.requirement-form-fields select:focus,
+.session-form-fields input:focus,
+.session-form-fields textarea:focus {
   outline: 3px solid rgba(8, 124, 105, 0.18);
   outline-offset: 0;
   border-color: var(--teal);
+}
+
+.session-form-fields textarea {
+  min-height: 120px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  resize: vertical;
 }
 
 .create-project-error {
@@ -983,7 +1314,7 @@ code {
   }
 
   .workspace-nav {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 5px;
   }
 
@@ -1023,6 +1354,19 @@ code {
     padding-top: 42px;
   }
 
+  .workspace-panel.is-session-panel {
+    display: block;
+    width: min(960px, 100%);
+    height: auto;
+    min-height: 0;
+    margin: 0 auto;
+    padding-top: 20px;
+  }
+
+  .ai-sessions-section {
+    display: block;
+  }
+
   .panel-heading h1 {
     font-size: 25px;
   }
@@ -1036,6 +1380,11 @@ code {
   .repository-list li,
   .requirement-list li {
     grid-template-columns: 1fr;
+  }
+
+  .ai-session-terminal {
+    min-height: 300px;
+    height: min(520px, 54vh);
   }
 
   .repository-actions {
