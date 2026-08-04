@@ -13,14 +13,28 @@ test("tracks project pull requests in prs.json", async () => {
     title: "Validate ride eligibility",
     number: 123,
     branch: "kun/SUP-123-ride-eligibility",
-    repository_local: "/Users/example/code/ios/Apps/Supply"
+    repository_local: "/Users/example/code/ios/Apps/Supply",
+    monitoring_enabled: false,
+    status: "unknown" as const,
+    unresolved_comment_count: 0,
+    unreplied_comment_count: 0,
+    ci_status: "unknown" as const,
+    last_scanned_at: null,
+    last_session_id: null
   };
   const secondPullRequest = {
     url: "https://github.com/lime/supply/pull/124",
     title: "Add ride receipt",
     number: 124,
     branch: "kun/SUP-124-ride-receipt",
-    repository_local: firstPullRequest.repository_local
+    repository_local: firstPullRequest.repository_local,
+    monitoring_enabled: true,
+    status: "open" as const,
+    unresolved_comment_count: 2,
+    unreplied_comment_count: 1,
+    ci_status: "failure" as const,
+    last_scanned_at: "2026-08-04T19:30:00.000Z",
+    last_session_id: "session_pr_review"
   };
 
   try {
@@ -37,9 +51,20 @@ test("tracks project pull requests in prs.json", async () => {
       }
     );
     await assert.rejects(store.add(firstPullRequest), /already tracked/);
+    const updatedSecondPullRequest = {
+      ...secondPullRequest,
+      unresolved_comment_count: 0,
+      unreplied_comment_count: 0,
+      ci_status: "success" as const,
+      last_scanned_at: "2026-08-04T19:31:00.000Z"
+    };
+    assert.deepEqual(
+      await store.update(secondPullRequest, updatedSecondPullRequest),
+      updatedSecondPullRequest
+    );
     assert.equal(await store.remove(firstPullRequest.url), true);
     assert.equal(await store.remove(firstPullRequest.url), false);
-    assert.deepEqual(await store.list(), [secondPullRequest]);
+    assert.deepEqual(await store.list(), [updatedSecondPullRequest]);
   } finally {
     await rm(rootDirectory, { force: true, recursive: true });
   }

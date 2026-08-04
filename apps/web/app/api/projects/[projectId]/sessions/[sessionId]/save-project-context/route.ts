@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
 import { FileSessionStore } from "@supply-flow/core/file-session-store";
+import { sendAiSessionPrompt } from "@supply-flow/core/session-prompt";
 import { TmuxAdapter } from "@supply-flow/core/tmux";
 import { NextResponse } from "next/server";
 import { dataDirectory, projectDirectory } from "../../session-service";
@@ -39,7 +40,8 @@ export async function POST(_request: Request, context: SessionRouteContext) {
       );
     }
 
-    await tmux.sendInput(
+    await sendAiSessionPrompt(
+      tmux,
       session.tmuxSessionName,
       await projectContextPrompt(project.project_name, project.project_id)
     );
@@ -60,10 +62,7 @@ export async function POST(_request: Request, context: SessionRouteContext) {
 async function projectContextPrompt(projectName: string, projectId: string): Promise<string> {
   const template = await readFile(promptPath, "utf8");
   const contextPath = path.join(projectDirectory(projectId), "context.md");
-  const prompt = template
+  return template
     .replaceAll("<PROJECT_NAME>", JSON.stringify(projectName))
     .replaceAll("<PROJECT_CONTEXT_PATH>", JSON.stringify(contextPath));
-
-  // tmux sends an Enter key after this value, so keep the prompt to one logical line.
-  return prompt.replace(/\s*\r?\n\s*/g, " ").replace(/\s{2,}/g, " ").trim();
 }

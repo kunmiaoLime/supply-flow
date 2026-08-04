@@ -1,5 +1,9 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import type {
+  ProjectPullRequestCiStatus,
+  ProjectPullRequestStatus
+} from "@supply-flow/core/pull-request";
 
 const execFileAsync = promisify(execFile);
 
@@ -14,11 +18,33 @@ export interface GitHubPullRequest extends GitHubPullRequestReference {
   branch: string;
 }
 
+export interface GitHubPullRequestHealth {
+  status: ProjectPullRequestStatus;
+  unresolvedCommentCount: number;
+  unrepliedCommentCount: number;
+  ciStatus: ProjectPullRequestCiStatus;
+}
+
+export interface GitHubReviewThreadComment {
+  authorLogin: string | null;
+}
+
+export interface GitHubReviewThread {
+  isResolved: boolean;
+  comments: readonly GitHubReviewThreadComment[];
+}
+
 interface GitHubPullRequestPayload {
   url: string;
   title: string;
   number: number;
   headRefName: string;
+}
+
+interface GitHubPullRequestHealthPayload {
+  state: string;
+  isDraft: boolean;
+  statusCheckRollup: unknown;
 }
 
 export class GitHubPullRequestError extends Error {
@@ -183,6 +209,145 @@ export async function findGitHubPullRequestForBranch(
   };
 }
 
+export async function getGitHubPullRequestHealth(
+  reference: GitHubPullRequestReference
+): Promise<GitHubPullRequestHealth> {
+  const healthPayload = parseGitHubPullRequestHealthPayload(
+    await runGh([
+      "pr",
+      "view",
+      reference.url,
+      "--json",
+      "state,isDraft,statusCheckRollup"
+    ])
+  );
+
+  const [owner, repository] = reference.repository.split("/");
+  if (!owner || !repository) {
+    throw new GitHubPullRequestError("The pull request repository is invalid.", 400);
+  }
+
+  const reviewThreadCounts = await getReviewThreadCounts(owner, repository, reference.number);
+  return {
+    status: classifyGitHubPullRequestStatus(healthPayload.state, healthPayload.isDraft),
+    unresolvedCommentCount: reviewThreadCounts.unresolvedCommentCount,
+    unrepliedCommentCount: reviewThreadCounts.unrepliedCommentCount,
+    ciStatus: classifyGitHubPullRequestCiStatus(healthPayload.statusCheckRollup)
+  };
+}
+
+export function classifyGitHubPullRequestStatus(
+  state: string,
+  isDraft: boolean
+): ProjectPullRequestStatus {
+  const normalizedState = state.trim().toUpperCase();
+  if (normalizedState === "OPEN") {
+    return isDraft ? "draft" : "open";
+  }
+  if (normalizedState === "CLOSED") {
+    return "closed";
+  }
+  if (normalizedState === "MERGED") {
+    return "merged";
+  }
+  return "unknown";
+}
+
+export function classifyGitHubPullRequestCiStatus(
+  statusCheckRollup: unknown
+): ProjectPullRequestCiStatus {
+  if (!Array.isArray(statusCheckRollup)) {
+    return "unknown";
+  }
+
+  const checks = statusCheckRollup.filter(
+    (check): check is Record<string, unknown> => typeof check === "object" && check !== null
+  );
+  if (checks.length === 0) {
+    return "none";
+  }
+
+  let hasPending = false;
+  let hasUnknown = false;
+
+  for (const check of checks) {
+    const values = [check.conclusion, check.status, check.state]
+      .filter((value): value is string => typeof value === "string")
+      .map((value) => value.trim().toUpperCase())
+      .filter(Boolean);
+
+    if (
+      values.some((value) =>
+        [
+          "FAILURE",
+          "ERROR",
+          "TIMED_OUT",
+          "CANCELLED",
+          "ACTION_REQUIRED",
+          "STARTUP_FAILURE"
+        ].includes(value)
+      )
+    ) {
+      return "failure";
+    }
+
+    if (
+      values.some((value) =>
+        ["PENDING", "QUEUED", "IN_PROGRESS", "WAITING", "REQUESTED"].includes(value)
+      ) ||
+      values.length === 0
+    ) {
+      hasPending = true;
+      continue;
+    }
+
+    if (
+      !values.every((value) =>
+        ["SUCCESS", "NEUTRAL", "SKIPPED", "COMPLETED", "PASSED"].includes(value)
+      )
+    ) {
+      hasUnknown = true;
+    }
+  }
+
+  if (hasPending) {
+    return "pending";
+  }
+  if (hasUnknown) {
+    return "unknown";
+  }
+  return "success";
+}
+
+export function countUnrepliedGitHubReviewThreads(
+  threads: readonly GitHubReviewThread[],
+  viewerLogin: string
+): number {
+  const normalizedViewerLogin = viewerLogin.trim().toLowerCase();
+  if (!normalizedViewerLogin) {
+    return 0;
+  }
+
+  return threads.filter((thread) => {
+    let lastViewerComment = -1;
+    let lastOtherComment = -1;
+
+    thread.comments.forEach((comment, index) => {
+      const authorLogin = comment.authorLogin?.trim().toLowerCase();
+      if (!authorLogin) {
+        return;
+      }
+      if (authorLogin === normalizedViewerLogin) {
+        lastViewerComment = index;
+      } else {
+        lastOtherComment = index;
+      }
+    });
+
+    return lastOtherComment > lastViewerComment;
+  }).length;
+}
+
 function githubRemotePathFromUrl(remote: string): string | null {
   try {
     const url = new URL(remote);
@@ -190,6 +355,81 @@ function githubRemotePathFromUrl(remote: string): string | null {
   } catch {
     return null;
   }
+}
+
+async function getReviewThreadCounts(
+  owner: string,
+  repository: string,
+  number: number
+): Promise<{ unresolvedCommentCount: number; unrepliedCommentCount: number }> {
+  let after: string | null = null;
+  let viewerLogin: string | null = null;
+  const threads: Array<GitHubReviewThread & { id: string; hasMoreComments: boolean }> = [];
+
+  do {
+    const result = parseReviewThreadsPayload(
+      await runGh([
+        "api",
+        "graphql",
+        "-f",
+        `query=${REVIEW_THREADS_QUERY}`,
+        "-F",
+        `owner=${owner}`,
+        "-F",
+        `repository=${repository}`,
+        "-F",
+        `number=${number}`,
+        ...(after ? ["-F", `after=${after}`] : [])
+      ])
+    );
+
+    viewerLogin ??= result.viewerLogin;
+    for (const thread of result.nodes) {
+      const comments = [...thread.comments];
+      if (thread.hasMoreComments) {
+        comments.push(...(await getAdditionalReviewThreadComments(thread.id)));
+      }
+      threads.push({
+        ...thread,
+        comments
+      });
+    }
+    after = result.pageInfo.hasNextPage ? result.pageInfo.endCursor : null;
+  } while (after);
+
+  if (!viewerLogin) {
+    throw new GitHubPullRequestError("GitHub did not return the authenticated user.", 502);
+  }
+
+  return {
+    unresolvedCommentCount: threads.filter((thread) => !thread.isResolved).length,
+    unrepliedCommentCount: countUnrepliedGitHubReviewThreads(threads, viewerLogin)
+  };
+}
+
+async function getAdditionalReviewThreadComments(
+  reviewThreadId: string
+): Promise<GitHubReviewThreadComment[]> {
+  let after: string | null = null;
+  const comments: GitHubReviewThreadComment[] = [];
+
+  do {
+    const result = parseAdditionalReviewThreadCommentsPayload(
+      await runGh([
+        "api",
+        "graphql",
+        "-f",
+        `query=${REVIEW_THREAD_COMMENTS_QUERY}`,
+        "-F",
+        `reviewThreadId=${reviewThreadId}`,
+        ...(after ? ["-F", `after=${after}`] : [])
+      ])
+    );
+    comments.push(...result.comments);
+    after = result.pageInfo.hasNextPage ? result.pageInfo.endCursor : null;
+  } while (after);
+
+  return comments;
 }
 
 async function runGh(arguments_: string[]): Promise<unknown> {
@@ -211,6 +451,179 @@ async function runGh(arguments_: string[]): Promise<unknown> {
   } catch {
     throw new GitHubPullRequestError("GitHub returned invalid pull request metadata.", 502);
   }
+}
+
+function parseGitHubPullRequestHealthPayload(value: unknown): GitHubPullRequestHealthPayload {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("state" in value) ||
+    !("isDraft" in value) ||
+    !("statusCheckRollup" in value) ||
+    typeof value.state !== "string" ||
+    typeof value.isDraft !== "boolean"
+  ) {
+    throw new GitHubPullRequestError("GitHub returned invalid pull request health data.", 502);
+  }
+
+  return {
+    state: value.state,
+    isDraft: value.isDraft,
+    statusCheckRollup: value.statusCheckRollup
+  };
+}
+
+function parseReviewThreadsPayload(value: unknown): {
+  viewerLogin: string;
+  nodes: Array<
+    GitHubReviewThread & {
+      id: string;
+      hasMoreComments: boolean;
+    }
+  >;
+  pageInfo: { hasNextPage: boolean; endCursor: string | null };
+} {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("data" in value) ||
+    typeof value.data !== "object" ||
+    value.data === null ||
+    !("viewer" in value.data) ||
+    typeof value.data.viewer !== "object" ||
+    value.data.viewer === null ||
+    !("login" in value.data.viewer) ||
+    typeof value.data.viewer.login !== "string" ||
+    !("repository" in value.data) ||
+    typeof value.data.repository !== "object" ||
+    value.data.repository === null ||
+    !("pullRequest" in value.data.repository) ||
+    typeof value.data.repository.pullRequest !== "object" ||
+    value.data.repository.pullRequest === null ||
+    !("reviewThreads" in value.data.repository.pullRequest) ||
+    typeof value.data.repository.pullRequest.reviewThreads !== "object" ||
+    value.data.repository.pullRequest.reviewThreads === null
+  ) {
+    throw new GitHubPullRequestError("GitHub returned invalid review thread data.", 502);
+  }
+
+  const reviewThreads = value.data.repository.pullRequest.reviewThreads;
+  if (
+    !("nodes" in reviewThreads) ||
+    !("pageInfo" in reviewThreads) ||
+    !Array.isArray(reviewThreads.nodes) ||
+    typeof reviewThreads.pageInfo !== "object" ||
+    reviewThreads.pageInfo === null ||
+    !("hasNextPage" in reviewThreads.pageInfo) ||
+    !("endCursor" in reviewThreads.pageInfo) ||
+    typeof reviewThreads.pageInfo.hasNextPage !== "boolean" ||
+    (typeof reviewThreads.pageInfo.endCursor !== "string" &&
+      reviewThreads.pageInfo.endCursor !== null)
+  ) {
+    throw new GitHubPullRequestError("GitHub returned invalid review thread data.", 502);
+  }
+
+  const nodes = reviewThreads.nodes.map((thread) => {
+    if (
+      typeof thread !== "object" ||
+      thread === null ||
+      !("id" in thread) ||
+      !("isResolved" in thread) ||
+      !("comments" in thread) ||
+      typeof thread.id !== "string" ||
+      typeof thread.isResolved !== "boolean" ||
+      typeof thread.comments !== "object" ||
+      thread.comments === null
+    ) {
+      throw new GitHubPullRequestError("GitHub returned invalid review thread data.", 502);
+    }
+
+    const comments = parseReviewThreadCommentsConnection(thread.comments);
+    return {
+      id: thread.id,
+      isResolved: thread.isResolved,
+      comments: comments.comments,
+      hasMoreComments: comments.pageInfo.hasNextPage
+    };
+  });
+
+  return {
+    viewerLogin: value.data.viewer.login,
+    nodes,
+    pageInfo: {
+      hasNextPage: reviewThreads.pageInfo.hasNextPage,
+      endCursor: reviewThreads.pageInfo.endCursor
+    }
+  };
+}
+
+function parseAdditionalReviewThreadCommentsPayload(value: unknown): {
+  comments: GitHubReviewThreadComment[];
+  pageInfo: { hasNextPage: boolean; endCursor: string | null };
+} {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("data" in value) ||
+    typeof value.data !== "object" ||
+    value.data === null ||
+    !("node" in value.data) ||
+    typeof value.data.node !== "object" ||
+    value.data.node === null ||
+    !("comments" in value.data.node) ||
+    typeof value.data.node.comments !== "object" ||
+    value.data.node.comments === null
+  ) {
+    throw new GitHubPullRequestError("GitHub returned invalid review thread data.", 502);
+  }
+
+  return parseReviewThreadCommentsConnection(value.data.node.comments);
+}
+
+function parseReviewThreadCommentsConnection(value: object): {
+  comments: GitHubReviewThreadComment[];
+  pageInfo: { hasNextPage: boolean; endCursor: string | null };
+} {
+  if (
+    !("nodes" in value) ||
+    !("pageInfo" in value) ||
+    !Array.isArray(value.nodes) ||
+    typeof value.pageInfo !== "object" ||
+    value.pageInfo === null ||
+    !("hasNextPage" in value.pageInfo) ||
+    !("endCursor" in value.pageInfo) ||
+    typeof value.pageInfo.hasNextPage !== "boolean" ||
+    (typeof value.pageInfo.endCursor !== "string" && value.pageInfo.endCursor !== null)
+  ) {
+    throw new GitHubPullRequestError("GitHub returned invalid review thread data.", 502);
+  }
+
+  const comments = value.nodes.map((comment) => {
+    if (
+      typeof comment !== "object" ||
+      comment === null ||
+      !("author" in comment) ||
+      (typeof comment.author !== "object" && comment.author !== null)
+    ) {
+      throw new GitHubPullRequestError("GitHub returned invalid review thread data.", 502);
+    }
+
+    if (comment.author === null) {
+      return { authorLogin: null };
+    }
+    if (!("login" in comment.author) || typeof comment.author.login !== "string") {
+      throw new GitHubPullRequestError("GitHub returned invalid review thread data.", 502);
+    }
+    return { authorLogin: comment.author.login };
+  });
+
+  return {
+    comments,
+    pageInfo: {
+      hasNextPage: value.pageInfo.hasNextPage,
+      endCursor: value.pageInfo.endCursor
+    }
+  };
 }
 
 function parseGitHubPullRequestPayload(value: unknown): GitHubPullRequestPayload {
@@ -249,3 +662,61 @@ function parseGitHubPullRequestPayload(value: unknown): GitHubPullRequestPayload
     headRefName: branch
   };
 }
+
+const REVIEW_THREADS_QUERY = `
+  query PullRequestReviewThreads(
+    $owner: String!
+    $repository: String!
+    $number: Int!
+    $after: String
+  ) {
+    viewer {
+      login
+    }
+    repository(owner: $owner, name: $repository) {
+      pullRequest(number: $number) {
+        reviewThreads(first: 100, after: $after) {
+          nodes {
+            id
+            isResolved
+            comments(first: 100) {
+              nodes {
+                author {
+                  login
+                }
+              }
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
+            }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+        }
+      }
+    }
+  }
+`;
+
+const REVIEW_THREAD_COMMENTS_QUERY = `
+  query PullRequestReviewThreadComments($reviewThreadId: ID!, $after: String) {
+    node(id: $reviewThreadId) {
+      ... on PullRequestReviewThread {
+        comments(first: 100, after: $after) {
+          nodes {
+            author {
+              login
+            }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+        }
+      }
+    }
+  }
+`;

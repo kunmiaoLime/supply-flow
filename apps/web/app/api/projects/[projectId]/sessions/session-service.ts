@@ -5,6 +5,7 @@ import { FileSessionStore } from "@supply-flow/core/file-session-store";
 import type { ProjectRecord } from "@supply-flow/core/project";
 import { findProvider } from "@supply-flow/core/providers";
 import type { SessionRecord } from "@supply-flow/core/session";
+import { prepareInitialAiSessionPrompt } from "@supply-flow/core/session-prompt";
 import { TmuxAdapter } from "@supply-flow/core/tmux";
 
 const projectRoot = path.resolve(process.cwd(), "../..");
@@ -70,10 +71,12 @@ export async function createProjectSession(
   const contextGoal = input.loadProjectContext === false
     ? null
     : await withProjectContext(project.project_id, input.goal, input.readOnlyOffAtStart);
-  const goal = (
-    contextGoal ??
-    (input.readOnlyOffAtStart ? withReadOnlyOffInstruction(input.goal) : input.goal)
-  ).replaceAll("<AI_SESSION_ID>", id);
+  const goal = prepareInitialAiSessionPrompt(
+    (
+      contextGoal ??
+      (input.readOnlyOffAtStart ? withReadOnlyOffInstruction(input.goal) : input.goal)
+    ).replaceAll("<AI_SESSION_ID>", id)
+  );
   if (goal.length > MAX_SESSION_GOAL_LENGTH) {
     throw new ProjectSessionError(
       "The session goal is too long after loading the project context.",

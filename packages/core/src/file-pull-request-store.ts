@@ -4,7 +4,8 @@ import path from "node:path";
 import {
   PullRequestIndexSchema,
   ProjectPullRequestSchema,
-  type ProjectPullRequest
+  type ProjectPullRequest,
+  type ProjectPullRequestInput
 } from "@supply-flow/core/pull-request";
 
 const PULL_REQUEST_INDEX_FILE = "prs.json";
@@ -39,7 +40,7 @@ export class FilePullRequestStore {
     }
   }
 
-  public async add(pullRequest: ProjectPullRequest): Promise<ProjectPullRequest> {
+  public async add(pullRequest: ProjectPullRequestInput): Promise<ProjectPullRequest> {
     const parsedPullRequest = ProjectPullRequestSchema.parse(pullRequest);
     const pullRequests = await this.list();
     if (pullRequests.some((currentPullRequest) => currentPullRequest.url === parsedPullRequest.url)) {
@@ -48,6 +49,32 @@ export class FilePullRequestStore {
 
     await this.write([...pullRequests, parsedPullRequest]);
     return parsedPullRequest;
+  }
+
+  public async update(
+    current: ProjectPullRequest,
+    next: ProjectPullRequest
+  ): Promise<ProjectPullRequest> {
+    const parsedCurrent = ProjectPullRequestSchema.parse(current);
+    const parsedNext = ProjectPullRequestSchema.parse(next);
+    const pullRequests = await this.list();
+    const index = pullRequests.findIndex(
+      (pullRequest) => pullRequest.url === parsedCurrent.url
+    );
+    if (index === -1) {
+      throw new Error("The tracked pull request no longer exists.");
+    }
+    if (
+      parsedCurrent.url !== parsedNext.url &&
+      pullRequests.some((pullRequest) => pullRequest.url === parsedNext.url)
+    ) {
+      throw new Error("This pull request is already tracked for the project.");
+    }
+
+    const updatedPullRequests = [...pullRequests];
+    updatedPullRequests[index] = parsedNext;
+    await this.write(updatedPullRequests);
+    return parsedNext;
   }
 
   public async remove(url: string): Promise<boolean> {

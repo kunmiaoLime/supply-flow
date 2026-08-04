@@ -2,11 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { TmuxAdapter, type TmuxCommandResult } from "./tmux.js";
 
-test("uses literal tmux input and a separately submitted Enter key", async () => {
+test("pastes action prompts before separately submitting Enter", async () => {
   const commands: string[][] = [];
+  const waits: number[] = [];
   const adapter = new TmuxAdapter(async (arguments_) => {
     commands.push(arguments_);
     return emptyResult();
+  }, async (milliseconds) => {
+    waits.push(milliseconds);
   });
 
   await adapter.createSession({
@@ -38,22 +41,28 @@ test("uses literal tmux input and a separately submitted Enter key", async () =>
     "sf_session_01",
     "cat >> '/tmp/session.log'"
   ]);
-  assert.deepEqual(commands[2], [
-    "send-keys",
+  assert.equal(commands[2]?.[0], "set-buffer");
+  assert.equal(commands[2]?.[1], "-b");
+  assert.match(commands[2]?.[2] ?? "", /^sf_prompt_[a-f0-9]{32}$/);
+  assert.equal(commands[2]?.[3], "Review this repository.");
+  assert.deepEqual(commands[3], [
+    "paste-buffer",
+    "-p",
+    "-d",
+    "-b",
+    commands[2]?.[2],
     "-t",
-    "sf_session_01",
-    "-l",
-    "Review this repository."
+    "sf_session_01"
   ]);
-  assert.deepEqual(commands[3], ["send-keys", "-t", "sf_session_01", "Enter"]);
-  assert.deepEqual(commands[4], [
+  assert.deepEqual(commands[4], ["send-keys", "-t", "sf_session_01", "Enter"]);
+  assert.deepEqual(commands[5], [
     "send-keys",
     "-t",
     "sf_session_01",
     "-l",
     "continue"
   ]);
-  assert.deepEqual(commands[5], [
+  assert.deepEqual(commands[6], [
     "resize-window",
     "-t",
     "sf_session_01",
@@ -62,6 +71,18 @@ test("uses literal tmux input and a separately submitted Enter key", async () =>
     "-y",
     "48"
   ]);
+  assert.deepEqual(waits, [600]);
+});
+
+test("waits longer for larger action prompts before submitting", async () => {
+  const waits: number[] = [];
+  const adapter = new TmuxAdapter(async () => emptyResult(), async (milliseconds) => {
+    waits.push(milliseconds);
+  });
+
+  await adapter.sendInput("sf_session_01", "x".repeat(16_000));
+
+  assert.deepEqual(waits, [2_100]);
 });
 
 function emptyResult(): TmuxCommandResult {

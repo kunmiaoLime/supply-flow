@@ -16,10 +16,11 @@
     "./repository-discovery": "./src/repository-discovery.ts",
     "./providers": "./src/providers.ts",
     "./session": "./src/session.ts",
+    "./session-prompt": "./src/session-prompt.ts",
     "./tmux": "./src/tmux.ts"
   },
   "scripts": {
-    "test": "tsx --test src/file-branch-store.test.ts src/file-pull-request-store.test.ts src/file-pull-request-template-store.test.ts src/file-project-store.test.ts src/file-session-store.test.ts src/github-pull-request.test.ts src/providers.test.ts src/repository-discovery.test.ts src/tmux.test.ts",
+    "test": "tsx --test src/file-branch-store.test.ts src/file-pull-request-store.test.ts src/file-pull-request-template-store.test.ts src/file-project-store.test.ts src/file-session-store.test.ts src/github-pull-request.test.ts src/providers.test.ts src/repository-discovery.test.ts src/session-prompt.test.ts src/tmux.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

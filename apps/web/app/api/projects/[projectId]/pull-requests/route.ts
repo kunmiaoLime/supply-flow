@@ -8,6 +8,7 @@ import {
 } from "@supply-flow/core/github-pull-request";
 import { NextResponse } from "next/server";
 import { dataDirectory, projectDirectory } from "../sessions/session-service";
+import { scanTrackedPullRequest } from "./pull-request-monitor";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -117,6 +118,52 @@ export async function DELETE(request: Request, context: ProjectRouteContext) {
   }
 }
 
+export async function PATCH(request: Request, context: ProjectRouteContext) {
+  const input = await parseMonitoringInput(request);
+  if (!input) {
+    return NextResponse.json(
+      { error: "Select a tracked pull request and a monitoring setting." },
+      { status: 400 }
+    );
+  }
+
+  const { projectId } = await context.params;
+
+  try {
+    const project = await new FileProjectStore(dataDirectory).get(projectId);
+    if (!project) {
+      return NextResponse.json({ error: `Unknown project "${projectId}".` }, { status: 404 });
+    }
+
+    const store = new FilePullRequestStore(projectDirectory(project.project_id));
+    const current = (await store.list()).find((pullRequest) => pullRequest.url === input.url);
+    if (!current) {
+      return NextResponse.json(
+        { error: "The tracked pull request no longer exists." },
+        { status: 404 }
+      );
+    }
+
+    let pullRequest = await store.update(current, {
+      ...current,
+      monitoring_enabled: input.monitoringEnabled
+    });
+    let scanError: string | undefined;
+
+    if (input.monitoringEnabled) {
+      try {
+        pullRequest = await scanTrackedPullRequest(project, pullRequest);
+      } catch (error) {
+        scanError = error instanceof Error ? error.message : "Unable to scan the pull request.";
+      }
+    }
+
+    return NextResponse.json({ pullRequest, ...(scanError ? { scanError } : {}) });
+  } catch (error) {
+    return pullRequestErrorResponse(error, "Unable to update pull request monitoring.");
+  }
+}
+
 async function parsePullRequestUrl(request: Request): Promise<string | null> {
   try {
     const body: unknown = await request.json();
@@ -131,6 +178,31 @@ async function parsePullRequestUrl(request: Request): Promise<string | null> {
 
     const url = body.url.trim();
     return url.length > 0 && url.length <= 2_048 ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+async function parseMonitoringInput(
+  request: Request
+): Promise<{ url: string; monitoringEnabled: boolean } | null> {
+  try {
+    const body: unknown = await request.json();
+    if (
+      typeof body !== "object" ||
+      body === null ||
+      !("url" in body) ||
+      !("monitoringEnabled" in body) ||
+      typeof body.url !== "string" ||
+      typeof body.monitoringEnabled !== "boolean"
+    ) {
+      return null;
+    }
+
+    const url = body.url.trim();
+    return url.length > 0 && url.length <= 2_048
+      ? { url, monitoringEnabled: body.monitoringEnabled }
+      : null;
   } catch {
     return null;
   }

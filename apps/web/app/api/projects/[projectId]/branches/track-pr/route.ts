@@ -16,6 +16,7 @@ import {
 } from "@supply-flow/core/github-pull-request";
 import type { ProjectRecord, ProjectRepository, ProjectTask } from "@supply-flow/core/project";
 import type { SessionRecord } from "@supply-flow/core/session";
+import { sendAiSessionPrompt } from "@supply-flow/core/session-prompt";
 import { TmuxAdapter } from "@supply-flow/core/tmux";
 import { NextResponse } from "next/server";
 import {
@@ -141,7 +142,7 @@ export async function POST(request: Request, context: ProjectRouteContext) {
       (await findOpenImplementationSession(project.project_id, repository.local, issue));
     if (existingSession) {
       await rememberLastSession(branchStore, branch, existingSession.id);
-      await tmux.sendInput(existingSession.tmuxSessionName, toTmuxInput(prompt));
+      await sendAiSessionPrompt(tmux, existingSession.tmuxSessionName, prompt);
       return NextResponse.json(
         {
           creationRequested: true,
@@ -392,10 +393,6 @@ async function pullRequestCreationPrompt(
 
 function pullRequestSessionTitle(task: ProjectTask): string {
   return `Create PR: ${task.title}`.slice(0, 120);
-}
-
-function toTmuxInput(prompt: string): string {
-  return prompt.replace(/\s*\r?\n\s*/g, " ").replace(/\s{2,}/g, " ").trim();
 }
 
 function trackPullRequestErrorResponse(error: unknown): NextResponse {

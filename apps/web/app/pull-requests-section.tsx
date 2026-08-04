@@ -2,10 +2,13 @@
 
 import type { ProjectPullRequest } from "@supply-flow/core/pull-request";
 import type { ProjectRecord } from "@supply-flow/core/project";
-import { ExternalLink, GitPullRequest, ListPlus, Trash2 } from "lucide-react";
+import type { SessionRecord } from "@supply-flow/core/session";
+import { ExternalLink, GitPullRequest, ListPlus, Trash2, Wrench } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 export function PullRequestsSection({ project }: { project: ProjectRecord }) {
+  const router = useRouter();
   const [pullRequests, setPullRequests] = useState<ProjectPullRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [listError, setListError] = useState("");
@@ -16,7 +19,10 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
   const [removingPullRequest, setRemovingPullRequest] = useState<ProjectPullRequest | null>(
     null
   );
+  const [updatingMonitoringUrl, setUpdatingMonitoringUrl] = useState<string | null>(null);
+  const [addressingPullRequestUrl, setAddressingPullRequestUrl] = useState<string | null>(null);
   const urlInput = useRef<HTMLInputElement>(null);
+  const scanInFlight = useRef(false);
 
   useEffect(() => {
     let ignoreResult = false;
@@ -54,6 +60,63 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
       ignoreResult = true;
     };
   }, [project.project_id]);
+
+  const hasMonitoredPullRequests = pullRequests.some(
+    (pullRequest) => pullRequest.monitoring_enabled
+  );
+
+  useEffect(() => {
+    if (!hasMonitoredPullRequests) {
+      return;
+    }
+
+    let ignoreResult = false;
+
+    async function scanMonitoredPullRequests() {
+      if (scanInFlight.current) {
+        return;
+      }
+
+      scanInFlight.current = true;
+      try {
+        const response = await fetch(scanPullRequestsUrl(project.project_id), {
+          body: JSON.stringify({}),
+          headers: { "Content-Type": "application/json" },
+          method: "POST"
+        });
+        const data = (await response.json()) as {
+          prs?: ProjectPullRequest[];
+          errors?: Array<{ url: string; error: string }>;
+          error?: string;
+        };
+        if (!response.ok) {
+          throw new Error(data.error ?? "Unable to scan pull requests.");
+        }
+
+        if (!ignoreResult && data.prs) {
+          setPullRequests(data.prs);
+        }
+        if (!ignoreResult && data.errors?.[0]) {
+          setListError(data.errors[0].error);
+        }
+      } catch (error) {
+        if (!ignoreResult) {
+          setListError(
+            error instanceof Error ? error.message : "Unable to scan pull requests."
+          );
+        }
+      } finally {
+        scanInFlight.current = false;
+      }
+    }
+
+    void scanMonitoredPullRequests();
+    const interval = window.setInterval(() => void scanMonitoredPullRequests(), 60_000);
+    return () => {
+      ignoreResult = true;
+      window.clearInterval(interval);
+    };
+  }, [hasMonitoredPullRequests, project.project_id]);
 
   useEffect(() => {
     if (isImportDialogOpen) {
@@ -130,7 +193,7 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
   }
 
   async function removePullRequest(pullRequest: ProjectPullRequest) {
-    if (removingPullRequest) {
+    if (removingPullRequest || updatingMonitoringUrl || addressingPullRequestUrl) {
       return;
     }
 
@@ -155,6 +218,103 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
       );
     } finally {
       setRemovingPullRequest(null);
+    }
+  }
+
+  async function updateMonitoring(
+    pullRequest: ProjectPullRequest,
+    monitoringEnabled: boolean
+  ) {
+    if (removingPullRequest || updatingMonitoringUrl || addressingPullRequestUrl) {
+      return;
+    }
+
+    setUpdatingMonitoringUrl(pullRequest.url);
+    setListError("");
+
+    try {
+      const response = await fetch(pullRequestsUrl(project.project_id), {
+        body: JSON.stringify({ url: pullRequest.url, monitoringEnabled }),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH"
+      });
+      const data = (await response.json()) as {
+        pullRequest?: ProjectPullRequest;
+        scanError?: string;
+        error?: string;
+      };
+      if (!response.ok || !data.pullRequest) {
+        throw new Error(data.error ?? "Unable to update pull request monitoring.");
+      }
+
+      setPullRequests((currentPullRequests) =>
+        sortPullRequests(
+          currentPullRequests.map((currentPullRequest) =>
+            currentPullRequest.url === pullRequest.url
+              ? (data.pullRequest as ProjectPullRequest)
+              : currentPullRequest
+          )
+        )
+      );
+      if (data.scanError) {
+        setListError(data.scanError);
+      }
+    } catch (error) {
+      setListError(
+        error instanceof Error ? error.message : "Unable to update pull request monitoring."
+      );
+    } finally {
+      setUpdatingMonitoringUrl(null);
+    }
+  }
+
+  async function addressPullRequest(pullRequest: ProjectPullRequest) {
+    if (removingPullRequest || updatingMonitoringUrl || addressingPullRequestUrl) {
+      return;
+    }
+
+    setAddressingPullRequestUrl(pullRequest.url);
+    setListError("");
+
+    try {
+      const response = await fetch(addressPullRequestUrl(project.project_id), {
+        body: JSON.stringify({ url: pullRequest.url }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      });
+      const data = (await response.json()) as {
+        pullRequest?: ProjectPullRequest;
+        session?: SessionRecord;
+        error?: string;
+      };
+      if (!response.ok || !data.session) {
+        throw new Error(data.error ?? "Unable to start a session to address pull request issues.");
+      }
+
+      if (data.pullRequest) {
+        setPullRequests((currentPullRequests) =>
+          sortPullRequests(
+            currentPullRequests.map((currentPullRequest) =>
+              currentPullRequest.url === pullRequest.url
+                ? (data.pullRequest as ProjectPullRequest)
+                : currentPullRequest
+            )
+          )
+        );
+      }
+      router.push(
+        `/ai_sessions/${encodeURIComponent(project.project_id)}?session=${encodeURIComponent(
+          data.session.id
+        )}`
+      );
+    } catch (error) {
+      setListError(
+        error instanceof Error
+          ? error.message
+          : "Unable to start a session to address pull request issues."
+      );
+    } finally {
+      setAddressingPullRequestUrl(null);
     }
   }
 
@@ -205,6 +365,9 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
                 (currentRepository) => currentRepository.local === pullRequest.repository_local
               );
               const isRemoving = removingPullRequest?.url === pullRequest.url;
+              const isUpdatingMonitoring = updatingMonitoringUrl === pullRequest.url;
+              const isAddressing = addressingPullRequestUrl === pullRequest.url;
+              const isClosed = pullRequest.status === "closed" || pullRequest.status === "merged";
 
               return (
                 <li key={pullRequest.url}>
@@ -218,12 +381,70 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
                       <ExternalLink aria-hidden="true" />
                       <code>{pullRequest.url}</code>
                     </a>
+                    <div className="pull-request-health" aria-label="Pull request health">
+                      <span className={`pull-request-health-chip is-${pullRequest.status}`}>
+                        {pullRequest.status}
+                      </span>
+                      <span className="pull-request-health-chip">
+                        {pullRequest.unresolved_comment_count} unresolved
+                      </span>
+                      <span className="pull-request-health-chip">
+                        {pullRequest.unreplied_comment_count} unreplied
+                      </span>
+                      <span className={`pull-request-health-chip is-ci-${pullRequest.ci_status}`}>
+                        CI {pullRequest.ci_status}
+                      </span>
+                      <span className="pull-request-scan-time">
+                        {formatLastScannedAt(pullRequest.last_scanned_at)}
+                      </span>
+                    </div>
                   </div>
                   <div className="repository-actions">
+                    <label
+                      className="pull-request-monitor-control"
+                      title="Scan this pull request once per minute"
+                    >
+                      <input
+                        checked={pullRequest.monitoring_enabled}
+                        disabled={
+                          Boolean(removingPullRequest) ||
+                          Boolean(updatingMonitoringUrl) ||
+                          Boolean(addressingPullRequestUrl)
+                        }
+                        onChange={(event) =>
+                          void updateMonitoring(pullRequest, event.target.checked)
+                        }
+                        type="checkbox"
+                      />
+                      <span>Monitor</span>
+                    </label>
+                    <button
+                      className="pull-request-address-button"
+                      disabled={
+                        isClosed ||
+                        Boolean(removingPullRequest) ||
+                        Boolean(updatingMonitoringUrl) ||
+                        Boolean(addressingPullRequestUrl)
+                      }
+                      onClick={() => void addressPullRequest(pullRequest)}
+                      title={
+                        isClosed
+                          ? "Only open pull requests can be addressed"
+                          : "Address unreplied comments, unresolved comments, or failing CI"
+                      }
+                      type="button"
+                    >
+                      <Wrench aria-hidden="true" />
+                      <span>{isAddressing ? "Starting..." : "Address issues"}</span>
+                    </button>
                     <button
                       aria-label={`Remove pull request #${pullRequest.number}`}
                       className="repository-icon-button is-danger"
-                      disabled={Boolean(removingPullRequest)}
+                      disabled={
+                        Boolean(removingPullRequest) ||
+                        Boolean(updatingMonitoringUrl) ||
+                        Boolean(addressingPullRequestUrl)
+                      }
                       onClick={() => void removePullRequest(pullRequest)}
                       title={`Remove pull request #${pullRequest.number}`}
                       type="button"
@@ -232,6 +453,11 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
                     </button>
                     {isRemoving ? (
                       <span className="sr-only">Removing pull request #{pullRequest.number}</span>
+                    ) : null}
+                    {isUpdatingMonitoring ? (
+                      <span className="sr-only">
+                        Updating monitoring for pull request #{pullRequest.number}
+                      </span>
                     ) : null}
                   </div>
                 </li>
@@ -312,6 +538,23 @@ function removePullRequestUrl(projectId: string, pullRequestUrl: string): string
   const url = new URL(pullRequestsUrl(projectId), window.location.origin);
   url.searchParams.set("url", pullRequestUrl);
   return `${url.pathname}${url.search}`;
+}
+
+function scanPullRequestsUrl(projectId: string): string {
+  return `${pullRequestsUrl(projectId)}/scan`;
+}
+
+function addressPullRequestUrl(projectId: string): string {
+  return `${pullRequestsUrl(projectId)}/address`;
+}
+
+function formatLastScannedAt(value: string | null): string {
+  if (!value) {
+    return "Not scanned";
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf()) ? "Not scanned" : `Scanned ${date.toLocaleTimeString()}`;
 }
 
 function sortPullRequests(pullRequests: ProjectPullRequest[]): ProjectPullRequest[] {
