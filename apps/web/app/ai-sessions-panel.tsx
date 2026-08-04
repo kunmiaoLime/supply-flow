@@ -3,6 +3,7 @@
 import type { ProjectRecord } from "@supply-flow/core/project";
 import type { SessionRecord } from "@supply-flow/core/session";
 import { Bot, Circle, Plus, Square, X } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { TmuxTerminal } from "./tmux-terminal";
 
@@ -12,6 +13,8 @@ interface SessionListResponse {
 }
 
 export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
+  const searchParams = useSearchParams();
+  const requestedSessionId = searchParams.get("session");
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,7 +56,9 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
           const loadedSessions = data.sessions ?? [];
           setSessions(loadedSessions);
           setActiveSessionId((currentSessionId) =>
-            loadedSessions.some((session) => session.id === currentSessionId)
+            loadedSessions.some((session) => session.id === requestedSessionId)
+              ? requestedSessionId
+              : loadedSessions.some((session) => session.id === currentSessionId)
               ? currentSessionId
               : (loadedSessions[0]?.id ?? null)
           );
@@ -77,7 +82,7 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
     return () => {
       ignoreResult = true;
     };
-  }, [project.project_id]);
+  }, [project.project_id, requestedSessionId]);
 
   useEffect(() => {
     if (isNewSessionDialogOpen) {

@@ -1,18 +1,18 @@
-import { randomUUID } from "node:crypto";
-import { stat } from "node:fs/promises";
-import path from "node:path";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
 import { FileSessionStore } from "@supply-flow/core/file-session-store";
-import { findProvider } from "@supply-flow/core/providers";
 import type { SessionRecord } from "@supply-flow/core/session";
 import { TmuxAdapter } from "@supply-flow/core/tmux";
 import { NextResponse } from "next/server";
+import {
+  createProjectSession,
+  dataDirectory,
+  projectDirectory,
+  ProjectSessionError
+} from "./session-service";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const projectRoot = path.resolve(process.cwd(), "../..");
-const dataDirectory = process.env.SUPPLY_FLOW_DATA_DIR ?? path.join(projectRoot, ".supply-flow");
 const tmux = new TmuxAdapter();
 
 interface ProjectRouteContext {
@@ -58,8 +58,6 @@ export async function POST(request: Request, context: ProjectRouteContext) {
   }
 
   const { projectId } = await context.params;
-  let session: SessionRecord | undefined;
-  let store: FileSessionStore | undefined;
 
   try {
     const project = await new FileProjectStore(dataDirectory).get(projectId);
@@ -67,88 +65,17 @@ export async function POST(request: Request, context: ProjectRouteContext) {
       return NextResponse.json({ error: `Unknown project "${projectId}".` }, { status: 404 });
     }
 
-    const workspacePath = project.repos[0]?.local;
-    if (!workspacePath) {
-      return NextResponse.json(
-        { error: "Add a repository before creating an AI session." },
-        { status: 400 }
-      );
-    }
-
-    const workspace = await stat(workspacePath);
-    if (!workspace.isDirectory()) {
-      return NextResponse.json(
-        { error: "The project's first repository path is not available as a directory." },
-        { status: 400 }
-      );
-    }
-
-    const provider = findProvider("codex");
-    if (!provider) {
-      throw new Error("Codex provider is not configured.");
-    }
-
-    const id = `session_${randomUUID().replaceAll("-", "")}`;
-    const tmuxSessionName = `sf_${id}`;
-    const timestamp = new Date().toISOString();
-    store = new FileSessionStore(projectDirectory(project.project_id));
-    session = await store.create({
-      schemaVersion: 1,
-      id,
-      title: input.title,
-      goal: input.goal,
-      providerId: provider.id,
-      workspacePath,
-      tmuxSessionName,
-      status: "starting",
-      createdAt: timestamp,
-      updatedAt: timestamp
-    });
-    await store.appendEvent({
-      schemaVersion: 1,
-      sessionId: id,
-      timestamp,
-      type: "created",
-      message: `Prepared ${provider.displayName} session.`
-    });
-
-    await tmux.createSession({
-      sessionName: tmuxSessionName,
-      workspacePath,
-      outputPath: terminalLogPath(project.project_id, id),
-      launch: provider.createLaunchSpec({ initialPrompt: input.goal })
-    });
-    session = await store.update(id, { status: "running" });
-    await store.appendEvent({
-      schemaVersion: 1,
-      sessionId: id,
-      timestamp: new Date().toISOString(),
-      type: "started",
-      message: `Started ${provider.displayName} in ${tmuxSessionName}.`
-    });
-
+    const session = await createProjectSession(project, input);
     return NextResponse.json({ session }, { status: 201 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to create the AI session.";
-
-    if (session && store) {
-      try {
-        await tmux.terminateSession(session.tmuxSessionName);
-      } catch {
-        // The process may have failed before tmux finished creating the session.
-      }
-
-      await store.update(session.id, { status: "failed", lastError: message });
-      await store.appendEvent({
-        schemaVersion: 1,
-        sessionId: session.id,
-        timestamp: new Date().toISOString(),
-        type: "failed",
-        message
-      });
+    if (error instanceof ProjectSessionError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
     }
 
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Unable to create the AI session." },
+      { status: 500 }
+    );
   }
 }
 
@@ -207,12 +134,4 @@ async function reconcileSession(
   }
 
   return session;
-}
-
-function projectDirectory(projectId: string): string {
-  return path.join(dataDirectory, "projects", projectId);
-}
-
-function terminalLogPath(projectId: string, sessionId: string): string {
-  return path.join(projectDirectory(projectId), "sessions", sessionId, "terminal.log");
 }

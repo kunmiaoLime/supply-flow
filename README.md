@@ -55,6 +55,7 @@ session. The provider must already be installed and authenticated by the host.
 ```text
 .supply-flow/
   projects/<project-id>/project.json
+  projects/<project-id>/context.md
   projects/<project-id>/sessions/<session-id>/meta.json
   projects/<project-id>/sessions/<session-id>/events.ndjson
   projects/<project-id>/sessions/<session-id>/terminal.log
@@ -73,6 +74,9 @@ the current user's home directory.
 
 Each document source stores a `type` of `google-doc`, `confluence`, `figma`,
 or `slack`, together with its source `link`.
+
+`context.md` is created and updated by a dedicated AI session. It summarizes
+the configured document sources and repository scopes for future sessions.
 
 No provider credentials are written to this directory. Provider authentication
 remains the responsibility of each CLI and its host environment.

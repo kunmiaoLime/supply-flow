@@ -1,0 +1,136 @@
+import { randomUUID } from "node:crypto";
+import { stat } from "node:fs/promises";
+import path from "node:path";
+import { FileSessionStore } from "@supply-flow/core/file-session-store";
+import type { ProjectRecord } from "@supply-flow/core/project";
+import { findProvider } from "@supply-flow/core/providers";
+import type { SessionRecord } from "@supply-flow/core/session";
+import { TmuxAdapter } from "@supply-flow/core/tmux";
+
+const projectRoot = path.resolve(process.cwd(), "../..");
+
+export const dataDirectory =
+  process.env.SUPPLY_FLOW_DATA_DIR ?? path.join(projectRoot, ".supply-flow");
+
+export class ProjectSessionError extends Error {
+  public constructor(
+    message: string,
+    public readonly status: number
+  ) {
+    super(message);
+    this.name = "ProjectSessionError";
+  }
+}
+
+export async function createProjectSession(
+  project: ProjectRecord,
+  input: {
+    title: string;
+    goal: string;
+    additionalWritableDirectories?: readonly string[];
+    bypassApprovalsAndSandbox?: boolean;
+  }
+): Promise<SessionRecord> {
+  const workspacePath = project.repos[0]?.local;
+  if (!workspacePath) {
+    throw new ProjectSessionError(
+      "Add a repository before creating an AI session.",
+      400
+    );
+  }
+
+  let workspace;
+  try {
+    workspace = await stat(workspacePath);
+  } catch {
+    throw new ProjectSessionError(
+      "The project's first repository path is not available as a directory.",
+      400
+    );
+  }
+
+  if (!workspace.isDirectory()) {
+    throw new ProjectSessionError(
+      "The project's first repository path is not available as a directory.",
+      400
+    );
+  }
+
+  const provider = findProvider("codex");
+  if (!provider) {
+    throw new Error("Codex provider is not configured.");
+  }
+
+  const id = `session_${randomUUID().replaceAll("-", "")}`;
+  const tmuxSessionName = `sf_${id}`;
+  const timestamp = new Date().toISOString();
+  const store = new FileSessionStore(projectDirectory(project.project_id));
+  let session = await store.create({
+    schemaVersion: 1,
+    id,
+    title: input.title,
+    goal: input.goal,
+    providerId: provider.id,
+    workspacePath,
+    tmuxSessionName,
+    status: "starting",
+    createdAt: timestamp,
+    updatedAt: timestamp
+  });
+  await store.appendEvent({
+    schemaVersion: 1,
+    sessionId: id,
+    timestamp,
+    type: "created",
+    message: `Prepared ${provider.displayName} session.`
+  });
+
+  const tmux = new TmuxAdapter();
+  try {
+    await tmux.createSession({
+      sessionName: tmuxSessionName,
+      workspacePath,
+      outputPath: terminalLogPath(project.project_id, id),
+      launch: provider.createLaunchSpec({
+        initialPrompt: input.goal,
+        additionalWritableDirectories: input.additionalWritableDirectories,
+        bypassApprovalsAndSandbox: input.bypassApprovalsAndSandbox
+      })
+    });
+    session = await store.update(id, { status: "running" });
+    await store.appendEvent({
+      schemaVersion: 1,
+      sessionId: id,
+      timestamp: new Date().toISOString(),
+      type: "started",
+      message: `Started ${provider.displayName} in ${tmuxSessionName}.`
+    });
+    return session;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to create the AI session.";
+
+    try {
+      await tmux.terminateSession(tmuxSessionName);
+    } catch {
+      // The process may have failed before tmux finished creating the session.
+    }
+
+    await store.update(id, { status: "failed", lastError: message });
+    await store.appendEvent({
+      schemaVersion: 1,
+      sessionId: id,
+      timestamp: new Date().toISOString(),
+      type: "failed",
+      message
+    });
+    throw error;
+  }
+}
+
+export function projectDirectory(projectId: string): string {
+  return path.join(dataDirectory, "projects", projectId);
+}
+
+export function terminalLogPath(projectId: string, sessionId: string): string {
+  return path.join(projectDirectory(projectId), "sessions", sessionId, "terminal.log");
+}

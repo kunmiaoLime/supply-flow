@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AiSessionsPanel } from "./ai-sessions-panel";
+import { ProjectContextSection } from "./project-context-section";
 import type {
   DocumentSource,
   DocumentSourceType,
@@ -27,7 +28,7 @@ import {
   Trash2,
   type LucideIcon
 } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useRef, useState, type FormEvent } from "react";
 
 type TabId =
   | "project"
@@ -159,6 +160,7 @@ export function WorkspaceShell({
   const selectedProjectId = projectId ?? "";
   const heading = tabHeadings[tab];
   const selectedProject = projects.find((project) => project.project_id === selectedProjectId);
+  const hasPanelHeading = tab !== "ai-sessions" && tab !== "project";
   const panelEyebrow = selectedProject
     ? `${selectedProject.project_name} / ${heading.eyebrow}`
     : heading.eyebrow;
@@ -684,17 +686,21 @@ export function WorkspaceShell({
 
       <main className="workspace-main">
         <section
-          aria-label={tab === "ai-sessions" ? "AI sessions" : undefined}
-          aria-labelledby={tab === "ai-sessions" ? undefined : "workspace-heading"}
-          className={`workspace-panel${tab === "ai-sessions" ? " is-session-panel" : ""}`}
+          aria-label={
+            tab === "ai-sessions" ? "AI sessions" : tab === "project" ? "Project" : undefined
+          }
+          aria-labelledby={hasPanelHeading ? "workspace-heading" : undefined}
+          className={`workspace-panel${tab === "ai-sessions" ? " is-session-panel" : ""}${
+            tab === "project" ? " is-project-panel" : ""
+          }`}
         >
-          {tab === "ai-sessions" ? null : (
+          {hasPanelHeading ? (
             <div className="panel-heading">
               <p>{panelEyebrow}</p>
               <h1 id="workspace-heading">{heading.title}</h1>
               {panelDescription ? <span>{panelDescription}</span> : null}
             </div>
-          )}
+          ) : null}
           <PanelContent
             isSavingRepositories={isSavingRepository}
             isSavingRequirements={isSavingRequirement}
@@ -1028,6 +1034,7 @@ function PanelContent({
             repositories={project.repos}
             repositoryListError={repositoryListError}
           />
+          <ProjectContextSection project={project} />
         </>
       );
     case "task-plan":
@@ -1123,7 +1130,11 @@ function PanelContent({
         </dl>
       );
     case "ai-sessions":
-      return <AiSessionsPanel project={project} />;
+      return (
+        <Suspense fallback={<div className="ai-sessions-loading">Loading AI sessions...</div>}>
+          <AiSessionsPanel project={project} />
+        </Suspense>
+      );
   }
 }
 

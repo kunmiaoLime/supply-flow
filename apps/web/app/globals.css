@@ -351,6 +351,14 @@ button:focus-visible {
   padding-top: 34px;
 }
 
+.workspace-panel.is-project-panel {
+  padding-top: 42px;
+}
+
+.workspace-panel.is-project-panel .requirements-section {
+  margin-top: 0;
+}
+
 .panel-heading {
   padding-bottom: 28px;
   border-bottom: 1px solid var(--line);
@@ -852,12 +860,14 @@ code {
 }
 
 .repository-section,
-.requirements-section {
+.requirements-section,
+.context-section {
   margin-top: 42px;
 }
 
 .repository-section-header,
-.requirements-section-header {
+.requirements-section-header,
+.context-section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -867,7 +877,8 @@ code {
 }
 
 .repository-section-header p,
-.requirements-section-header p {
+.requirements-section-header p,
+.context-section-header p {
   margin: 0;
   color: var(--teal);
   font-size: 11px;
@@ -876,7 +887,8 @@ code {
 }
 
 .repository-section-header h2,
-.requirements-section-header h2 {
+.requirements-section-header h2,
+.context-section-header h2 {
   margin: 6px 0 0;
   font-size: 18px;
   line-height: 1.2;
@@ -884,6 +896,7 @@ code {
 
 .add-repository-button,
 .add-requirement-button,
+.context-session-button,
 .dialog-primary-button {
   display: inline-flex;
   min-height: 36px;
@@ -903,12 +916,14 @@ code {
 
 .add-repository-button:hover:not(:disabled),
 .add-requirement-button:hover:not(:disabled),
+.context-session-button:hover:not(:disabled),
 .dialog-primary-button:hover:not(:disabled) {
   background: #066a5a;
 }
 
 .add-repository-button:disabled,
 .add-requirement-button:disabled,
+.context-session-button:disabled,
 .dialog-primary-button:disabled {
   cursor: wait;
   opacity: 0.72;
@@ -916,6 +931,7 @@ code {
 
 .add-repository-button svg,
 .add-requirement-button svg,
+.context-session-button svg,
 .dialog-primary-button svg {
   width: 15px;
   height: 15px;
@@ -967,6 +983,42 @@ code {
 .requirement-empty-state span {
   margin-top: 3px;
   font-size: 12px;
+}
+
+.context-status {
+  display: flex;
+  min-height: 96px;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.context-status > svg {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  color: var(--teal);
+}
+
+.context-status strong,
+.context-status span {
+  display: block;
+}
+
+.context-status strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.context-status span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .repository-list,
@@ -1423,7 +1475,8 @@ code {
   }
 
   .repository-section-header,
-  .requirements-section-header {
+  .requirements-section-header,
+  .context-section-header {
     align-items: flex-start;
     flex-direction: column;
   }

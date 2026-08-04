@@ -13,7 +13,7 @@
     "./tmux": "./src/tmux.ts"
   },
   "scripts": {
-    "test": "tsx --test src/file-project-store.test.ts src/file-session-store.test.ts src/repository-discovery.test.ts src/tmux.test.ts",
+    "test": "tsx --test src/file-project-store.test.ts src/file-session-store.test.ts src/providers.test.ts src/repository-discovery.test.ts src/tmux.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
