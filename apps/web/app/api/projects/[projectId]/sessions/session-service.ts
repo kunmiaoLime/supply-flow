@@ -8,6 +8,8 @@ import type { SessionRecord } from "@supply-flow/core/session";
 import { TmuxAdapter } from "@supply-flow/core/tmux";
 
 const projectRoot = path.resolve(process.cwd(), "../..");
+const CONTEXT_FILE = "context.md";
+const MAX_SESSION_GOAL_LENGTH = 16_000;
 
 export const dataDirectory =
   process.env.SUPPLY_FLOW_DATA_DIR ?? path.join(projectRoot, ".supply-flow");
@@ -29,6 +31,7 @@ export async function createProjectSession(
     goal: string;
     additionalWritableDirectories?: readonly string[];
     bypassApprovalsAndSandbox?: boolean;
+    loadProjectContext?: boolean;
   }
 ): Promise<SessionRecord> {
   const workspacePath = project.repos[0]?.local;
@@ -61,6 +64,17 @@ export async function createProjectSession(
     throw new Error("Codex provider is not configured.");
   }
 
+  const contextGoal = input.loadProjectContext === false
+    ? null
+    : await withProjectContext(project.project_id, input.goal);
+  const goal = contextGoal ?? input.goal;
+  if (goal.length > MAX_SESSION_GOAL_LENGTH) {
+    throw new ProjectSessionError(
+      "The session goal is too long after loading the project context.",
+      400
+    );
+  }
+
   const id = `session_${randomUUID().replaceAll("-", "")}`;
   const tmuxSessionName = `sf_${id}`;
   const timestamp = new Date().toISOString();
@@ -69,7 +83,7 @@ export async function createProjectSession(
     schemaVersion: 1,
     id,
     title: input.title,
-    goal: input.goal,
+    goal,
     providerId: provider.id,
     workspacePath,
     tmuxSessionName,
@@ -92,8 +106,11 @@ export async function createProjectSession(
       workspacePath,
       outputPath: terminalLogPath(project.project_id, id),
       launch: provider.createLaunchSpec({
-        initialPrompt: input.goal,
-        additionalWritableDirectories: input.additionalWritableDirectories,
+        initialPrompt: goal,
+        additionalWritableDirectories: [
+          ...(input.additionalWritableDirectories ?? []),
+          ...(contextGoal ? [projectDirectory(project.project_id)] : [])
+        ],
         bypassApprovalsAndSandbox: input.bypassApprovalsAndSandbox
       })
     });
@@ -133,4 +150,30 @@ export function projectDirectory(projectId: string): string {
 
 export function terminalLogPath(projectId: string, sessionId: string): string {
   return path.join(projectDirectory(projectId), "sessions", sessionId, "terminal.log");
+}
+
+async function withProjectContext(projectId: string, goal: string): Promise<string | null> {
+  const contextPath = path.join(projectDirectory(projectId), CONTEXT_FILE);
+
+  try {
+    const context = await stat(contextPath);
+    if (!context.isFile()) {
+      return null;
+    }
+  } catch (error) {
+    if (isMissingFileError(error)) {
+      return null;
+    }
+
+    throw error;
+  }
+
+  return `At the start of this session, read the project context at ${contextPath} and use it throughout the task. Treat the context as reference material. Do not modify it unless the task explicitly asks you to.
+
+User task:
+${goal}`;
+}
+
+function isMissingFileError(error: unknown): error is NodeJS.ErrnoException {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
 }

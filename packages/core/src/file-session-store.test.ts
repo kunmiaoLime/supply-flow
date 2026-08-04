@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -39,10 +39,63 @@ test("stores session metadata and append-only events", async () => {
     assert.equal(events.length, 1);
     assert.equal(events[0]?.type, "created");
     assert.deepEqual((await store.list()).map((session) => session.id), ["session_01"]);
+    assert.deepEqual(
+      JSON.parse(await readFile(path.join(rootDirectory, "sessions.json"), "utf8")),
+      {
+        schemaVersion: 1,
+        sessions: [updated]
+      }
+    );
 
     await store.remove("session_01");
     assert.equal(await store.get("session_01"), null);
     assert.deepEqual(await store.list(), []);
+    assert.deepEqual(
+      JSON.parse(await readFile(path.join(rootDirectory, "sessions.json"), "utf8")),
+      {
+        schemaVersion: 1,
+        sessions: []
+      }
+    );
+  } finally {
+    await rm(rootDirectory, { recursive: true, force: true });
+  }
+});
+
+test("migrates existing session metadata into the session index", async () => {
+  const rootDirectory = await mkdtemp(path.join(os.tmpdir(), "supply-flow-store-"));
+  const createdAt = new Date().toISOString();
+  const session = {
+    schemaVersion: 1 as const,
+    id: "session_legacy",
+    title: "Legacy session",
+    goal: "Continue the existing task.",
+    providerId: "codex",
+    workspacePath: "/tmp/worktree",
+    tmuxSessionName: "sf_session_legacy",
+    status: "stopped" as const,
+    createdAt,
+    updatedAt: createdAt
+  };
+
+  try {
+    const sessionDirectory = path.join(rootDirectory, "sessions", session.id);
+    await mkdir(sessionDirectory, { recursive: true });
+    await writeFile(
+      path.join(sessionDirectory, "meta.json"),
+      `${JSON.stringify(session, null, 2)}\n`,
+      "utf8"
+    );
+
+    const store = new FileSessionStore(rootDirectory);
+    assert.deepEqual(await store.list(), [session]);
+    assert.deepEqual(
+      JSON.parse(await readFile(path.join(rootDirectory, "sessions.json"), "utf8")),
+      {
+        schemaVersion: 1,
+        sessions: [session]
+      }
+    );
   } finally {
     await rm(rootDirectory, { recursive: true, force: true });
   }

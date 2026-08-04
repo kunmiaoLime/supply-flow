@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import {
   SessionEventSchema,
+  SessionIndexSchema,
   SessionRecordSchema,
   type SessionEvent,
   type SessionRecord,
@@ -12,6 +13,7 @@ import {
 
 const META_FILE = "meta.json";
 const EVENTS_FILE = "events.ndjson";
+const SESSIONS_INDEX_FILE = "sessions.json";
 
 export class FileSessionStore implements SessionStore {
   public constructor(private readonly rootDirectory: string) {}
@@ -27,6 +29,7 @@ export class FileSessionStore implements SessionStore {
     }
 
     await writeJsonAtomically(path.join(directory, META_FILE), parsedRecord);
+    await this.upsertSessionIndex(parsedRecord);
     return parsedRecord;
   }
 
@@ -44,24 +47,14 @@ export class FileSessionStore implements SessionStore {
   }
 
   public async list(): Promise<SessionRecord[]> {
-    try {
-      const entries = await readdir(this.sessionsDirectory(), { withFileTypes: true });
-      const sessions = await Promise.all(
-        entries
-          .filter((entry) => entry.isDirectory())
-          .map((entry) => this.get(entry.name))
-      );
-
-      return sessions
-        .filter((session): session is SessionRecord => session !== null)
-        .sort((first, second) => second.updatedAt.localeCompare(first.updatedAt));
-    } catch (error) {
-      if (isMissingFileError(error)) {
-        return [];
-      }
-
-      throw error;
+    const indexedSessions = await this.readSessionIndex();
+    if (indexedSessions) {
+      return sortSessions(indexedSessions);
     }
+
+    const sessions = await this.readSessionDirectories();
+    await this.writeSessionIndex(sessions);
+    return sortSessions(sessions);
   }
 
   public async update(id: string, update: SessionUpdate): Promise<SessionRecord> {
@@ -77,11 +70,14 @@ export class FileSessionStore implements SessionStore {
     });
 
     await writeJsonAtomically(path.join(this.sessionDirectory(id), META_FILE), updated);
+    await this.upsertSessionIndex(updated);
     return updated;
   }
 
   public async remove(id: string): Promise<void> {
     await rm(this.sessionDirectory(id), { recursive: true, force: true });
+    const sessions = (await this.readSessionIndex()) ?? (await this.readSessionDirectories());
+    await this.writeSessionIndex(sessions.filter((session) => session.id !== id));
   }
 
   public async appendEvent(event: SessionEvent): Promise<void> {
@@ -116,10 +112,66 @@ export class FileSessionStore implements SessionStore {
     return path.join(this.rootDirectory, "sessions");
   }
 
+  private sessionIndexPath(): string {
+    return path.join(this.rootDirectory, SESSIONS_INDEX_FILE);
+  }
+
   private sessionDirectory(id: string): string {
     assertPathSegment(id, "session id");
     return path.join(this.sessionsDirectory(), id);
   }
+
+  private async readSessionIndex(): Promise<SessionRecord[] | null> {
+    try {
+      const content = await readFile(this.sessionIndexPath(), "utf8");
+      return SessionIndexSchema.parse(JSON.parse(content)).sessions;
+    } catch (error) {
+      if (isMissingFileError(error)) {
+        return null;
+      }
+
+      throw error;
+    }
+  }
+
+  private async readSessionDirectories(): Promise<SessionRecord[]> {
+    try {
+      const entries = await readdir(this.sessionsDirectory(), { withFileTypes: true });
+      const sessions = await Promise.all(
+        entries
+          .filter((entry) => entry.isDirectory())
+          .map((entry) => this.get(entry.name))
+      );
+
+      return sessions.filter((session): session is SessionRecord => session !== null);
+    } catch (error) {
+      if (isMissingFileError(error)) {
+        return [];
+      }
+
+      throw error;
+    }
+  }
+
+  private async upsertSessionIndex(session: SessionRecord): Promise<void> {
+    const sessions = (await this.readSessionIndex()) ?? (await this.readSessionDirectories());
+    await this.writeSessionIndex([
+      ...sessions.filter((currentSession) => currentSession.id !== session.id),
+      session
+    ]);
+  }
+
+  private async writeSessionIndex(sessions: SessionRecord[]): Promise<void> {
+    await mkdir(this.rootDirectory, { recursive: true });
+    await writeJsonAtomically(this.sessionIndexPath(), {
+      schemaVersion: 1,
+      sessions: sortSessions(sessions)
+    });
+  }
+}
+
+function sortSessions(sessions: SessionRecord[]): SessionRecord[] {
+  return [...sessions].sort((first, second) => second.updatedAt.localeCompare(first.updatedAt));
 }
 
 async function writeJsonAtomically(targetPath: string, value: unknown): Promise<void> {

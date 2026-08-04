@@ -7,8 +7,10 @@ import {
   type ProjectStore,
   type ProjectUpdate
 } from "@supply-flow/core/project";
+import { SessionIndexSchema } from "@supply-flow/core/session";
 
 const PROJECT_METADATA_FILE = "project.json";
+const SESSIONS_INDEX_FILE = "sessions.json";
 
 export class FileProjectStore implements ProjectStore {
   public constructor(private readonly rootDirectory: string) {}
@@ -21,6 +23,10 @@ export class FileProjectStore implements ProjectStore {
 
     await mkdir(this.projectDirectory(parsedRecord.project_id), { recursive: true });
     await writeJsonAtomically(this.projectPath(parsedRecord.project_id), parsedRecord);
+    await writeJsonAtomically(
+      path.join(this.projectDirectory(parsedRecord.project_id), SESSIONS_INDEX_FILE),
+      SessionIndexSchema.parse({ schemaVersion: 1, sessions: [] })
+    );
     return parsedRecord;
   }
 

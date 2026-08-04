@@ -21,6 +21,13 @@ export const SessionRecordSchema = z.object({
 export type SessionRecord = z.infer<typeof SessionRecordSchema>;
 export type SessionStatus = z.infer<typeof SessionStatusSchema>;
 
+export const SessionIndexSchema = z.object({
+  schemaVersion: z.literal(1),
+  sessions: z.array(SessionRecordSchema)
+});
+
+export type SessionIndex = z.infer<typeof SessionIndexSchema>;
+
 export const SessionEventSchema = z.object({
   schemaVersion: z.literal(1),
   sessionId: z.string().min(1),

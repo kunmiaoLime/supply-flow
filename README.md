@@ -56,6 +56,7 @@ session. The provider must already be installed and authenticated by the host.
 .supply-flow/
   projects/<project-id>/project.json
   projects/<project-id>/context.md
+  projects/<project-id>/sessions.json
   projects/<project-id>/sessions/<session-id>/meta.json
   projects/<project-id>/sessions/<session-id>/events.ndjson
   projects/<project-id>/sessions/<session-id>/terminal.log
@@ -77,6 +78,9 @@ or `slack`, together with its source `link`.
 
 `context.md` is created and updated by a dedicated AI session. It summarizes
 the configured document sources and repository scopes for future sessions.
+
+`sessions.json` is the project-level session index. It is updated whenever an
+AI session starts, changes status, or is terminated.
 
 No provider credentials are written to this directory. Provider authentication
 remains the responsibility of each CLI and its host environment.

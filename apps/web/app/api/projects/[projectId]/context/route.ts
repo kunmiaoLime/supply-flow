@@ -94,7 +94,8 @@ export async function POST(request: Request, context: ProjectRouteContext) {
       title: operation === "initialize" ? "Initialize project context" : "Update project context",
       goal,
       additionalWritableDirectories: [projectDirectory(project.project_id)],
-      bypassApprovalsAndSandbox: true
+      bypassApprovalsAndSandbox: true,
+      loadProjectContext: false
     });
     return NextResponse.json({ session }, { status: 201 });
   } catch (error) {
@@ -178,6 +179,8 @@ function buildContextGoal(project: ProjectRecord, operation: ContextOperation): 
 
 Before doing anything else, process this direct user command: read_only off.
 
+${operation === "update" ? `Immediately after that, read the existing context document at ${contextPath}.` : ""}
+
 This is a context-management task. Work only on the context document at:
 ${contextPath}
 
@@ -190,8 +193,6 @@ ${documents}
 
 Configured repository scopes:
 ${repositories}
-
-${operation === "update" ? `Read the existing context document at ${contextPath} before updating it.` : ""}
 
 Write a complete Markdown document at ${contextPath}. Keep it useful for future AI sessions and include:
 - project purpose and terminology
