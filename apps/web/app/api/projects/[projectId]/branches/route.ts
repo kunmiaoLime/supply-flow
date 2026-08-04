@@ -1,6 +1,9 @@
 import { FileBranchStore } from "@supply-flow/core/file-branch-store";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
-import type { ProjectBranch } from "@supply-flow/core/branch";
+import {
+  isTrackableProjectBranchName,
+  type ProjectBranch
+} from "@supply-flow/core/branch";
 import type { ProjectRecord } from "@supply-flow/core/project";
 import {
   listGitBranches,
@@ -19,6 +22,7 @@ interface ProjectRouteContext {
 interface BranchMutationInput {
   repositoryLocal: string;
   name: string;
+  jiraTicket: string | null;
 }
 
 interface BranchUpdateInput {
@@ -90,10 +94,21 @@ export async function PATCH(request: Request, context: ProjectRouteContext) {
     }
 
     await validateProjectBranch(project, input.branch);
-    const branch = await new FileBranchStore(projectDirectory(project.project_id)).update(
-      toProjectBranch(input.current),
-      toProjectBranch(input.branch)
+    const branchStore = new FileBranchStore(projectDirectory(project.project_id));
+    const currentBranch = (await branchStore.list()).find((branch) =>
+      isSameBranch(branch, toProjectBranch(input.current))
     );
+    if (!currentBranch) {
+      return NextResponse.json(
+        { error: "The tracked branch no longer exists." },
+        { status: 404 }
+      );
+    }
+
+    const branch = await branchStore.update(currentBranch, {
+      ...toProjectBranch(input.branch),
+      last_session_id: currentBranch.last_session_id
+    });
     return NextResponse.json({ branch });
   } catch (error) {
     return branchErrorResponse(error, "Unable to update the branch.");
@@ -134,9 +149,19 @@ async function validateProjectBranch(
   project: ProjectRecord,
   input: BranchMutationInput
 ): Promise<void> {
+  if (!isTrackableProjectBranchName(input.name)) {
+    throw new BranchRouteError("The main and master branches cannot be tracked.", 400);
+  }
+
   const repository = project.repos.find((currentRepository) => currentRepository.local === input.repositoryLocal);
   if (!repository) {
     throw new BranchRouteError("Select a repository currently associated with this project.", 400);
+  }
+  if (
+    input.jiraTicket &&
+    !project.tasks.some((task) => task.jira_ticket === input.jiraTicket)
+  ) {
+    throw new BranchRouteError("Select a Jira ticket currently tracked by this project.", 400);
   }
 
   const branches = await listGitBranches(repository.local);
@@ -186,25 +211,42 @@ function parseBranchMutationValue(value: unknown): BranchMutationInput | null {
     !("name" in value) ||
     !("repositoryLocal" in value) ||
     typeof value.name !== "string" ||
-    typeof value.repositoryLocal !== "string"
+    typeof value.repositoryLocal !== "string" ||
+    ("jiraTicket" in value && value.jiraTicket !== null && typeof value.jiraTicket !== "string")
   ) {
     return null;
   }
 
   const name = value.name.trim();
   const repositoryLocal = value.repositoryLocal.trim();
-  if (!name || name.length > 255 || !repositoryLocal || repositoryLocal.length > 4_096) {
+  const jiraTicket =
+    "jiraTicket" in value && typeof value.jiraTicket === "string"
+      ? value.jiraTicket.trim()
+      : null;
+  if (
+    !name ||
+    name.length > 255 ||
+    !repositoryLocal ||
+    repositoryLocal.length > 4_096 ||
+    (jiraTicket !== null && (!jiraTicket || jiraTicket.length > 2_048))
+  ) {
     return null;
   }
 
-  return { name, repositoryLocal };
+  return { name, repositoryLocal, jiraTicket };
 }
 
 function toProjectBranch(input: BranchMutationInput): ProjectBranch {
   return {
     name: input.name,
-    repository_local: input.repositoryLocal
+    repository_local: input.repositoryLocal,
+    jira_ticket: input.jiraTicket,
+    last_session_id: null
   };
+}
+
+function isSameBranch(first: ProjectBranch, second: ProjectBranch): boolean {
+  return first.name === second.name && first.repository_local === second.repository_local;
 }
 
 function branchErrorResponse(error: unknown, fallback: string): NextResponse {

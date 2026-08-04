@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   BranchIndexSchema,
+  isTrackableProjectBranchName,
   ProjectBranchSchema,
   type ProjectBranch
 } from "@supply-flow/core/branch";
@@ -14,8 +15,7 @@ export class FileBranchStore {
 
   public async list(): Promise<ProjectBranch[]> {
     try {
-      const content = await readFile(this.indexPath(), "utf8");
-      return sortBranches(BranchIndexSchema.parse(JSON.parse(content)).branches);
+      return filterTrackableBranches(await this.readBranches());
     } catch (error) {
       if (isMissingFileError(error)) {
         return [];
@@ -27,8 +27,12 @@ export class FileBranchStore {
 
   public async initialize(): Promise<ProjectBranch[]> {
     try {
-      const content = await readFile(this.indexPath(), "utf8");
-      return sortBranches(BranchIndexSchema.parse(JSON.parse(content)).branches);
+      const branches = await this.readBranches();
+      const trackableBranches = filterTrackableBranches(branches);
+      if (trackableBranches.length !== branches.length) {
+        await this.write(trackableBranches);
+      }
+      return trackableBranches;
     } catch (error) {
       if (isMissingFileError(error)) {
         await this.write([]);
@@ -41,6 +45,7 @@ export class FileBranchStore {
 
   public async add(branch: ProjectBranch): Promise<ProjectBranch> {
     const parsedBranch = ProjectBranchSchema.parse(branch);
+    assertTrackableBranch(parsedBranch);
     const branches = await this.list();
     if (branches.some((currentBranch) => isSameBranch(currentBranch, parsedBranch))) {
       throw new Error("This branch is already tracked for the selected repository.");
@@ -52,6 +57,7 @@ export class FileBranchStore {
 
   public async ensure(branch: ProjectBranch): Promise<{ branch: ProjectBranch; created: boolean }> {
     const parsedBranch = ProjectBranchSchema.parse(branch);
+    assertTrackableBranch(parsedBranch);
     const branches = await this.list();
     const existingBranch = branches.find((currentBranch) => isSameBranch(currentBranch, parsedBranch));
     if (existingBranch) {
@@ -65,6 +71,7 @@ export class FileBranchStore {
   public async update(current: ProjectBranch, next: ProjectBranch): Promise<ProjectBranch> {
     const parsedCurrent = ProjectBranchSchema.parse(current);
     const parsedNext = ProjectBranchSchema.parse(next);
+    assertTrackableBranch(parsedNext);
     const branches = await this.list();
     const index = branches.findIndex((branch) => isSameBranch(branch, parsedCurrent));
     if (index === -1) {
@@ -100,12 +107,27 @@ export class FileBranchStore {
     return path.join(this.rootDirectory, BRANCH_INDEX_FILE);
   }
 
+  private async readBranches(): Promise<ProjectBranch[]> {
+    const content = await readFile(this.indexPath(), "utf8");
+    return sortBranches(BranchIndexSchema.parse(JSON.parse(content)).branches);
+  }
+
   private async write(branches: ProjectBranch[]): Promise<void> {
     await mkdir(this.rootDirectory, { recursive: true });
     await writeJsonAtomically(this.indexPath(), {
       schemaVersion: 1,
       branches: sortBranches(branches)
     });
+  }
+}
+
+function filterTrackableBranches(branches: ProjectBranch[]): ProjectBranch[] {
+  return branches.filter((branch) => isTrackableProjectBranchName(branch.name));
+}
+
+function assertTrackableBranch(branch: ProjectBranch): void {
+  if (!isTrackableProjectBranchName(branch.name)) {
+    throw new Error("The main and master branches cannot be tracked.");
   }
 }
 

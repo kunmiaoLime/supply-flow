@@ -1,8 +1,20 @@
 "use client";
 
-import type { ProjectBranch } from "@supply-flow/core/branch";
+import {
+  isTrackableProjectBranchName,
+  type ProjectBranch
+} from "@supply-flow/core/branch";
 import type { ProjectRecord } from "@supply-flow/core/project";
-import { GitBranch, ListPlus, Pencil, Trash2 } from "lucide-react";
+import type { SessionRecord } from "@supply-flow/core/session";
+import {
+  GitBranch,
+  GitPullRequest,
+  ListPlus,
+  MessageSquare,
+  Pencil,
+  Trash2
+} from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 type BranchDialogMode = "import" | "edit" | null;
@@ -10,14 +22,17 @@ type BranchDialogMode = "import" | "edit" | null;
 interface BranchForm {
   name: string;
   repository_local: string;
+  jira_ticket: string;
 }
 
 const emptyBranchForm: BranchForm = {
   name: "",
-  repository_local: ""
+  repository_local: "",
+  jira_ticket: ""
 };
 
 export function BranchesSection({ project }: { project: ProjectRecord }) {
+  const router = useRouter();
   const [branches, setBranches] = useState<ProjectBranch[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [listError, setListError] = useState("");
@@ -30,6 +45,7 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
   const [isLoadingAvailable, setIsLoadingAvailable] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [removingBranch, setRemovingBranch] = useState<ProjectBranch | null>(null);
+  const [trackingPullRequest, setTrackingPullRequest] = useState<ProjectBranch | null>(null);
   const repositoryInput = useRef<HTMLSelectElement>(null);
   const hasRepositories = project.repos.length > 0;
 
@@ -116,7 +132,9 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
         }
 
         if (!ignoreResult) {
-          setAvailableBranches(data.branches ?? []);
+          setAvailableBranches(
+            (data.branches ?? []).filter((branch) => isTrackableProjectBranchName(branch))
+          );
         }
       } catch (error) {
         if (!ignoreResult) {
@@ -141,7 +159,8 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
   function openImportDialog() {
     setBranchForm({
       name: "",
-      repository_local: project.repos[0]?.local ?? ""
+      repository_local: project.repos[0]?.local ?? "",
+      jira_ticket: ""
     });
     setOriginalBranch(null);
     setDialogError("");
@@ -150,7 +169,11 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
   }
 
   function openEditDialog(branch: ProjectBranch) {
-    setBranchForm(branch);
+    setBranchForm({
+      name: branch.name,
+      repository_local: branch.repository_local,
+      jira_ticket: branch.jira_ticket ?? ""
+    });
     setOriginalBranch(branch);
     setDialogError("");
     setAvailableError("");
@@ -193,13 +216,15 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
           dialogMode === "import"
             ? {
                 name: branchForm.name,
-                repositoryLocal: branchForm.repository_local
+                repositoryLocal: branchForm.repository_local,
+                jiraTicket: branchForm.jira_ticket || null
               }
             : {
                 current: toRequestBranch(originalBranch as ProjectBranch),
                 branch: {
                   name: branchForm.name,
-                  repositoryLocal: branchForm.repository_local
+                  repositoryLocal: branchForm.repository_local,
+                  jiraTicket: branchForm.jira_ticket || null
                 }
               }
         ),
@@ -233,7 +258,7 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
   }
 
   async function removeBranch(branch: ProjectBranch) {
-    if (removingBranch) {
+    if (removingBranch || trackingPullRequest) {
       return;
     }
 
@@ -256,6 +281,41 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
       setListError(error instanceof Error ? error.message : "Unable to remove the branch.");
     } finally {
       setRemovingBranch(null);
+    }
+  }
+
+  async function trackPullRequest(branch: ProjectBranch) {
+    if (removingBranch || trackingPullRequest) {
+      return;
+    }
+
+    setTrackingPullRequest(branch);
+    setListError("");
+
+    try {
+      const response = await fetch(trackPullRequestUrl(project.project_id), {
+        body: JSON.stringify(toRequestBranch(branch)),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      });
+      const data = (await response.json()) as { session?: SessionRecord; error?: string };
+      if (!response.ok) {
+        throw new Error(data.error ?? "Unable to track the pull request.");
+      }
+
+      if (data.session) {
+        router.push(
+          `/ai_sessions/${encodeURIComponent(project.project_id)}?session=${encodeURIComponent(
+            data.session.id
+          )}`
+        );
+      }
+    } catch (error) {
+      setListError(
+        error instanceof Error ? error.message : "Unable to track the pull request."
+      );
+    } finally {
+      setTrackingPullRequest(null);
     }
   }
 
@@ -308,19 +368,52 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
                 (currentRepository) => currentRepository.local === branch.repository_local
               );
               const isRemoving = isSameBranch(removingBranch, branch);
+              const isTrackingPullRequest = isSameBranch(trackingPullRequest, branch);
+              const task = project.tasks.find(
+                (currentTask) => currentTask.jira_ticket === branch.jira_ticket
+              );
 
               return (
                 <li key={`${branch.repository_local}:${branch.name}`}>
                   <div className="branch-details">
                     <strong>{branch.name}</strong>
                     <span>{repository?.name ?? "Removed repository"}</span>
+                    <span>{task?.title ?? (branch.jira_ticket ? "Removed task" : "No Jira task")}</span>
                     <code>{branch.repository_local}</code>
                   </div>
                   <div className="repository-actions">
+                    {branch.last_session_id ? (
+                      <button
+                        aria-label={`Open the last AI session for ${branch.name}`}
+                        className="repository-icon-button"
+                        disabled={Boolean(removingBranch) || Boolean(trackingPullRequest)}
+                        onClick={() =>
+                          router.push(
+                            `/ai_sessions/${encodeURIComponent(
+                              project.project_id
+                            )}?session=${encodeURIComponent(branch.last_session_id as string)}`
+                          )
+                        }
+                        title={`Open the last AI session for ${branch.name}`}
+                        type="button"
+                      >
+                        <MessageSquare aria-hidden="true" />
+                      </button>
+                    ) : null}
+                    <button
+                      aria-label={`Track pull request for ${branch.name}`}
+                      className="repository-icon-button"
+                      disabled={Boolean(removingBranch) || Boolean(trackingPullRequest)}
+                      onClick={() => void trackPullRequest(branch)}
+                      title={`Track pull request for ${branch.name}`}
+                      type="button"
+                    >
+                      <GitPullRequest aria-hidden="true" />
+                    </button>
                     <button
                       aria-label={`Edit ${branch.name}`}
                       className="repository-icon-button"
-                      disabled={Boolean(removingBranch)}
+                      disabled={Boolean(removingBranch) || Boolean(trackingPullRequest)}
                       onClick={() => openEditDialog(branch)}
                       title={`Edit ${branch.name}`}
                       type="button"
@@ -330,7 +423,7 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
                     <button
                       aria-label={`Remove ${branch.name}`}
                       className="repository-icon-button is-danger"
-                      disabled={Boolean(removingBranch)}
+                      disabled={Boolean(removingBranch) || Boolean(trackingPullRequest)}
                       onClick={() => void removeBranch(branch)}
                       title={`Remove ${branch.name}`}
                       type="button"
@@ -338,6 +431,9 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
                       <Trash2 aria-hidden="true" />
                     </button>
                     {isRemoving ? <span className="sr-only">Removing {branch.name}</span> : null}
+                    {isTrackingPullRequest ? (
+                      <span className="sr-only">Finding pull request for {branch.name}</span>
+                    ) : null}
                   </div>
                 </li>
               );
@@ -414,6 +510,27 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
                     ))}
                   </select>
                 </label>
+                <label htmlFor="branch-task">
+                  <span>Jira task</span>
+                  <select
+                    disabled={isSaving}
+                    id="branch-task"
+                    onChange={(event) =>
+                      setBranchForm((current) => ({
+                        ...current,
+                        jira_ticket: event.target.value
+                      }))
+                    }
+                    value={branchForm.jira_ticket}
+                  >
+                    <option value="">No associated task</option>
+                    {project.tasks.map((task) => (
+                      <option key={task.jira_ticket} value={task.jira_ticket}>
+                        {task.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </div>
               {availableError || dialogError ? (
                 <p className="create-project-error" role="alert">
@@ -466,10 +583,19 @@ function removeBranchUrl(projectId: string, branch: ProjectBranch): string {
   return `${url.pathname}${url.search}`;
 }
 
-function toRequestBranch(branch: ProjectBranch): { name: string; repositoryLocal: string } {
+function trackPullRequestUrl(projectId: string): string {
+  return `${branchesUrl(projectId)}/track-pr`;
+}
+
+function toRequestBranch(branch: ProjectBranch): {
+  name: string;
+  repositoryLocal: string;
+  jiraTicket: string | null;
+} {
   return {
     name: branch.name,
-    repositoryLocal: branch.repository_local
+    repositoryLocal: branch.repository_local,
+    jiraTicket: branch.jira_ticket
   };
 }
 

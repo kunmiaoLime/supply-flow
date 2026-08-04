@@ -92,7 +92,9 @@ Read the shared context first when it exists.
    choose.
 
 5. Immediately after creating or resuming the ticket branch, verify the
-   current branch is nonempty and record it in this project's `branches.json`:
+   current branch is nonempty and record it in this project's `branches.json`.
+   This must associate the branch with the selected Jira ticket and this AI
+   session so later branch and PR work can continue in the same session:
 
    ```sh
    <BRANCH_TRACKER_COMMAND>

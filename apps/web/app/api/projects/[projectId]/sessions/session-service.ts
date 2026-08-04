@@ -66,12 +66,14 @@ export async function createProjectSession(
     throw new Error("Codex provider is not configured.");
   }
 
+  const id = `session_${randomUUID().replaceAll("-", "")}`;
   const contextGoal = input.loadProjectContext === false
     ? null
     : await withProjectContext(project.project_id, input.goal, input.readOnlyOffAtStart);
-  const goal =
+  const goal = (
     contextGoal ??
-    (input.readOnlyOffAtStart ? withReadOnlyOffInstruction(input.goal) : input.goal);
+    (input.readOnlyOffAtStart ? withReadOnlyOffInstruction(input.goal) : input.goal)
+  ).replaceAll("<AI_SESSION_ID>", id);
   if (goal.length > MAX_SESSION_GOAL_LENGTH) {
     throw new ProjectSessionError(
       "The session goal is too long after loading the project context.",
@@ -79,7 +81,6 @@ export async function createProjectSession(
     );
   }
 
-  const id = `session_${randomUUID().replaceAll("-", "")}`;
   const tmuxSessionName = `sf_${id}`;
   const timestamp = new Date().toISOString();
   const store = new FileSessionStore(projectDirectory(project.project_id));

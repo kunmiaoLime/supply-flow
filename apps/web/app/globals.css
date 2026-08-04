@@ -363,6 +363,10 @@ button:focus-visible {
   padding-top: 42px;
 }
 
+.workspace-panel.is-pull-requests-panel {
+  padding-top: 42px;
+}
+
 .workspace-panel.is-project-panel .requirements-section {
   margin-top: 0;
 }
@@ -372,6 +376,10 @@ button:focus-visible {
 }
 
 .workspace-panel.is-code-implementation-panel .code-implementation-section {
+  margin-top: 0;
+}
+
+.workspace-panel.is-pull-requests-panel .pull-requests-section {
   margin-top: 0;
 }
 
@@ -1476,6 +1484,196 @@ code {
   resize: vertical;
 }
 
+.pull-requests-section {
+  margin-top: 42px;
+}
+
+.pull-requests-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.pull-requests-section-header p {
+  margin: 0;
+  color: var(--teal);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.pull-requests-section-header h2 {
+  margin: 6px 0 0;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.import-pull-request-button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1px solid var(--teal);
+  border-radius: 6px;
+  background: var(--teal);
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.import-pull-request-button:hover:not(:disabled) {
+  background: #066a5a;
+}
+
+.import-pull-request-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.import-pull-request-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.pull-request-empty-state,
+.pull-request-list {
+  margin: 18px 0 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.pull-request-empty-state {
+  display: flex;
+  min-height: 120px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.pull-request-empty-state svg {
+  width: 22px;
+  height: 22px;
+  color: var(--teal);
+}
+
+.pull-request-empty-state strong,
+.pull-request-empty-state span {
+  display: block;
+}
+
+.pull-request-empty-state strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.pull-request-empty-state span {
+  margin-top: 3px;
+  font-size: 12px;
+}
+
+.pull-request-list {
+  padding: 0;
+  list-style: none;
+}
+
+.pull-request-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  padding: 17px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.pull-request-list li:last-child {
+  border-bottom: 0;
+}
+
+.pull-request-details {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.pull-request-details strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.pull-request-details > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.pull-request-details a {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  color: var(--teal);
+  text-decoration: none;
+}
+
+.pull-request-details a:hover {
+  text-decoration: underline;
+}
+
+.pull-request-details a svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.pull-request-details code {
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+
+.pull-request-form-fields,
+.pull-request-form-fields label {
+  display: grid;
+  gap: 7px;
+}
+
+.pull-request-form-fields label > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.pull-request-form-fields input {
+  min-height: 40px;
+  width: 100%;
+  padding: 0 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}
+
+.pull-request-form-fields input::placeholder {
+  color: var(--muted);
+}
+
+.pull-request-form-fields input:focus {
+  outline: 3px solid rgba(8, 124, 105, 0.18);
+  outline-offset: 0;
+  border-color: var(--teal);
+}
+
 .create-project-error {
   margin: 12px 0 0;
   color: #ab3429;
@@ -1701,5 +1899,18 @@ code {
 
   .implementation-selection-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .pull-request-list li {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 540px) {
+  .pull-requests-section-header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

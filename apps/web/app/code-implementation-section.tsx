@@ -1,6 +1,5 @@
 "use client";
 
-import type { ProjectBranch } from "@supply-flow/core/branch";
 import type { ProjectRecord } from "@supply-flow/core/project";
 import type { SessionRecord } from "@supply-flow/core/session";
 import { Code2, Play } from "lucide-react";
@@ -17,8 +16,8 @@ export function CodeImplementationSection({ project }: { project: ProjectRecord 
   const [instructions, setInstructions] = useState("");
   const [error, setError] = useState("");
   const [isStarting, setIsStarting] = useState(false);
-  const [branches, setBranches] = useState<ProjectBranch[]>([]);
-  const [isLoadingBranches, setIsLoadingBranches] = useState(true);
+  const [availableBranches, setAvailableBranches] = useState<string[]>([]);
+  const [isLoadingAvailableBranches, setIsLoadingAvailableBranches] = useState(false);
   const [branchError, setBranchError] = useState("");
   const hasTasks = project.tasks.length > 0;
   const hasRepositories = project.repos.length > 0;
@@ -34,47 +33,51 @@ export function CodeImplementationSection({ project }: { project: ProjectRecord 
   useEffect(() => {
     let ignoreResult = false;
 
-    async function loadBranches() {
-      setIsLoadingBranches(true);
+    async function loadAvailableBranches() {
+      if (!repositoryLocal) {
+        setAvailableBranches([]);
+        setBranchError("");
+        setIsLoadingAvailableBranches(false);
+        return;
+      }
+
+      setIsLoadingAvailableBranches(true);
       setBranchError("");
 
       try {
-        const response = await fetch(branchesUrl(project.project_id), { cache: "no-store" });
-        const data = (await response.json()) as { branches?: ProjectBranch[]; error?: string };
+        const response = await fetch(
+          availableBranchesUrl(project.project_id, repositoryLocal),
+          { cache: "no-store" }
+        );
+        const data = (await response.json()) as { branches?: string[]; error?: string };
         if (!response.ok) {
-          throw new Error(data.error ?? "Unable to load project branches.");
+          throw new Error(data.error ?? "Unable to load local branches.");
         }
 
         if (!ignoreResult) {
-          setBranches(data.branches ?? []);
+          const branches = data.branches ?? [];
+          setAvailableBranches(branches);
+          setParentBranch((currentBranch) => selectParentBranch(branches, currentBranch));
         }
       } catch (loadError) {
         if (!ignoreResult) {
-          setBranches([]);
+          setAvailableBranches([]);
           setBranchError(
-            loadError instanceof Error ? loadError.message : "Unable to load project branches."
+            loadError instanceof Error ? loadError.message : "Unable to load local branches."
           );
         }
       } finally {
         if (!ignoreResult) {
-          setIsLoadingBranches(false);
+          setIsLoadingAvailableBranches(false);
         }
       }
     }
 
-    void loadBranches();
+    void loadAvailableBranches();
     return () => {
       ignoreResult = true;
     };
-  }, [project.project_id]);
-
-  const parentBranchChoices = [
-    "master",
-    ...branches
-      .filter((branch) => branch.repository_local === repositoryLocal)
-      .map((branch) => branch.name)
-      .filter((branch) => branch !== "master")
-  ];
+  }, [project.project_id, repositoryLocal]);
 
   async function startImplementation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -176,7 +179,11 @@ export function CodeImplementationSection({ project }: { project: ProjectRecord 
             <span>Parent branch</span>
             <select
               disabled={
-                !repositoryLocal || isStarting || isLoadingBranches || Boolean(branchError)
+                !repositoryLocal ||
+                isStarting ||
+                isLoadingAvailableBranches ||
+                Boolean(branchError) ||
+                availableBranches.length === 0
               }
               id="implementation-parent-branch"
               onChange={(event) => setParentBranch(event.target.value)}
@@ -185,17 +192,16 @@ export function CodeImplementationSection({ project }: { project: ProjectRecord 
             >
               {!repositoryLocal ? (
                 <option value="">Select a repository first</option>
+              ) : isLoadingAvailableBranches ? (
+                <option value="">Loading local branches...</option>
+              ) : availableBranches.length === 0 ? (
+                <option value="">No local branches</option>
               ) : (
-                <>
-                  <option value="master">master</option>
-                  {parentBranchChoices
-                    .filter((branch) => branch !== "master")
-                    .map((branch) => (
-                      <option key={branch} value={branch}>
-                        {branch}
-                      </option>
-                    ))}
-                </>
+                availableBranches.map((branch) => (
+                  <option key={branch} value={branch}>
+                    {branch}
+                  </option>
+                ))
               )}
             </select>
           </label>
@@ -229,7 +235,8 @@ export function CodeImplementationSection({ project }: { project: ProjectRecord 
               !jiraTicket ||
               !repositoryLocal ||
               !parentBranch ||
-              isLoadingBranches ||
+              isLoadingAvailableBranches ||
+              availableBranches.length === 0 ||
               Boolean(branchError) ||
               isStarting
             }
@@ -244,8 +251,26 @@ export function CodeImplementationSection({ project }: { project: ProjectRecord 
   );
 }
 
-function branchesUrl(projectId: string): string {
-  return `/api/projects/${encodeURIComponent(projectId)}/branches`;
+function availableBranchesUrl(projectId: string, repositoryLocal: string): string {
+  const url = new URL(
+    `/api/projects/${encodeURIComponent(projectId)}/branches/available`,
+    window.location.origin
+  );
+  url.searchParams.set("repositoryLocal", repositoryLocal);
+  return `${url.pathname}${url.search}`;
+}
+
+function selectParentBranch(branches: string[], currentBranch: string): string {
+  if (branches.includes(currentBranch)) {
+    return currentBranch;
+  }
+  if (branches.includes("master")) {
+    return "master";
+  }
+  if (branches.includes("main")) {
+    return "main";
+  }
+  return branches[0] ?? "";
 }
 
 function implementationSessionUrl(projectId: string): string {

@@ -89,6 +89,18 @@ test("stores project records beneath the local projects directory", async () => 
       }
     );
     assert.deepEqual(
+      JSON.parse(
+        await readFile(
+          path.join(rootDirectory, "projects", "second-project", "prs.json"),
+          "utf8"
+        )
+      ),
+      {
+        schemaVersion: 1,
+        prs: []
+      }
+    );
+    assert.deepEqual(
       (await store.list()).map((project) => project.project_id),
       ["first-project", "second-project"]
     );

@@ -1,6 +1,5 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { FileBranchStore } from "@supply-flow/core/file-branch-store";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
 import type { ProjectRecord, ProjectRepository, ProjectTask } from "@supply-flow/core/project";
 import {
@@ -78,19 +77,6 @@ export async function POST(request: Request, context: ProjectRouteContext) {
       );
     }
 
-    const branchStore = new FileBranchStore(projectDirectory(project.project_id));
-    const trackedBranches = await branchStore.list();
-    const isTrackedParent = trackedBranches.some(
-      (branch) =>
-        branch.repository_local === repository.local && branch.name === input.parentBranch
-    );
-    if (input.parentBranch !== "master" && !isTrackedParent) {
-      return NextResponse.json(
-        { error: "Select a tracked parent branch for the selected repository." },
-        { status: 400 }
-      );
-    }
-
     const localBranches = await listGitBranches(repository.local);
     if (!localBranches.includes(input.parentBranch)) {
       return NextResponse.json(
@@ -98,10 +84,6 @@ export async function POST(request: Request, context: ProjectRouteContext) {
         { status: 400 }
       );
     }
-    await branchStore.ensure({
-      name: input.parentBranch,
-      repository_local: repository.local
-    });
 
     const issue = parseJiraIssueLink(task.jira_ticket);
     if (!issue) {
@@ -240,7 +222,11 @@ async function buildImplementationGoal(
     "--repository-local",
     JSON.stringify(repository.local),
     "--branch",
-    '"$(git branch --show-current)"'
+    '"$(git branch --show-current)"',
+    "--jira-ticket",
+    JSON.stringify(issue.link),
+    "--session-id",
+    JSON.stringify("<AI_SESSION_ID>")
   ].join(" ");
 
   const template = await readFile(implementationPromptPath, "utf8");

@@ -57,6 +57,7 @@ session. The provider must already be installed and authenticated by the host.
   projects/<project-id>/project.json
   projects/<project-id>/context.md
   projects/<project-id>/branches.json
+  projects/<project-id>/prs.json
   projects/<project-id>/sessions.json
   projects/<project-id>/sessions/<session-id>/meta.json
   projects/<project-id>/sessions/<session-id>/events.ndjson
@@ -89,17 +90,36 @@ ticket link directly to the project task list.
 
 Code implementation starts a YOLO Codex tmux session for a selected tracked
 Jira task, associated repository scope, and parent branch. The parent defaults
-to `master`; other choices must be imported from the selected repository into
-`branches.json`. It begins with `read_only off`, loads project context when
+to `master` when available, otherwise `main`, then the first local branch.
+Choices are read directly from the selected repository; default branches are
+never added to `branches.json`. It begins with `read_only off`, loads project context when
 available, retrieves the ticket through authenticated Jira access, follows the
 established branch and Jira-transition workflow from the selected parent, adds
 the resulting ticket branch to `branches.json`, runs focused validation, and
 does not commit changes. Its repository-owned workflow lives in
 `prompts/implement_jira_ticket.md`; it does not depend on a global Codex skill.
 
-Each `branches.json` stores a repository-scoped list of branch names. The
-Project tab can import a local Git branch, edit its tracking record, or remove
-it from the project without changing the underlying Git branch.
+Each `branches.json` stores repository-scoped branch names, optional associated
+Jira tickets, and the last AI session that worked on each branch. The PR
+tab can import a local Git branch, edit its tracking record, open its last AI
+session, or remove it from the project without changing the underlying Git
+branch. Ticket branches created by the implementation workflow are associated
+automatically.
+
+Each `prs.json` stores tracked GitHub pull requests for the project. The PR tab
+can import a PR belonging to an associated GitHub repository or remove a
+tracking record without affecting GitHub. The branch action tracks an existing
+PR; when none exists, it requires the branch's tracked Jira task and
+`context.md`, then prompts a matching implementation session or creates a
+dedicated YOLO Codex session to create and track the PR.
+
+PR body templates are local to the workspace under
+`.supply-flow/templates/PR/`. The `pr-template-mapping.json` file maps a
+normalized GitHub `owner/repository` name to a template path relative to that
+directory. The PR workflow injects the matching template into the AI session,
+retains its section structure, and uses a standard summary/testing/links body
+when no mapping exists. Template paths cannot escape the local PR template
+directory.
 
 `context.md` is created and updated by a dedicated AI session. It summarizes
 the configured document sources and repository scopes for future sessions.

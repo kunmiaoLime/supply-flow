@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AiSessionsPanel } from "./ai-sessions-panel";
 import { BranchesSection } from "./branches-section";
 import { CodeImplementationSection } from "./code-implementation-section";
+import { PullRequestsSection } from "./pull-requests-section";
 import { ProjectContextSection } from "./project-context-section";
 import { TaskPlanSection } from "./task-plan-section";
 import type {
@@ -165,7 +166,8 @@ export function WorkspaceShell({
     tab !== "ai-sessions" &&
     tab !== "project" &&
     tab !== "task-plan" &&
-    tab !== "code-implementation";
+    tab !== "code-implementation" &&
+    tab !== "pr";
   const panelEyebrow = selectedProject
     ? `${selectedProject.project_name} / ${heading.eyebrow}`
     : heading.eyebrow;
@@ -708,13 +710,16 @@ export function WorkspaceShell({
                   ? "Task plan"
                   : tab === "code-implementation"
                     ? "Code implementation"
-                  : undefined
+                    : tab === "pr"
+                      ? "Pull requests"
+                      : undefined
           }
           aria-labelledby={hasPanelHeading ? "workspace-heading" : undefined}
           className={`workspace-panel${tab === "ai-sessions" ? " is-session-panel" : ""}${
             tab === "project" ? " is-project-panel" : ""
           }${tab === "task-plan" ? " is-task-plan-panel" : ""}${
             tab === "code-implementation" ? " is-code-implementation-panel" : ""
+          }${tab === "pr" ? " is-pull-requests-panel" : ""
           }`}
         >
           {hasPanelHeading ? (
@@ -1060,7 +1065,6 @@ function PanelContent({
             repositories={project.repos}
             repositoryListError={repositoryListError}
           />
-          <BranchesSection project={project} />
           <ProjectContextSection project={project} />
         </>
       );
@@ -1070,13 +1074,10 @@ function PanelContent({
       return <CodeImplementationSection project={project} />;
     case "pr":
       return (
-        <div className="empty-state">
-          <GitPullRequest aria-hidden="true" />
-          <div>
-            <strong>No pull request</strong>
-            <span>The workspace is on the initial commit.</span>
-          </div>
-        </div>
+        <>
+          <PullRequestsSection project={project} />
+          <BranchesSection project={project} />
+        </>
       );
     case "settings":
       return (
