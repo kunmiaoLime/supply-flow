@@ -26,8 +26,16 @@ export class FileProjectStore implements ProjectStore {
 
   public async get(id: string): Promise<ProjectRecord | null> {
     try {
-      const content = await readFile(this.projectPath(id), "utf8");
-      return ProjectRecordSchema.parse(JSON.parse(content));
+      const projectPath = this.projectPath(id);
+      const content = await readFile(projectPath, "utf8");
+      const rawProject: unknown = JSON.parse(content);
+      const project = ProjectRecordSchema.parse(rawProject);
+
+      if (usesLegacyRequirementsField(rawProject)) {
+        await writeJsonAtomically(projectPath, project);
+      }
+
+      return project;
     } catch (error) {
       if (isMissingFileError(error)) {
         return null;
@@ -104,4 +112,13 @@ function assertPathSegment(value: string, label: string): void {
 
 function isMissingFileError(error: unknown): error is NodeJS.ErrnoException {
   return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
+}
+
+function usesLegacyRequirementsField(value: unknown): boolean {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "requirements" in value &&
+    !("documents" in value)
+  );
 }

@@ -66,7 +66,7 @@ export async function PATCH(request: Request, context: ProjectRouteContext) {
   const update = await parseProjectUpdate(request);
   if (!update) {
     return NextResponse.json(
-      { error: "Project updates require valid repositories or requirement sources." },
+      { error: "Project updates require valid repositories or document sources." },
       { status: 400 }
     );
   }

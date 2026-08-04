@@ -10,40 +10,46 @@ export const ProjectRepositorySchema = z.object({
 
 export const ProjectRepositoriesSchema = z.array(ProjectRepositorySchema);
 
-export const RequirementSourceTypeSchema = z.enum([
+export const DocumentSourceTypeSchema = z.enum([
   "google-doc",
   "confluence",
   "figma",
   "slack"
 ]);
 
-export const RequirementSourceSchema = z.object({
-  type: RequirementSourceTypeSchema,
+export const DocumentSourceSchema = z.object({
+  type: DocumentSourceTypeSchema,
   link: z.string().trim().url().max(2_048)
 });
 
-export const ProjectRequirementsSchema = z.array(RequirementSourceSchema);
+export const ProjectDocumentsSchema = z.array(DocumentSourceSchema);
 
-export const ProjectRecordSchema = z.object({
-  project_name: z.string().trim().min(1).max(120),
-  project_id: z.string().regex(PROJECT_ID_PATTERN),
-  repos: ProjectRepositoriesSchema.default([]),
-  requirements: ProjectRequirementsSchema.default([])
-});
+export const ProjectRecordSchema = z
+  .object({
+    project_name: z.string().trim().min(1).max(120),
+    project_id: z.string().regex(PROJECT_ID_PATTERN),
+    repos: ProjectRepositoriesSchema.default([]),
+    documents: ProjectDocumentsSchema.optional(),
+    requirements: ProjectDocumentsSchema.optional()
+  })
+  .transform(({ documents, requirements, ...record }) => ({
+    ...record,
+    documents: documents ?? requirements ?? []
+  }));
 
 export type ProjectRecord = z.infer<typeof ProjectRecordSchema>;
 export type ProjectRepository = z.infer<typeof ProjectRepositorySchema>;
-export type RequirementSource = z.infer<typeof RequirementSourceSchema>;
-export type RequirementSourceType = z.infer<typeof RequirementSourceTypeSchema>;
+export type DocumentSource = z.infer<typeof DocumentSourceSchema>;
+export type DocumentSourceType = z.infer<typeof DocumentSourceTypeSchema>;
 
 export const ProjectUpdateSchema = z
   .object({
     repos: ProjectRepositoriesSchema.optional(),
-    requirements: ProjectRequirementsSchema.optional()
+    documents: ProjectDocumentsSchema.optional()
   })
   .refine(
-    (update) => update.repos !== undefined || update.requirements !== undefined,
-    "A project update requires repositories or requirements."
+    (update) => update.repos !== undefined || update.documents !== undefined,
+    "A project update requires repositories or documents."
   );
 
 export type ProjectUpdate = z.infer<typeof ProjectUpdateSchema>;

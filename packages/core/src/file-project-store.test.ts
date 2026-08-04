@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -15,13 +15,13 @@ test("stores project records beneath the local projects directory", async () => 
       project_name: "First project",
       project_id: "first-project",
       repos: [],
-      requirements: []
+      documents: []
     });
     await store.create({
       project_name: "Second project",
       project_id: "second-project",
       repos: [],
-      requirements: []
+      documents: []
     });
 
     const repository = {
@@ -29,17 +29,17 @@ test("stores project records beneath the local projects directory", async () => 
       remote: "git@github.com:lime/supply-flow.git",
       local: "/Users/example/code/supply-flow"
     };
-    const requirement = {
+    const document = {
       type: "figma" as const,
-      link: "https://www.figma.com/design/requirements"
+      link: "https://www.figma.com/design/documents"
     };
     const updated = await store.update("first-project", {
       repos: [repository],
-      requirements: [requirement]
+      documents: [document]
     });
 
     assert.deepEqual(updated.repos, [repository]);
-    assert.deepEqual(updated.requirements, [requirement]);
+    assert.deepEqual(updated.documents, [document]);
     assert.equal((await store.get("first-project"))?.project_name, "First project");
     assert.deepEqual(
       JSON.parse(
@@ -52,7 +52,7 @@ test("stores project records beneath the local projects directory", async () => 
         project_name: "First project",
         project_id: "first-project",
         repos: [repository],
-        requirements: [requirement]
+        documents: [document]
       }
     );
     assert.deepEqual(
@@ -64,10 +64,53 @@ test("stores project records beneath the local projects directory", async () => 
         project_name: "Duplicate project",
         project_id: "first-project",
         repos: [],
-        requirements: []
+        documents: []
       }),
       /already exists/
     );
+  } finally {
+    await rm(rootDirectory, { recursive: true, force: true });
+  }
+});
+
+test("migrates legacy requirement sources to documents", async () => {
+  const rootDirectory = await mkdtemp(path.join(os.tmpdir(), "supply-flow-projects-"));
+  const store = new FileProjectStore(rootDirectory);
+  const document = {
+    type: "slack" as const,
+    link: "https://lime.enterprise.slack.com/archives/C0123456789"
+  };
+  const projectPath = path.join(
+    rootDirectory,
+    "projects",
+    "legacy-project",
+    "project.json"
+  );
+
+  try {
+    await mkdir(path.dirname(projectPath), { recursive: true });
+    await writeFile(
+      projectPath,
+      `${JSON.stringify(
+        {
+          project_name: "Legacy project",
+          project_id: "legacy-project",
+          repos: [],
+          requirements: [document]
+        },
+        null,
+        2
+      )}\n`,
+      "utf8"
+    );
+
+    assert.deepEqual((await store.get("legacy-project"))?.documents, [document]);
+    assert.deepEqual(JSON.parse(await readFile(projectPath, "utf8")), {
+      project_name: "Legacy project",
+      project_id: "legacy-project",
+      repos: [],
+      documents: [document]
+    });
   } finally {
     await rm(rootDirectory, { recursive: true, force: true });
   }

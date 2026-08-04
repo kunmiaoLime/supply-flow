@@ -32,7 +32,7 @@ export async function POST(request: Request) {
       (await store.list()).map((project) => project.project_id)
     ),
     repos: [],
-    requirements: []
+    documents: []
   });
 
   return NextResponse.json({ project }, { status: 201 });

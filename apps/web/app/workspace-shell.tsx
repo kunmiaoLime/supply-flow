@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type {
+  DocumentSource,
+  DocumentSourceType,
   ProjectRecord,
-  ProjectRepository,
-  RequirementSource,
-  RequirementSourceType
+  ProjectRepository
 } from "@supply-flow/core/project";
 import {
   Braces,
@@ -46,7 +46,7 @@ interface RepositoryForm {
 }
 
 interface RequirementForm {
-  type: RequirementSourceType;
+  type: DocumentSourceType;
   link: string;
 }
 
@@ -62,7 +62,7 @@ const emptyRequirementForm: RequirementForm = {
 };
 
 const requirementSourceOptions: readonly {
-  type: RequirementSourceType;
+  type: DocumentSourceType;
   label: string;
 }[] = [
   { type: "google-doc", label: "Google Doc" },
@@ -469,12 +469,12 @@ export function WorkspaceShell({
   }
 
   function openEditRequirementDialog(index: number) {
-    const requirement = selectedProject?.requirements[index];
-    if (!requirement) {
+    const document = selectedProject?.documents[index];
+    if (!document) {
       return;
     }
 
-    setRequirementForm(requirement);
+    setRequirementForm(document);
     setEditingRequirementIndex(index);
     setRequirementError("");
     setRequirementDialogMode("edit");
@@ -487,17 +487,17 @@ export function WorkspaceShell({
     }
   }
 
-  async function persistRequirements(
-    requirements: RequirementSource[]
+  async function persistDocuments(
+    documents: DocumentSource[]
   ): Promise<ProjectRecord> {
     if (!selectedProject) {
-      throw new Error("Select a project before managing requirements.");
+      throw new Error("Select a project before managing documents.");
     }
 
     const response = await fetch(
       `/api/projects/${encodeURIComponent(selectedProject.project_id)}`,
       {
-        body: JSON.stringify({ requirements }),
+        body: JSON.stringify({ documents }),
         headers: { "Content-Type": "application/json" },
         method: "PATCH"
       }
@@ -505,7 +505,7 @@ export function WorkspaceShell({
     const data = (await response.json()) as { error?: string; project?: ProjectRecord };
 
     if (!response.ok || !data.project) {
-      throw new Error(data.error ?? "Unable to update requirements.");
+      throw new Error(data.error ?? "Unable to update documents.");
     }
 
     const updatedProject = data.project;
@@ -523,11 +523,11 @@ export function WorkspaceShell({
       return;
     }
 
-    const requirement: RequirementSource = {
+    const document: DocumentSource = {
       type: requirementForm.type,
       link: requirementForm.link.trim()
     };
-    if (!requirement.link) {
+    if (!document.link) {
       setRequirementError("Enter a source link.");
       return;
     }
@@ -541,11 +541,11 @@ export function WorkspaceShell({
     setRequirementListError("");
 
     try {
-      await persistRequirements(
+      await persistDocuments(
         requirementDialogMode === "add"
-          ? [...selectedProject.requirements, requirement]
-          : selectedProject.requirements.map((currentRequirement, index) =>
-              index === editingRequirementIndex ? requirement : currentRequirement
+          ? [...selectedProject.documents, document]
+          : selectedProject.documents.map((currentDocument, index) =>
+              index === editingRequirementIndex ? document : currentDocument
             )
       );
       setRequirementDialogMode(null);
@@ -553,7 +553,7 @@ export function WorkspaceShell({
       setRequirementForm(emptyRequirementForm);
     } catch (error) {
       setRequirementError(
-        error instanceof Error ? error.message : "Unable to update requirements."
+        error instanceof Error ? error.message : "Unable to update documents."
       );
     } finally {
       setIsSavingRequirement(false);
@@ -561,7 +561,7 @@ export function WorkspaceShell({
   }
 
   async function removeRequirement(index: number) {
-    if (!selectedProject || isSavingRequirement || !selectedProject.requirements[index]) {
+    if (!selectedProject || isSavingRequirement || !selectedProject.documents[index]) {
       return;
     }
 
@@ -569,14 +569,14 @@ export function WorkspaceShell({
     setRequirementListError("");
 
     try {
-      await persistRequirements(
-        selectedProject.requirements.filter(
-          (_, requirementIndex) => requirementIndex !== index
+      await persistDocuments(
+        selectedProject.documents.filter(
+          (_, documentIndex) => documentIndex !== index
         )
       );
     } catch (error) {
       setRequirementListError(
-        error instanceof Error ? error.message : "Unable to remove the requirement."
+        error instanceof Error ? error.message : "Unable to remove the document."
       );
     } finally {
       setIsSavingRequirement(false);
@@ -871,7 +871,7 @@ export function WorkspaceShell({
             role="dialog"
           >
             <h2 id="requirement-dialog-title">
-              {requirementDialogMode === "add" ? "Add requirement" : "Edit requirement"}
+              {requirementDialogMode === "add" ? "Add document" : "Edit document"}
             </h2>
             <form onSubmit={saveRequirement}>
               <div className="requirement-form-fields">
@@ -882,7 +882,7 @@ export function WorkspaceShell({
                     onChange={(event) =>
                       setRequirementForm((current) => ({
                         ...current,
-                        type: event.target.value as RequirementSourceType
+                        type: event.target.value as DocumentSourceType
                       }))
                     }
                     value={requirementForm.type}
@@ -937,8 +937,8 @@ export function WorkspaceShell({
                     {isSavingRequirement
                       ? "Saving..."
                       : requirementDialogMode === "add"
-                        ? "Add requirement"
-                        : "Save requirement"}
+                        ? "Add document"
+                        : "Save document"}
                   </span>
                 </button>
               </div>
@@ -999,7 +999,7 @@ function PanelContent({
             onEdit={onEditRequirement}
             onRemove={onRemoveRequirement}
             requirementListError={requirementListError}
-            requirements={project.requirements}
+            requirements={project.documents}
           />
           <RepositorySection
             isSaving={isSavingRepositories}
@@ -1119,14 +1119,14 @@ function RequirementSection({
   onEdit: (index: number) => void;
   onRemove: (index: number) => void;
   requirementListError: string;
-  requirements: RequirementSource[];
+  requirements: DocumentSource[];
 }) {
   return (
     <section aria-labelledby="requirements-heading" className="requirements-section">
       <div className="requirements-section-header">
         <div>
           <p>Product inputs</p>
-          <h2 id="requirements-heading">Requirements</h2>
+          <h2 id="requirements-heading">Documents</h2>
         </div>
         <button
           className="add-requirement-button"
@@ -1135,7 +1135,7 @@ function RequirementSection({
           type="button"
         >
           <Plus aria-hidden="true" />
-          <span>Add requirement</span>
+          <span>Add document</span>
         </button>
       </div>
 
@@ -1149,8 +1149,8 @@ function RequirementSection({
         <div className="requirement-empty-state">
           <FileText aria-hidden="true" />
           <div>
-            <strong>No requirements</strong>
-            <span>Add a requirement source.</span>
+            <strong>No documents</strong>
+            <span>Add a document source.</span>
           </div>
         </div>
       ) : (
@@ -1173,21 +1173,21 @@ function RequirementSection({
                 </div>
                 <div className="repository-actions">
                   <button
-                    aria-label={`Edit ${sourceLabel} requirement`}
+                    aria-label={`Edit ${sourceLabel} document`}
                     className="repository-icon-button"
                     disabled={isSaving}
                     onClick={() => onEdit(index)}
-                    title={`Edit ${sourceLabel} requirement`}
+                    title={`Edit ${sourceLabel} document`}
                     type="button"
                   >
                     <Pencil aria-hidden="true" />
                   </button>
                   <button
-                    aria-label={`Remove ${sourceLabel} requirement`}
+                    aria-label={`Remove ${sourceLabel} document`}
                     className="repository-icon-button is-danger"
                     disabled={isSaving}
                     onClick={() => onRemove(index)}
-                    title={`Remove ${sourceLabel} requirement`}
+                    title={`Remove ${sourceLabel} document`}
                     type="button"
                   >
                     <Trash2 aria-hidden="true" />
@@ -1304,6 +1304,6 @@ function RepositorySection({
   );
 }
 
-function requirementSourceLabel(type: RequirementSourceType): string {
+function requirementSourceLabel(type: DocumentSourceType): string {
   return requirementSourceOptions.find((source) => source.type === type)?.label ?? type;
 }

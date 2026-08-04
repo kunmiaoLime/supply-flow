@@ -62,14 +62,14 @@ session. The provider must already be installed and authenticated by the host.
 Project IDs are derived from the display name as lowercase kebab-case. A
 duplicate name receives a numeric suffix, such as `customer-acme-sync-2`.
 Each `project.json` contains `project_name`, `project_id`, `repos`, and
-`requirements` arrays. Every repository entry stores a `name`, local checkout
+`documents` arrays. Every repository entry stores a `name`, local checkout
 `local` path, and a Git-origin `remote`, which is `null` when the checkout has
 no `origin`. Adding a repository validates its local path with Git, derives its
 remote and name from the enclosing repository, and retains the selected local
 path as the project scope. A local path may begin with `~/` as shorthand for
 the current user's home directory.
 
-Each requirement source stores a `type` of `google-doc`, `confluence`, `figma`,
+Each document source stores a `type` of `google-doc`, `confluence`, `figma`,
 or `slack`, together with its source `link`.
 
 No provider credentials are written to this directory. Provider authentication
