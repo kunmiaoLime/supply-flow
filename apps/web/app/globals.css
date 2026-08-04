@@ -359,11 +359,19 @@ button:focus-visible {
   padding-top: 42px;
 }
 
+.workspace-panel.is-code-implementation-panel {
+  padding-top: 42px;
+}
+
 .workspace-panel.is-project-panel .requirements-section {
   margin-top: 0;
 }
 
 .workspace-panel.is-task-plan-panel .task-plan-section {
+  margin-top: 0;
+}
+
+.workspace-panel.is-code-implementation-panel .code-implementation-section {
   margin-top: 0;
 }
 
@@ -393,7 +401,6 @@ button:focus-visible {
 
 .detail-list,
 .task-list,
-.implementation-list,
 .empty-state {
   margin: 28px 0 0;
   border: 1px solid var(--line);
@@ -490,44 +497,6 @@ code {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.45;
-}
-
-.implementation-list {
-  display: grid;
-}
-
-.implementation-list > div {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 18px 20px;
-  border-bottom: 1px solid var(--line);
-}
-
-.implementation-list > div:last-child {
-  border-bottom: 0;
-}
-
-.implementation-list svg {
-  width: 19px;
-  height: 19px;
-  color: var(--teal);
-}
-
-.implementation-list strong,
-.implementation-list span {
-  display: block;
-}
-
-.implementation-list strong {
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 12px;
-}
-
-.implementation-list span {
-  margin-top: 3px;
-  color: var(--muted);
-  font-size: 12px;
 }
 
 .empty-state {
@@ -869,15 +838,19 @@ code {
 
 .repository-section,
 .requirements-section,
+.branch-section,
 .context-section,
-.task-plan-section {
+.task-plan-section,
+.code-implementation-section {
   margin-top: 42px;
 }
 
 .repository-section-header,
 .requirements-section-header,
+.branch-section-header,
 .context-section-header,
-.task-plan-section-header {
+.task-plan-section-header,
+.code-implementation-section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -888,8 +861,10 @@ code {
 
 .repository-section-header p,
 .requirements-section-header p,
+.branch-section-header p,
 .context-section-header p,
-.task-plan-section-header p {
+.task-plan-section-header p,
+.code-implementation-section-header p {
   margin: 0;
   color: var(--teal);
   font-size: 11px;
@@ -899,8 +874,10 @@ code {
 
 .repository-section-header h2,
 .requirements-section-header h2,
+.branch-section-header h2,
 .context-section-header h2,
-.task-plan-section-header h2 {
+.task-plan-section-header h2,
+.code-implementation-section-header h2 {
   margin: 6px 0 0;
   font-size: 18px;
   line-height: 1.2;
@@ -908,8 +885,10 @@ code {
 
 .add-repository-button,
 .add-requirement-button,
+.import-branch-button,
 .context-session-button,
 .add-task-button,
+.start-implementation-button,
 .dialog-primary-button {
   display: inline-flex;
   min-height: 36px;
@@ -929,16 +908,20 @@ code {
 
 .add-repository-button:hover:not(:disabled),
 .add-requirement-button:hover:not(:disabled),
+.import-branch-button:hover:not(:disabled),
 .context-session-button:hover:not(:disabled),
 .add-task-button:hover:not(:disabled),
+.start-implementation-button:hover:not(:disabled),
 .dialog-primary-button:hover:not(:disabled) {
   background: #066a5a;
 }
 
 .add-repository-button:disabled,
 .add-requirement-button:disabled,
+.import-branch-button:disabled,
 .context-session-button:disabled,
 .add-task-button:disabled,
+.start-implementation-button:disabled,
 .dialog-primary-button:disabled {
   cursor: wait;
   opacity: 0.72;
@@ -946,11 +929,81 @@ code {
 
 .add-repository-button svg,
 .add-requirement-button svg,
+.import-branch-button svg,
 .context-session-button svg,
 .add-task-button svg,
+.start-implementation-button svg,
 .dialog-primary-button svg {
   width: 15px;
   height: 15px;
+}
+
+.code-implementation-form {
+  margin-top: 18px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.implementation-selection-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.implementation-selection-grid label,
+.implementation-instructions-field {
+  display: grid;
+  gap: 7px;
+}
+
+.implementation-selection-grid label > span,
+.implementation-instructions-field > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.implementation-selection-grid select,
+.implementation-instructions-field textarea {
+  min-height: 40px;
+  width: 100%;
+  padding: 0 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}
+
+.implementation-selection-grid select:focus,
+.implementation-instructions-field textarea:focus {
+  outline: 3px solid rgba(8, 124, 105, 0.18);
+  outline-offset: 0;
+  border-color: var(--teal);
+}
+
+.implementation-instructions-field {
+  margin-top: 14px;
+}
+
+.implementation-instructions-field textarea {
+  min-height: 120px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  resize: vertical;
+}
+
+.implementation-instructions-field textarea::placeholder {
+  color: var(--muted);
+}
+
+.implementation-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
 }
 
 .task-plan-actions {
@@ -993,9 +1046,11 @@ code {
 
 .repository-empty-state,
 .requirement-empty-state,
+.branch-empty-state,
 .task-empty-state,
 .repository-list,
 .requirement-list,
+.branch-list,
 .project-task-list {
   margin: 18px 0 0;
   border: 1px solid var(--line);
@@ -1005,6 +1060,7 @@ code {
 
 .repository-empty-state,
 .requirement-empty-state,
+.branch-empty-state,
 .task-empty-state {
   display: flex;
   min-height: 120px;
@@ -1018,6 +1074,7 @@ code {
 
 .repository-empty-state svg,
 .requirement-empty-state svg,
+.branch-empty-state svg,
 .task-empty-state svg {
   width: 22px;
   height: 22px;
@@ -1028,6 +1085,8 @@ code {
 .repository-empty-state span,
 .requirement-empty-state strong,
 .requirement-empty-state span,
+.branch-empty-state strong,
+.branch-empty-state span,
 .task-empty-state strong,
 .task-empty-state span {
   display: block;
@@ -1035,6 +1094,7 @@ code {
 
 .repository-empty-state strong,
 .requirement-empty-state strong,
+.branch-empty-state strong,
 .task-empty-state strong {
   color: var(--ink);
   font-size: 13px;
@@ -1042,6 +1102,7 @@ code {
 
 .repository-empty-state span,
 .requirement-empty-state span,
+.branch-empty-state span,
 .task-empty-state span {
   margin-top: 3px;
   font-size: 12px;
@@ -1085,6 +1146,7 @@ code {
 
 .repository-list,
 .requirement-list,
+.branch-list,
 .project-task-list {
   padding: 0;
   list-style: none;
@@ -1092,6 +1154,7 @@ code {
 
 .repository-list li,
 .requirement-list li,
+.branch-list li,
 .project-task-list li {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1102,6 +1165,7 @@ code {
 
 .repository-list li:last-child,
 .requirement-list li:last-child,
+.branch-list li:last-child,
 .project-task-list li:last-child {
   border-bottom: 0;
 }
@@ -1143,6 +1207,29 @@ code {
 
 .repository-missing-value {
   color: var(--muted);
+  font-size: 11px;
+}
+
+.branch-details {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.branch-details strong {
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 13px;
+}
+
+.branch-details span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.branch-details code {
+  overflow-wrap: anywhere;
   font-size: 11px;
 }
 
@@ -1300,6 +1387,7 @@ code {
 .project-name-field,
 .repository-form-fields,
 .requirement-form-fields,
+.branch-form-fields,
 .task-form-fields,
 .session-form-fields {
   display: grid;
@@ -1309,6 +1397,7 @@ code {
 .project-name-field,
 .repository-form-fields label,
 .requirement-form-fields label,
+.branch-form-fields label,
 .task-form-fields label,
 .session-form-fields label {
   display: grid;
@@ -1318,6 +1407,7 @@ code {
 .project-name-field > span,
 .repository-form-fields label > span,
 .requirement-form-fields label > span,
+.branch-form-fields label > span,
 .task-form-fields label > span,
 .session-form-fields label > span {
   color: var(--muted);
@@ -1330,6 +1420,7 @@ code {
 .repository-form-fields select,
 .requirement-form-fields input,
 .requirement-form-fields select,
+.branch-form-fields select,
 .task-form-fields input,
 .task-form-fields textarea,
 .session-form-fields input,
@@ -1348,6 +1439,7 @@ code {
 .project-name-field input::placeholder,
 .repository-form-fields input::placeholder,
 .requirement-form-fields input::placeholder,
+.branch-form-fields select::placeholder,
 .task-form-fields input::placeholder,
 .task-form-fields textarea::placeholder,
 .session-form-fields input::placeholder,
@@ -1360,6 +1452,7 @@ code {
 .repository-form-fields select:focus,
 .requirement-form-fields input:focus,
 .requirement-form-fields select:focus,
+.branch-form-fields select:focus,
 .task-form-fields input:focus,
 .task-form-fields textarea:focus,
 .session-form-fields input:focus,
@@ -1598,9 +1691,15 @@ code {
 
   .repository-section-header,
   .requirements-section-header,
+  .branch-section-header,
   .context-section-header,
-  .task-plan-section-header {
+  .task-plan-section-header,
+  .code-implementation-section-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .implementation-selection-grid {
+    grid-template-columns: 1fr;
   }
 }

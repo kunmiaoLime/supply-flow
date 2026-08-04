@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./branch": "./src/branch.ts",
+    "./file-branch-store": "./src/file-branch-store.ts",
     "./file-project-store": "./src/file-project-store.ts",
     "./file-session-store": "./src/file-session-store.ts",
     "./project": "./src/project.ts",
@@ -13,7 +15,7 @@
     "./tmux": "./src/tmux.ts"
   },
   "scripts": {
-    "test": "tsx --test src/file-project-store.test.ts src/file-session-store.test.ts src/providers.test.ts src/repository-discovery.test.ts src/tmux.test.ts",
+    "test": "tsx --test src/file-branch-store.test.ts src/file-project-store.test.ts src/file-session-store.test.ts src/providers.test.ts src/repository-discovery.test.ts src/tmux.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

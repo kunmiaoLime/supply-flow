@@ -1,6 +1,7 @@
 import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
+import { BranchIndexSchema } from "@supply-flow/core/branch";
 import {
   ProjectRecordSchema,
   type ProjectRecord,
@@ -11,6 +12,7 @@ import { SessionIndexSchema } from "@supply-flow/core/session";
 
 const PROJECT_METADATA_FILE = "project.json";
 const SESSIONS_INDEX_FILE = "sessions.json";
+const BRANCHES_INDEX_FILE = "branches.json";
 
 export class FileProjectStore implements ProjectStore {
   public constructor(private readonly rootDirectory: string) {}
@@ -26,6 +28,10 @@ export class FileProjectStore implements ProjectStore {
     await writeJsonAtomically(
       path.join(this.projectDirectory(parsedRecord.project_id), SESSIONS_INDEX_FILE),
       SessionIndexSchema.parse({ schemaVersion: 1, sessions: [] })
+    );
+    await writeJsonAtomically(
+      path.join(this.projectDirectory(parsedRecord.project_id), BRANCHES_INDEX_FILE),
+      BranchIndexSchema.parse({ schemaVersion: 1, branches: [] })
     );
     return parsedRecord;
   }

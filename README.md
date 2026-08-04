@@ -56,6 +56,7 @@ session. The provider must already be installed and authenticated by the host.
 .supply-flow/
   projects/<project-id>/project.json
   projects/<project-id>/context.md
+  projects/<project-id>/branches.json
   projects/<project-id>/sessions.json
   projects/<project-id>/sessions/<session-id>/meta.json
   projects/<project-id>/sessions/<session-id>/events.ndjson
@@ -85,6 +86,20 @@ records the new issue in `project.json`.
 Tracking an existing task accepts its Lime Jira ticket link, reads the Jira
 summary with the macOS Keychain credentials, and adds the title and canonical
 ticket link directly to the project task list.
+
+Code implementation starts a YOLO Codex tmux session for a selected tracked
+Jira task, associated repository scope, and parent branch. The parent defaults
+to `master`; other choices must be imported from the selected repository into
+`branches.json`. It begins with `read_only off`, loads project context when
+available, retrieves the ticket through authenticated Jira access, follows the
+established branch and Jira-transition workflow from the selected parent, adds
+the resulting ticket branch to `branches.json`, runs focused validation, and
+does not commit changes. Its repository-owned workflow lives in
+`prompts/implement_jira_ticket.md`; it does not depend on a global Codex skill.
+
+Each `branches.json` stores a repository-scoped list of branch names. The
+Project tab can import a local Git branch, edit its tracking record, or remove
+it from the project without changing the underlying Git branch.
 
 `context.md` is created and updated by a dedicated AI session. It summarizes
 the configured document sources and repository scopes for future sessions.

@@ -29,13 +29,14 @@ export async function createProjectSession(
   input: {
     title: string;
     goal: string;
+    workspacePath?: string;
     additionalWritableDirectories?: readonly string[];
     bypassApprovalsAndSandbox?: boolean;
     loadProjectContext?: boolean;
     readOnlyOffAtStart?: boolean;
   }
 ): Promise<SessionRecord> {
-  const workspacePath = project.repos[0]?.local;
+  const workspacePath = input.workspacePath ?? project.repos[0]?.local;
   if (!workspacePath) {
     throw new ProjectSessionError(
       "Add a repository before creating an AI session.",
@@ -48,14 +49,14 @@ export async function createProjectSession(
     workspace = await stat(workspacePath);
   } catch {
     throw new ProjectSessionError(
-      "The project's first repository path is not available as a directory.",
+      "The selected repository path is not available as a directory.",
       400
     );
   }
 
   if (!workspace.isDirectory()) {
     throw new ProjectSessionError(
-      "The project's first repository path is not available as a directory.",
+      "The selected repository path is not available as a directory.",
       400
     );
   }

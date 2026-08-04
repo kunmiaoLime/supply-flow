@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AiSessionsPanel } from "./ai-sessions-panel";
+import { BranchesSection } from "./branches-section";
+import { CodeImplementationSection } from "./code-implementation-section";
 import { ProjectContextSection } from "./project-context-section";
 import { TaskPlanSection } from "./task-plan-section";
 import type {
@@ -12,7 +14,6 @@ import type {
   ProjectRepository
 } from "@supply-flow/core/project";
 import {
-  Braces,
   CheckCircle2,
   Code2,
   ExternalLink,
@@ -25,7 +26,6 @@ import {
   Pencil,
   Plus,
   Settings2,
-  TerminalSquare,
   Trash2,
   type LucideIcon
 } from "lucide-react";
@@ -161,7 +161,11 @@ export function WorkspaceShell({
   const selectedProjectId = projectId ?? "";
   const heading = tabHeadings[tab];
   const selectedProject = projects.find((project) => project.project_id === selectedProjectId);
-  const hasPanelHeading = tab !== "ai-sessions" && tab !== "project" && tab !== "task-plan";
+  const hasPanelHeading =
+    tab !== "ai-sessions" &&
+    tab !== "project" &&
+    tab !== "task-plan" &&
+    tab !== "code-implementation";
   const panelEyebrow = selectedProject
     ? `${selectedProject.project_name} / ${heading.eyebrow}`
     : heading.eyebrow;
@@ -702,12 +706,16 @@ export function WorkspaceShell({
                 ? "Project"
                 : tab === "task-plan"
                   ? "Task plan"
+                  : tab === "code-implementation"
+                    ? "Code implementation"
                   : undefined
           }
           aria-labelledby={hasPanelHeading ? "workspace-heading" : undefined}
           className={`workspace-panel${tab === "ai-sessions" ? " is-session-panel" : ""}${
             tab === "project" ? " is-project-panel" : ""
-          }${tab === "task-plan" ? " is-task-plan-panel" : ""}`}
+          }${tab === "task-plan" ? " is-task-plan-panel" : ""}${
+            tab === "code-implementation" ? " is-code-implementation-panel" : ""
+          }`}
         >
           {hasPanelHeading ? (
             <div className="panel-heading">
@@ -1052,37 +1060,14 @@ function PanelContent({
             repositories={project.repos}
             repositoryListError={repositoryListError}
           />
+          <BranchesSection project={project} />
           <ProjectContextSection project={project} />
         </>
       );
     case "task-plan":
       return <TaskPlanSection onProjectUpdated={onProjectUpdated} project={project} />;
     case "code-implementation":
-      return (
-        <div className="implementation-list">
-          <div>
-            <TerminalSquare aria-hidden="true" />
-            <div>
-              <strong>apps/runner</strong>
-              <span>tmux session lifecycle and local command entrypoint</span>
-            </div>
-          </div>
-          <div>
-            <Braces aria-hidden="true" />
-            <div>
-              <strong>packages/core</strong>
-              <span>File store, provider adapters, session contracts, and tmux adapter</span>
-            </div>
-          </div>
-          <div>
-            <Code2 aria-hidden="true" />
-            <div>
-              <strong>apps/web</strong>
-              <span>Operator workspace and browser-facing session controls</span>
-            </div>
-          </div>
-        </div>
-      );
+      return <CodeImplementationSection project={project} />;
     case "pr":
       return (
         <div className="empty-state">

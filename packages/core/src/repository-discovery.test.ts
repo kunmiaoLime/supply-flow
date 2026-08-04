@@ -5,7 +5,11 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
-import { expandHomeDirectoryPath, inspectGitRepository } from "./repository-discovery.js";
+import {
+  expandHomeDirectoryPath,
+  inspectGitRepository,
+  listGitBranches
+} from "./repository-discovery.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -89,6 +93,27 @@ test("discovers a Git repository without an origin remote", async () => {
       remote: null,
       local
     });
+  } finally {
+    await rm(repositoryDirectory, { force: true, recursive: true });
+  }
+});
+
+test("lists local Git branches for a selected repository scope", async () => {
+  const repositoryDirectory = await mkdtemp(path.join(os.tmpdir(), "supply-flow-repository-"));
+  const projectDirectory = path.join(repositoryDirectory, "ios", "Apps", "Supply");
+
+  try {
+    await mkdir(projectDirectory, { recursive: true });
+    await runGit(repositoryDirectory, ["init", "-b", "master"]);
+    await runGit(repositoryDirectory, ["config", "user.email", "test@example.com"]);
+    await runGit(repositoryDirectory, ["config", "user.name", "Test User"]);
+    await runGit(repositoryDirectory, ["commit", "--allow-empty", "-m", "Initial commit"]);
+    await runGit(repositoryDirectory, ["branch", "feature/validated-ride"]);
+
+    assert.deepEqual(await listGitBranches(projectDirectory), [
+      "feature/validated-ride",
+      "master"
+    ]);
   } finally {
     await rm(repositoryDirectory, { force: true, recursive: true });
   }

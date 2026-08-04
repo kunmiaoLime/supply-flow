@@ -13,6 +13,13 @@ export class RepositoryInspectionError extends Error {
   }
 }
 
+export class RepositoryBranchError extends Error {
+  public constructor(message: string) {
+    super(message);
+    this.name = "RepositoryBranchError";
+  }
+}
+
 export async function inspectGitRepository(localPath: string): Promise<ProjectRepository> {
   const expandedPath = expandHomeDirectoryPath(localPath.trim());
   if (!expandedPath) {
@@ -38,6 +45,28 @@ export async function inspectGitRepository(localPath: string): Promise<ProjectRe
   };
 }
 
+export async function listGitBranches(localPath: string): Promise<string[]> {
+  const local = normalizeLocalPath(localPath);
+
+  try {
+    const { stdout } = await execFileAsync(
+      "git",
+      ["-C", local, "for-each-ref", "--format=%(refname:short)", "refs/heads"],
+      {
+        encoding: "utf8",
+        maxBuffer: 1_024 * 1_024
+      }
+    );
+    return stdout
+      .split("\n")
+      .map((branch) => branch.trim())
+      .filter(Boolean)
+      .sort((first, second) => first.localeCompare(second));
+  } catch {
+    throw new RepositoryBranchError("The selected repository is not available as a Git repository.");
+  }
+}
+
 export function expandHomeDirectoryPath(localPath: string): string {
   if (localPath === "~") {
     return os.homedir();
@@ -48,6 +77,15 @@ export function expandHomeDirectoryPath(localPath: string): string {
   }
 
   return localPath;
+}
+
+function normalizeLocalPath(localPath: string): string {
+  const expandedPath = expandHomeDirectoryPath(localPath.trim());
+  if (!expandedPath || !path.isAbsolute(expandedPath)) {
+    throw new RepositoryBranchError("The selected repository path must be absolute.");
+  }
+
+  return path.resolve(expandedPath);
 }
 
 async function runGit(
