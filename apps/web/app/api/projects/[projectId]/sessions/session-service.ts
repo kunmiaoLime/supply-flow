@@ -32,6 +32,7 @@ export async function createProjectSession(
     additionalWritableDirectories?: readonly string[];
     bypassApprovalsAndSandbox?: boolean;
     loadProjectContext?: boolean;
+    readOnlyOffAtStart?: boolean;
   }
 ): Promise<SessionRecord> {
   const workspacePath = project.repos[0]?.local;
@@ -66,8 +67,10 @@ export async function createProjectSession(
 
   const contextGoal = input.loadProjectContext === false
     ? null
-    : await withProjectContext(project.project_id, input.goal);
-  const goal = contextGoal ?? input.goal;
+    : await withProjectContext(project.project_id, input.goal, input.readOnlyOffAtStart);
+  const goal =
+    contextGoal ??
+    (input.readOnlyOffAtStart ? withReadOnlyOffInstruction(input.goal) : input.goal);
   if (goal.length > MAX_SESSION_GOAL_LENGTH) {
     throw new ProjectSessionError(
       "The session goal is too long after loading the project context.",
@@ -107,10 +110,12 @@ export async function createProjectSession(
       outputPath: terminalLogPath(project.project_id, id),
       launch: provider.createLaunchSpec({
         initialPrompt: goal,
-        additionalWritableDirectories: [
-          ...(input.additionalWritableDirectories ?? []),
-          ...(contextGoal ? [projectDirectory(project.project_id)] : [])
-        ],
+        additionalWritableDirectories: Array.from(
+          new Set([
+            ...(input.additionalWritableDirectories ?? []),
+            projectDirectory(project.project_id)
+          ])
+        ),
         bypassApprovalsAndSandbox: input.bypassApprovalsAndSandbox
       })
     });
@@ -152,7 +157,11 @@ export function terminalLogPath(projectId: string, sessionId: string): string {
   return path.join(projectDirectory(projectId), "sessions", sessionId, "terminal.log");
 }
 
-async function withProjectContext(projectId: string, goal: string): Promise<string | null> {
+async function withProjectContext(
+  projectId: string,
+  goal: string,
+  readOnlyOffAtStart = false
+): Promise<string | null> {
   const contextPath = path.join(projectDirectory(projectId), CONTEXT_FILE);
 
   try {
@@ -168,9 +177,15 @@ async function withProjectContext(projectId: string, goal: string): Promise<stri
     throw error;
   }
 
-  return `At the start of this session, read the project context at ${contextPath} and use it throughout the task. Treat the context as reference material. Do not modify it unless the task explicitly asks you to.
+  return `${readOnlyOffAtStart ? `${withReadOnlyOffInstruction("")}\n` : ""}At the start of this session, read the project context at ${contextPath} and use it throughout the task. Treat the context as reference material. Do not modify it unless the task explicitly asks you to.
 
 User task:
+${goal}`;
+}
+
+function withReadOnlyOffInstruction(goal: string): string {
+  return `Before doing anything else, process this direct user command: read_only off.
+
 ${goal}`;
 }
 

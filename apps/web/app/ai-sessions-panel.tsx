@@ -2,7 +2,7 @@
 
 import type { ProjectRecord } from "@supply-flow/core/project";
 import type { SessionRecord } from "@supply-flow/core/session";
-import { Bot, Circle, Plus, Square, X } from "lucide-react";
+import { Bot, Check, Circle, Plus, Save, Square, TerminalSquare, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { TmuxTerminal } from "./tmux-terminal";
@@ -25,7 +25,11 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
   const [sessionError, setSessionError] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [stoppingSessionId, setStoppingSessionId] = useState<string | null>(null);
+  const [openingTerminalSessionId, setOpeningTerminalSessionId] = useState<string | null>(null);
+  const [savingProjectContextSessionId, setSavingProjectContextSessionId] = useState<string | null>(null);
+  const [savedProjectContextSessionId, setSavedProjectContextSessionId] = useState<string | null>(null);
   const titleInput = useRef<HTMLInputElement>(null);
+  const contextSaveResetTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeSession = sessions.find((session) => session.id === activeSessionId) ?? null;
   const updateSession = useCallback((updatedSession: SessionRecord) => {
@@ -89,6 +93,15 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
       titleInput.current?.focus();
     }
   }, [isNewSessionDialogOpen]);
+
+  useEffect(
+    () => () => {
+      if (contextSaveResetTimeout.current) {
+        clearTimeout(contextSaveResetTimeout.current);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     if (!isNewSessionDialogOpen) {
@@ -191,6 +204,66 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
     }
   }
 
+  async function openInNativeTerminal(session: SessionRecord) {
+    if (openingTerminalSessionId) {
+      return;
+    }
+
+    setOpeningTerminalSessionId(session.id);
+    setSessionError("");
+
+    try {
+      const response = await fetch(`${sessionUrl(project.project_id, session.id)}/open-terminal`, {
+        method: "POST"
+      });
+      const data = (await response.json()) as { opened?: boolean; error?: string };
+      if (!response.ok || !data.opened) {
+        throw new Error(data.error ?? "Unable to open macOS Terminal.");
+      }
+    } catch (error) {
+      setSessionError(
+        error instanceof Error ? error.message : "Unable to open macOS Terminal."
+      );
+    } finally {
+      setOpeningTerminalSessionId(null);
+    }
+  }
+
+  async function saveProjectContext(session: SessionRecord) {
+    if (savingProjectContextSessionId) {
+      return;
+    }
+
+    setSavingProjectContextSessionId(session.id);
+    setSessionError("");
+
+    try {
+      const response = await fetch(
+        `${sessionUrl(project.project_id, session.id)}/save-project-context`,
+        { method: "POST" }
+      );
+      const data = (await response.json()) as { sent?: boolean; error?: string };
+      if (!response.ok || !data.sent) {
+        throw new Error(data.error ?? "Unable to send the project-context prompt.");
+      }
+
+      setSavedProjectContextSessionId(session.id);
+      if (contextSaveResetTimeout.current) {
+        clearTimeout(contextSaveResetTimeout.current);
+      }
+      contextSaveResetTimeout.current = setTimeout(() => {
+        setSavedProjectContextSessionId(null);
+        contextSaveResetTimeout.current = null;
+      }, 2_000);
+    } catch (error) {
+      setSessionError(
+        error instanceof Error ? error.message : "Unable to send the project-context prompt."
+      );
+    } finally {
+      setSavingProjectContextSessionId(null);
+    }
+  }
+
   return (
     <>
       <section aria-label="AI sessions" className="ai-sessions-section">
@@ -274,20 +347,51 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
                   </div>
                   <div className="ai-session-terminal-actions">
                     {activeSession.status === "starting" || activeSession.status === "running" ? (
-                      <button
-                        aria-label={`Stop ${activeSession.title}`}
-                        className="session-icon-button is-danger"
-                        disabled={stoppingSessionId === activeSession.id}
-                        onClick={() => void stopSession(activeSession)}
-                        title="Stop session"
-                        type="button"
-                      >
-                        <Square aria-hidden="true" />
-                      </button>
+                      <>
+                        <button
+                          aria-label={`Save ${activeSession.title} context to the project`}
+                          className="session-icon-button"
+                          disabled={savingProjectContextSessionId === activeSession.id}
+                          onClick={() => void saveProjectContext(activeSession)}
+                          title={
+                            savedProjectContextSessionId === activeSession.id
+                              ? "Project-context prompt sent"
+                              : "Save session context to project"
+                          }
+                          type="button"
+                        >
+                          {savedProjectContextSessionId === activeSession.id ? (
+                            <Check aria-hidden="true" />
+                          ) : (
+                            <Save aria-hidden="true" />
+                          )}
+                        </button>
+                        <button
+                          aria-label={`Open ${activeSession.title} in macOS Terminal`}
+                          className="session-icon-button"
+                          disabled={openingTerminalSessionId === activeSession.id}
+                          onClick={() => void openInNativeTerminal(activeSession)}
+                          title="Open in macOS Terminal"
+                          type="button"
+                        >
+                          <TerminalSquare aria-hidden="true" />
+                        </button>
+                        <button
+                          aria-label={`Stop ${activeSession.title}`}
+                          className="session-icon-button is-danger"
+                          disabled={stoppingSessionId === activeSession.id}
+                          onClick={() => void stopSession(activeSession)}
+                          title="Stop session"
+                          type="button"
+                        >
+                          <Square aria-hidden="true" />
+                        </button>
+                      </>
                     ) : null}
                   </div>
                 </div>
                 <TmuxTerminal
+                  key={`${project.project_id}:${activeSession.id}`}
                   onSessionUpdated={updateSession}
                   onTerminalError={setSessionError}
                   projectId={project.project_id}

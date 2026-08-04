@@ -355,7 +355,15 @@ button:focus-visible {
   padding-top: 42px;
 }
 
+.workspace-panel.is-task-plan-panel {
+  padding-top: 42px;
+}
+
 .workspace-panel.is-project-panel .requirements-section {
+  margin-top: 0;
+}
+
+.workspace-panel.is-task-plan-panel .task-plan-section {
   margin-top: 0;
 }
 
@@ -861,13 +869,15 @@ code {
 
 .repository-section,
 .requirements-section,
-.context-section {
+.context-section,
+.task-plan-section {
   margin-top: 42px;
 }
 
 .repository-section-header,
 .requirements-section-header,
-.context-section-header {
+.context-section-header,
+.task-plan-section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -878,7 +888,8 @@ code {
 
 .repository-section-header p,
 .requirements-section-header p,
-.context-section-header p {
+.context-section-header p,
+.task-plan-section-header p {
   margin: 0;
   color: var(--teal);
   font-size: 11px;
@@ -888,7 +899,8 @@ code {
 
 .repository-section-header h2,
 .requirements-section-header h2,
-.context-section-header h2 {
+.context-section-header h2,
+.task-plan-section-header h2 {
   margin: 6px 0 0;
   font-size: 18px;
   line-height: 1.2;
@@ -897,6 +909,7 @@ code {
 .add-repository-button,
 .add-requirement-button,
 .context-session-button,
+.add-task-button,
 .dialog-primary-button {
   display: inline-flex;
   min-height: 36px;
@@ -917,6 +930,7 @@ code {
 .add-repository-button:hover:not(:disabled),
 .add-requirement-button:hover:not(:disabled),
 .context-session-button:hover:not(:disabled),
+.add-task-button:hover:not(:disabled),
 .dialog-primary-button:hover:not(:disabled) {
   background: #066a5a;
 }
@@ -924,6 +938,7 @@ code {
 .add-repository-button:disabled,
 .add-requirement-button:disabled,
 .context-session-button:disabled,
+.add-task-button:disabled,
 .dialog-primary-button:disabled {
   cursor: wait;
   opacity: 0.72;
@@ -932,15 +947,56 @@ code {
 .add-repository-button svg,
 .add-requirement-button svg,
 .context-session-button svg,
+.add-task-button svg,
 .dialog-primary-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.task-plan-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.track-task-button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.track-task-button:hover:not(:disabled) {
+  border-color: var(--teal);
+  color: var(--teal);
+}
+
+.track-task-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.track-task-button svg {
   width: 15px;
   height: 15px;
 }
 
 .repository-empty-state,
 .requirement-empty-state,
+.task-empty-state,
 .repository-list,
-.requirement-list {
+.requirement-list,
+.project-task-list {
   margin: 18px 0 0;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -948,7 +1004,8 @@ code {
 }
 
 .repository-empty-state,
-.requirement-empty-state {
+.requirement-empty-state,
+.task-empty-state {
   display: flex;
   min-height: 120px;
   align-items: center;
@@ -960,7 +1017,8 @@ code {
 }
 
 .repository-empty-state svg,
-.requirement-empty-state svg {
+.requirement-empty-state svg,
+.task-empty-state svg {
   width: 22px;
   height: 22px;
   color: var(--teal);
@@ -969,18 +1027,22 @@ code {
 .repository-empty-state strong,
 .repository-empty-state span,
 .requirement-empty-state strong,
-.requirement-empty-state span {
+.requirement-empty-state span,
+.task-empty-state strong,
+.task-empty-state span {
   display: block;
 }
 
 .repository-empty-state strong,
-.requirement-empty-state strong {
+.requirement-empty-state strong,
+.task-empty-state strong {
   color: var(--ink);
   font-size: 13px;
 }
 
 .repository-empty-state span,
-.requirement-empty-state span {
+.requirement-empty-state span,
+.task-empty-state span {
   margin-top: 3px;
   font-size: 12px;
 }
@@ -1022,13 +1084,15 @@ code {
 }
 
 .repository-list,
-.requirement-list {
+.requirement-list,
+.project-task-list {
   padding: 0;
   list-style: none;
 }
 
 .repository-list li,
-.requirement-list li {
+.requirement-list li,
+.project-task-list li {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 16px;
@@ -1037,7 +1101,8 @@ code {
 }
 
 .repository-list li:last-child,
-.requirement-list li:last-child {
+.requirement-list li:last-child,
+.project-task-list li:last-child {
   border-bottom: 0;
 }
 
@@ -1127,6 +1192,41 @@ code {
   font-size: 11px;
 }
 
+.project-task-details {
+  min-width: 0;
+}
+
+.project-task-details strong {
+  display: block;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.project-task-details a {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  color: var(--teal);
+  text-decoration: none;
+}
+
+.project-task-details a:hover {
+  text-decoration: underline;
+}
+
+.project-task-details a svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.project-task-details a code {
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+
 .repository-actions {
   display: flex;
   align-items: flex-start;
@@ -1147,6 +1247,11 @@ code {
 }
 
 .repository-icon-button:hover:not(:disabled) {
+  border-color: var(--teal);
+  color: var(--teal);
+}
+
+.repository-icon-button.is-copied {
   border-color: var(--teal);
   color: var(--teal);
 }
@@ -1195,6 +1300,7 @@ code {
 .project-name-field,
 .repository-form-fields,
 .requirement-form-fields,
+.task-form-fields,
 .session-form-fields {
   display: grid;
   gap: 14px;
@@ -1203,6 +1309,7 @@ code {
 .project-name-field,
 .repository-form-fields label,
 .requirement-form-fields label,
+.task-form-fields label,
 .session-form-fields label {
   display: grid;
   gap: 7px;
@@ -1211,6 +1318,7 @@ code {
 .project-name-field > span,
 .repository-form-fields label > span,
 .requirement-form-fields label > span,
+.task-form-fields label > span,
 .session-form-fields label > span {
   color: var(--muted);
   font-size: 12px;
@@ -1222,6 +1330,8 @@ code {
 .repository-form-fields select,
 .requirement-form-fields input,
 .requirement-form-fields select,
+.task-form-fields input,
+.task-form-fields textarea,
 .session-form-fields input,
 .session-form-fields textarea {
   min-height: 40px;
@@ -1238,6 +1348,8 @@ code {
 .project-name-field input::placeholder,
 .repository-form-fields input::placeholder,
 .requirement-form-fields input::placeholder,
+.task-form-fields input::placeholder,
+.task-form-fields textarea::placeholder,
 .session-form-fields input::placeholder,
 .session-form-fields textarea::placeholder {
   color: var(--muted);
@@ -1248,6 +1360,8 @@ code {
 .repository-form-fields select:focus,
 .requirement-form-fields input:focus,
 .requirement-form-fields select:focus,
+.task-form-fields input:focus,
+.task-form-fields textarea:focus,
 .session-form-fields input:focus,
 .session-form-fields textarea:focus {
   outline: 3px solid rgba(8, 124, 105, 0.18);
@@ -1257,6 +1371,13 @@ code {
 
 .session-form-fields textarea {
   min-height: 120px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  resize: vertical;
+}
+
+.task-form-fields textarea {
+  min-height: 100px;
   padding-top: 10px;
   padding-bottom: 10px;
   resize: vertical;
@@ -1430,7 +1551,8 @@ code {
   }
 
   .repository-list li,
-  .requirement-list li {
+  .requirement-list li,
+  .project-task-list li {
     grid-template-columns: 1fr;
   }
 
@@ -1476,7 +1598,8 @@ code {
 
   .repository-section-header,
   .requirements-section-header,
-  .context-section-header {
+  .context-section-header,
+  .task-plan-section-header {
     align-items: flex-start;
     flex-direction: column;
   }

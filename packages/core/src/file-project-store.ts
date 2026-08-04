@@ -37,7 +37,7 @@ export class FileProjectStore implements ProjectStore {
       const rawProject: unknown = JSON.parse(content);
       const project = ProjectRecordSchema.parse(rawProject);
 
-      if (usesLegacyRequirementsField(rawProject)) {
+      if (needsProjectMigration(rawProject)) {
         await writeJsonAtomically(projectPath, project);
       }
 
@@ -120,11 +120,10 @@ function isMissingFileError(error: unknown): error is NodeJS.ErrnoException {
   return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
 }
 
-function usesLegacyRequirementsField(value: unknown): boolean {
+function needsProjectMigration(value: unknown): boolean {
   return (
     typeof value === "object" &&
     value !== null &&
-    "requirements" in value &&
-    !("documents" in value)
+    (("requirements" in value && !("documents" in value)) || !("tasks" in value))
   );
 }

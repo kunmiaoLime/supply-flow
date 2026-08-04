@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AiSessionsPanel } from "./ai-sessions-panel";
 import { ProjectContextSection } from "./project-context-section";
+import { TaskPlanSection } from "./task-plan-section";
 import type {
   DocumentSource,
   DocumentSourceType,
@@ -160,7 +161,7 @@ export function WorkspaceShell({
   const selectedProjectId = projectId ?? "";
   const heading = tabHeadings[tab];
   const selectedProject = projects.find((project) => project.project_id === selectedProjectId);
-  const hasPanelHeading = tab !== "ai-sessions" && tab !== "project";
+  const hasPanelHeading = tab !== "ai-sessions" && tab !== "project" && tab !== "task-plan";
   const panelEyebrow = selectedProject
     ? `${selectedProject.project_name} / ${heading.eyebrow}`
     : heading.eyebrow;
@@ -282,6 +283,14 @@ export function WorkspaceShell({
     const currentTab = navigationTabs.find((navigationTab) => navigationTab.id === tab);
     const pathname = currentTab?.href ?? "/project";
     router.push(projectId ? `${pathname}/${encodeURIComponent(projectId)}` : pathname);
+  }
+
+  function replaceProject(updatedProject: ProjectRecord) {
+    setProjects((currentProjects) =>
+      currentProjects.map((project) =>
+        project.project_id === updatedProject.project_id ? updatedProject : project
+      )
+    );
   }
 
   async function createProject(event: FormEvent<HTMLFormElement>) {
@@ -687,12 +696,18 @@ export function WorkspaceShell({
       <main className="workspace-main">
         <section
           aria-label={
-            tab === "ai-sessions" ? "AI sessions" : tab === "project" ? "Project" : undefined
+            tab === "ai-sessions"
+              ? "AI sessions"
+              : tab === "project"
+                ? "Project"
+                : tab === "task-plan"
+                  ? "Task plan"
+                  : undefined
           }
           aria-labelledby={hasPanelHeading ? "workspace-heading" : undefined}
           className={`workspace-panel${tab === "ai-sessions" ? " is-session-panel" : ""}${
             tab === "project" ? " is-project-panel" : ""
-          }`}
+          }${tab === "task-plan" ? " is-task-plan-panel" : ""}`}
         >
           {hasPanelHeading ? (
             <div className="panel-heading">
@@ -710,6 +725,7 @@ export function WorkspaceShell({
             onEditRequirement={openEditRequirementDialog}
             onRemoveRepository={removeRepository}
             onRemoveRequirement={removeRequirement}
+            onProjectUpdated={replaceProject}
             project={selectedProject}
             repositoryListError={repositoryListError}
             requirementListError={requirementListError}
@@ -984,6 +1000,7 @@ function PanelContent({
   onEditRequirement,
   onRemoveRepository,
   onRemoveRequirement,
+  onProjectUpdated,
   project,
   repositoryListError,
   requirementListError,
@@ -997,6 +1014,7 @@ function PanelContent({
   onEditRequirement: (index: number) => void;
   onRemoveRepository: (index: number) => void;
   onRemoveRequirement: (index: number) => void;
+  onProjectUpdated: (project: ProjectRecord) => void;
   project: ProjectRecord | undefined;
   repositoryListError: string;
   requirementListError: string;
@@ -1038,38 +1056,7 @@ function PanelContent({
         </>
       );
     case "task-plan":
-      return (
-        <ol className="task-list">
-          <li className="is-complete">
-            <CheckCircle2 aria-hidden="true" />
-            <div>
-              <strong>Workspace foundation</strong>
-              <span>Next.js web app, session runner, and shared contracts</span>
-            </div>
-          </li>
-          <li>
-            <span className="task-marker">2</span>
-            <div>
-              <strong>Session workspace</strong>
-              <span>Terminal streaming, provider status, and session lifecycle</span>
-            </div>
-          </li>
-          <li>
-            <span className="task-marker">3</span>
-            <div>
-              <strong>Flow authoring</strong>
-              <span>Integration context, tasks, and provider-assisted planning</span>
-            </div>
-          </li>
-          <li>
-            <span className="task-marker">4</span>
-            <div>
-              <strong>Review workflow</strong>
-              <span>Change review and pull request coordination</span>
-            </div>
-          </li>
-        </ol>
-      );
+      return <TaskPlanSection onProjectUpdated={onProjectUpdated} project={project} />;
     case "code-implementation":
       return (
         <div className="implementation-list">

@@ -24,32 +24,44 @@ export const DocumentSourceSchema = z.object({
 
 export const ProjectDocumentsSchema = z.array(DocumentSourceSchema);
 
+export const ProjectTaskSchema = z.object({
+  title: z.string().trim().min(1).max(255),
+  jira_ticket: z.string().trim().url().max(2_048)
+});
+
+export const ProjectTasksSchema = z.array(ProjectTaskSchema);
+
 export const ProjectRecordSchema = z
   .object({
     project_name: z.string().trim().min(1).max(120),
     project_id: z.string().regex(PROJECT_ID_PATTERN),
     repos: ProjectRepositoriesSchema.default([]),
     documents: ProjectDocumentsSchema.optional(),
-    requirements: ProjectDocumentsSchema.optional()
+    requirements: ProjectDocumentsSchema.optional(),
+    tasks: ProjectTasksSchema.optional()
   })
-  .transform(({ documents, requirements, ...record }) => ({
+  .transform(({ documents, requirements, tasks, ...record }) => ({
     ...record,
-    documents: documents ?? requirements ?? []
+    documents: documents ?? requirements ?? [],
+    tasks: tasks ?? []
   }));
 
 export type ProjectRecord = z.infer<typeof ProjectRecordSchema>;
 export type ProjectRepository = z.infer<typeof ProjectRepositorySchema>;
 export type DocumentSource = z.infer<typeof DocumentSourceSchema>;
 export type DocumentSourceType = z.infer<typeof DocumentSourceTypeSchema>;
+export type ProjectTask = z.infer<typeof ProjectTaskSchema>;
 
 export const ProjectUpdateSchema = z
   .object({
     repos: ProjectRepositoriesSchema.optional(),
-    documents: ProjectDocumentsSchema.optional()
+    documents: ProjectDocumentsSchema.optional(),
+    tasks: ProjectTasksSchema.optional()
   })
   .refine(
-    (update) => update.repos !== undefined || update.documents !== undefined,
-    "A project update requires repositories or documents."
+    (update) =>
+      update.repos !== undefined || update.documents !== undefined || update.tasks !== undefined,
+    "A project update requires repositories, documents, or tasks."
   );
 
 export type ProjectUpdate = z.infer<typeof ProjectUpdateSchema>;

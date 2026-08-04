@@ -15,13 +15,15 @@ test("stores project records beneath the local projects directory", async () => 
       project_name: "First project",
       project_id: "first-project",
       repos: [],
-      documents: []
+      documents: [],
+      tasks: []
     });
     await store.create({
       project_name: "Second project",
       project_id: "second-project",
       repos: [],
-      documents: []
+      documents: [],
+      tasks: []
     });
 
     const repository = {
@@ -33,13 +35,19 @@ test("stores project records beneath the local projects directory", async () => 
       type: "figma" as const,
       link: "https://www.figma.com/design/documents"
     };
+    const task = {
+      title: "Implement project context",
+      jira_ticket: "https://limebike.atlassian.net/browse/SUP-123"
+    };
     const updated = await store.update("first-project", {
       repos: [repository],
-      documents: [document]
+      documents: [document],
+      tasks: [task]
     });
 
     assert.deepEqual(updated.repos, [repository]);
     assert.deepEqual(updated.documents, [document]);
+    assert.deepEqual(updated.tasks, [task]);
     assert.equal((await store.get("first-project"))?.project_name, "First project");
     assert.deepEqual(
       JSON.parse(
@@ -52,7 +60,8 @@ test("stores project records beneath the local projects directory", async () => 
         project_name: "First project",
         project_id: "first-project",
         repos: [repository],
-        documents: [document]
+        documents: [document],
+        tasks: [task]
       }
     );
     assert.deepEqual(
@@ -76,7 +85,8 @@ test("stores project records beneath the local projects directory", async () => 
         project_name: "Duplicate project",
         project_id: "first-project",
         repos: [],
-        documents: []
+        documents: [],
+        tasks: []
       }),
       /already exists/
     );
@@ -117,11 +127,13 @@ test("migrates legacy requirement sources to documents", async () => {
     );
 
     assert.deepEqual((await store.get("legacy-project"))?.documents, [document]);
+    assert.deepEqual((await store.get("legacy-project"))?.tasks, []);
     assert.deepEqual(JSON.parse(await readFile(projectPath, "utf8")), {
       project_name: "Legacy project",
       project_id: "legacy-project",
       repos: [],
-      documents: [document]
+      documents: [document],
+      tasks: []
     });
   } finally {
     await rm(rootDirectory, { recursive: true, force: true });
