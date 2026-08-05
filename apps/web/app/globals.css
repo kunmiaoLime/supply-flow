@@ -1592,21 +1592,31 @@ code {
   min-width: 0;
 }
 
+.requirement-title {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-bottom: 6px;
+  color: var(--ink);
+  font-size: 14px;
+}
+
 .requirement-source-type {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--ink);
+  color: var(--muted);
 }
 
 .requirement-source-type svg {
-  width: 17px;
-  height: 17px;
+  width: 15px;
+  height: 15px;
   color: var(--teal);
 }
 
 .requirement-source-type strong {
-  font-size: 14px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
 .requirement-details a {

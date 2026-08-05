@@ -33,7 +33,8 @@ test("stores project records beneath the local projects directory", async () => 
     };
     const document = {
       type: "figma" as const,
-      link: "https://www.figma.com/design/documents"
+      link: "https://www.figma.com/design/documents",
+      title: "Validated rides design"
     };
     const task = {
       title: "Implement project context",
@@ -150,15 +151,55 @@ test("migrates legacy requirement sources to documents", async () => {
       "utf8"
     );
 
-    assert.deepEqual((await store.get("legacy-project"))?.documents, [document]);
+    assert.deepEqual((await store.get("legacy-project"))?.documents, [
+      { ...document, title: null }
+    ]);
     assert.deepEqual((await store.get("legacy-project"))?.tasks, []);
     assert.deepEqual(JSON.parse(await readFile(projectPath, "utf8")), {
       project_name: "Legacy project",
       project_id: "legacy-project",
       repos: [],
+      documents: [{ ...document, title: null }],
+      tasks: []
+    });
+  } finally {
+    await rm(rootDirectory, { recursive: true, force: true });
+  }
+});
+
+test("assigns only missing document titles", async () => {
+  const rootDirectory = await mkdtemp(path.join(os.tmpdir(), "supply-flow-projects-"));
+  const store = new FileProjectStore(rootDirectory);
+  const document = {
+    type: "confluence" as const,
+    link: "https://limebike.atlassian.net/wiki/spaces/DOC/pages/12345",
+    title: null
+  };
+
+  try {
+    await store.create({
+      project_name: "Document titles",
+      project_id: "document-titles",
+      repos: [],
       documents: [document],
       tasks: []
     });
+
+    const assigned = await store.assignMissingDocumentTitle(
+      "document-titles",
+      document,
+      "Validated Test Ride RFC"
+    );
+    assert.equal(assigned.assigned, true);
+    assert.equal(assigned.project.documents[0]?.title, "Validated Test Ride RFC");
+
+    const retained = await store.assignMissingDocumentTitle(
+      "document-titles",
+      document,
+      "Replacement title"
+    );
+    assert.equal(retained.assigned, false);
+    assert.equal(retained.project.documents[0]?.title, "Validated Test Ride RFC");
   } finally {
     await rm(rootDirectory, { recursive: true, force: true });
   }

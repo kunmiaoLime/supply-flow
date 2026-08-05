@@ -4,7 +4,9 @@ import path from "node:path";
 import { BranchIndexSchema } from "@supply-flow/core/branch";
 import { PullRequestIndexSchema } from "@supply-flow/core/pull-request";
 import {
+  DocumentTitleSchema,
   ProjectRecordSchema,
+  type DocumentSource,
   type ProjectRecord,
   type ProjectStore,
   type ProjectUpdate
@@ -102,6 +104,46 @@ export class FileProjectStore implements ProjectStore {
     return updated;
   }
 
+  public async assignMissingDocumentTitle(
+    id: string,
+    source: Pick<DocumentSource, "type" | "link">,
+    title: string
+  ): Promise<{ project: ProjectRecord; assigned: boolean }> {
+    const current = await this.get(id);
+    if (!current) {
+      throw new Error(`Unknown project "${id}".`);
+    }
+
+    const normalizedTitle = DocumentTitleSchema.parse(title);
+    let found = false;
+    let assigned = false;
+    const documents = current.documents.map((document) => {
+      if (document.type !== source.type || document.link !== source.link) {
+        return document;
+      }
+
+      found = true;
+      if (document.title !== null) {
+        return document;
+      }
+
+      assigned = true;
+      return { ...document, title: normalizedTitle };
+    });
+
+    if (!found) {
+      throw new Error("The document is no longer associated with the project.");
+    }
+    if (!assigned) {
+      return { project: current, assigned: false };
+    }
+
+    return {
+      project: await this.update(id, { documents }),
+      assigned: true
+    };
+  }
+
   private projectsDirectory(): string {
     return path.join(this.rootDirectory, "projects");
   }
@@ -136,6 +178,24 @@ function needsProjectMigration(value: unknown): boolean {
   return (
     typeof value === "object" &&
     value !== null &&
-    (("requirements" in value && !("documents" in value)) || !("tasks" in value))
+    (("requirements" in value && !("documents" in value)) ||
+      !("tasks" in value) ||
+      hasUntitledLegacyDocuments(value))
+  );
+}
+
+function hasUntitledLegacyDocuments(value: Record<string, unknown>): boolean {
+  const documents = Array.isArray(value.documents)
+    ? value.documents
+    : Array.isArray(value.requirements)
+      ? value.requirements
+      : [];
+
+  return documents.some(
+    (document) =>
+      typeof document === "object" &&
+      document !== null &&
+      !Array.isArray(document) &&
+      !("title" in document)
   );
 }

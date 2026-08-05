@@ -17,10 +17,18 @@ export const DocumentSourceTypeSchema = z.enum([
   "slack"
 ]);
 
-export const DocumentSourceSchema = z.object({
-  type: DocumentSourceTypeSchema,
-  link: z.string().trim().url().max(2_048)
-});
+export const DocumentTitleSchema = z.string().trim().min(1).max(240);
+
+export const DocumentSourceSchema = z
+  .object({
+    type: DocumentSourceTypeSchema,
+    link: z.string().trim().url().max(2_048),
+    title: DocumentTitleSchema.nullable().optional()
+  })
+  .transform(({ title, ...document }) => ({
+    ...document,
+    title: title ?? null
+  }));
 
 export const ProjectDocumentsSchema = z.array(DocumentSourceSchema);
 

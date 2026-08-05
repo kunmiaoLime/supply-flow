@@ -59,6 +59,7 @@ interface RepositoryForm {
 interface RequirementForm {
   type: DocumentSourceType;
   link: string;
+  title: string;
 }
 
 const emptyRepositoryForm: RepositoryForm = {
@@ -69,7 +70,8 @@ const emptyRepositoryForm: RepositoryForm = {
 
 const emptyRequirementForm: RequirementForm = {
   type: "google-doc",
-  link: ""
+  link: "",
+  title: ""
 };
 
 const requirementSourceOptions: readonly {
@@ -506,7 +508,11 @@ export function WorkspaceShell({
       return;
     }
 
-    setRequirementForm(document);
+    setRequirementForm({
+      type: document.type,
+      link: document.link,
+      title: document.title ?? ""
+    });
     setEditingRequirementIndex(index);
     setRequirementError("");
     setRequirementDialogMode("edit");
@@ -557,7 +563,8 @@ export function WorkspaceShell({
 
     const document: DocumentSource = {
       type: requirementForm.type,
-      link: requirementForm.link.trim()
+      link: requirementForm.link.trim(),
+      title: requirementForm.title.trim() || null
     };
     if (!document.link) {
       setRequirementError("Enter a source link.");
@@ -932,6 +939,22 @@ export function WorkspaceShell({
             </h2>
             <form onSubmit={saveRequirement}>
               <div className="requirement-form-fields">
+                <label htmlFor="requirement-title">
+                  <span>Title (optional)</span>
+                  <input
+                    autoComplete="off"
+                    id="requirement-title"
+                    maxLength={240}
+                    onChange={(event) =>
+                      setRequirementForm((current) => ({
+                        ...current,
+                        title: event.target.value
+                      }))
+                    }
+                    placeholder="e.g. Validated test ride RFC"
+                    value={requirementForm.title}
+                  />
+                </label>
                 <label htmlFor="requirement-type">
                   <span>Source type</span>
                   <select
@@ -1151,6 +1174,9 @@ function RequirementSection({
             return (
               <li key={`${requirement.type}-${requirement.link}-${index}`}>
                 <div className="requirement-details">
+                  {requirement.title ? (
+                    <strong className="requirement-title">{requirement.title}</strong>
+                  ) : null}
                   <div className="requirement-source-type">
                     <SourceIcon aria-hidden="true" />
                     <strong>{sourceLabel}</strong>
