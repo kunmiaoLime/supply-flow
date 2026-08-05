@@ -20,6 +20,7 @@ test("stores session metadata and append-only events", async () => {
       workspacePath: "/tmp/worktree",
       tmuxSessionName: "sf_session_01",
       status: "starting",
+      readOnly: true,
       createdAt,
       updatedAt: createdAt
     });
@@ -32,10 +33,14 @@ test("stores session metadata and append-only events", async () => {
       message: "Session record created."
     });
 
-    const updated = await store.update("session_01", { status: "running" });
+    const updated = await store.update("session_01", {
+      status: "running",
+      readOnly: false
+    });
     const events = await store.readEvents("session_01");
 
     assert.equal(updated.status, "running");
+    assert.equal(updated.readOnly, false);
     assert.equal(events.length, 1);
     assert.equal(events[0]?.type, "created");
     assert.deepEqual((await store.list()).map((session) => session.id), ["session_01"]);

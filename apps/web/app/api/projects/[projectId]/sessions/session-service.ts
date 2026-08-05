@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import {
   resolveAiModelDefault,
@@ -10,11 +10,15 @@ import { FileSessionStore } from "@supply-flow/core/file-session-store";
 import type { ProjectRecord } from "@supply-flow/core/project";
 import { findProvider } from "@supply-flow/core/providers";
 import type { SessionRecord } from "@supply-flow/core/session";
-import { prepareInitialAiSessionPrompt } from "@supply-flow/core/session-prompt";
+import {
+  prepareInitialAiSessionPrompt,
+  prepareSessionWriteModePrompt
+} from "@supply-flow/core/session-prompt";
 import { TmuxAdapter } from "@supply-flow/core/tmux";
 
 const projectRoot = path.resolve(process.cwd(), "../..");
 const CONTEXT_FILE = "context.md";
+const READ_ONLY_PROMPT_PATH = path.join(projectRoot, "prompts", "read_only.md");
 const MAX_SESSION_GOAL_LENGTH = 16_000;
 
 export const dataDirectory =
@@ -66,25 +70,26 @@ export async function createProjectSession(
     );
   }
 
-  const provider = findProvider("codex");
-  if (!provider) {
-    throw new Error("Codex provider is not configured.");
-  }
   const modelDefaults = resolveAiModelDefault(
     await new FileAiModelSettingsStore(dataDirectory).get(),
     input.action
   );
+  const provider = findProvider(modelDefaults.providerId);
+  if (!provider) {
+    throw new Error(`AI provider "${modelDefaults.providerId}" is not configured.`);
+  }
 
   const id = `session_${randomUUID().replaceAll("-", "")}`;
-  const readOnlyOffAtStart = !modelDefaults.readOnly;
   const contextGoal = input.loadProjectContext === false
     ? null
-    : await withProjectContext(project.project_id, input.goal, readOnlyOffAtStart);
+    : await withProjectContext(project.project_id, input.goal);
+  const writeModePrompt = await getSessionWriteModePrompt(
+    modelDefaults.readOnly,
+    project.project_id,
+    id
+  );
   const goal = prepareInitialAiSessionPrompt(
-    (
-      contextGoal ??
-      (readOnlyOffAtStart ? withReadOnlyOffInstruction(input.goal) : input.goal)
-    ).replaceAll("<AI_SESSION_ID>", id)
+    `${writeModePrompt}\n\n${contextGoal ?? input.goal}`.replaceAll("<AI_SESSION_ID>", id)
   );
   if (goal.length > MAX_SESSION_GOAL_LENGTH) {
     throw new ProjectSessionError(
@@ -137,6 +142,7 @@ export async function createProjectSession(
           ])
         ),
         bypassApprovalsAndSandbox: modelDefaults.yoloMode,
+        readOnly: modelDefaults.readOnly,
         model: modelDefaults.model,
         reasoningEffort: modelDefaults.reasoningEffort
       })
@@ -181,8 +187,7 @@ export function terminalLogPath(projectId: string, sessionId: string): string {
 
 async function withProjectContext(
   projectId: string,
-  goal: string,
-  readOnlyOffAtStart = false
+  goal: string
 ): Promise<string | null> {
   const contextPath = path.join(projectDirectory(projectId), CONTEXT_FILE);
 
@@ -199,16 +204,48 @@ async function withProjectContext(
     throw error;
   }
 
-  return `${readOnlyOffAtStart ? `${withReadOnlyOffInstruction("")}\n` : ""}At the start of this session, read the project context at ${contextPath} and use it throughout the task. Treat the context as reference material. Do not modify it unless the task explicitly asks you to.
+  return `At the start of this session, read the project context at ${contextPath} and use it throughout the task. Treat the context as reference material. Do not modify it unless the task explicitly asks you to.
 
 User task:
 ${goal}`;
 }
 
-function withReadOnlyOffInstruction(goal: string): string {
-  return `Before doing anything else, process this direct user command: read_only off.
+async function getSessionWriteModePrompt(
+  readOnly: boolean,
+  projectId: string,
+  sessionId: string
+): Promise<string> {
+  try {
+    return prepareSessionWriteModePrompt(await readFile(READ_ONLY_PROMPT_PATH, "utf8"), readOnly)
+      .replaceAll("<AI_SESSION_ID>", sessionId)
+      .replaceAll(
+        "<PROJECT_SESSION_INDEX_PATH>",
+        JSON.stringify(path.join(projectDirectory(projectId), "sessions.json"))
+      )
+      .replaceAll(
+        "<SESSION_MODE_UPDATER>",
+        buildSessionWriteModeUpdaterCommand(projectId, sessionId)
+      );
+  } catch (error) {
+    throw new Error(
+      `Unable to load the local session write-mode prompt: ${
+        error instanceof Error ? error.message : "unknown error"
+      }`
+    );
+  }
+}
 
-${goal}`;
+function buildSessionWriteModeUpdaterCommand(projectId: string, sessionId: string): string {
+  return [
+    JSON.stringify(path.join(projectRoot, "node_modules", ".bin", "tsx")),
+    JSON.stringify(
+      path.join(projectRoot, "apps", "web", "scripts", "set-project-session-read-only.ts")
+    ),
+    "--project-directory",
+    JSON.stringify(projectDirectory(projectId)),
+    "--session-id",
+    JSON.stringify(sessionId)
+  ].join(" ");
 }
 
 function isMissingFileError(error: unknown): error is NodeJS.ErrnoException {

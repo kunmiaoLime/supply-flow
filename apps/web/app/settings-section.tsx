@@ -2,9 +2,12 @@
 
 import {
   aiSessionActions,
-  codexModelOptions,
-  reasoningEffortValues,
+  aiModelOptions,
+  reasoningEffortsForProvider,
+  supportsReasoningEffort,
+  type AiModelSelection,
   type AiModelSettings,
+  type AiProviderId,
   type AiSessionAction,
   type ReasoningEffort
 } from "@supply-flow/core/ai-model-settings";
@@ -276,11 +279,43 @@ export function SettingsSection() {
     }
   }
 
-  function updateAiModelDefault(
-    action: AiSessionAction,
-    field: "model" | "reasoningEffort",
-    value: string
-  ) {
+  function updateAiModelSelection(action: AiSessionAction, value: string) {
+    if (isSavingAiModelSettings) {
+      return;
+    }
+
+    const selection = parseModelSelection(value);
+    setAiModelSettings((currentSettings) => {
+      if (!currentSettings) {
+        return currentSettings;
+      }
+
+      const currentSelection = currentSettings.actions[action];
+      const providerId = selection?.providerId ?? null;
+      const effectiveProviderId = providerId ?? currentSettings.globalDefault.providerId;
+
+      return {
+        ...currentSettings,
+        actions: {
+          ...currentSettings.actions,
+          [action]: {
+            ...currentSelection,
+            providerId,
+            model: selection?.model ?? null,
+            reasoningEffort: supportsReasoningEffort(
+              effectiveProviderId,
+              currentSelection.reasoningEffort
+            )
+              ? currentSelection.reasoningEffort
+              : null
+          }
+        }
+      };
+    });
+    setAiModelSettingsError("");
+  }
+
+  function updateAiModelReasoningEffort(action: AiSessionAction, value: string) {
     if (isSavingAiModelSettings) {
       return;
     }
@@ -290,19 +325,14 @@ export function SettingsSection() {
         return currentSettings;
       }
 
-      const currentSelection = currentSettings.actions[action];
-      const selection =
-        field === "model"
-          ? { ...currentSelection, model: value || null }
-          : {
-              ...currentSelection,
-              reasoningEffort: (value || null) as ReasoningEffort | null
-            };
       return {
         ...currentSettings,
         actions: {
           ...currentSettings.actions,
-          [action]: selection
+          [action]: {
+            ...currentSettings.actions[action],
+            reasoningEffort: (value || null) as ReasoningEffort | null
+          }
         }
       };
     });
@@ -323,13 +353,16 @@ export function SettingsSection() {
       }
 
       const currentSelection = currentSettings.actions[action];
+      const nextValue = !currentSelection[field];
       return {
         ...currentSettings,
         actions: {
           ...currentSettings.actions,
           [action]: {
             ...currentSelection,
-            [field]: !currentSelection[field]
+            [field]: nextValue,
+            ...(field === "readOnly" && nextValue ? { yoloMode: false } : {}),
+            ...(field === "yoloMode" && nextValue ? { readOnly: false } : {})
           }
         }
       };
@@ -337,10 +370,53 @@ export function SettingsSection() {
     setAiModelSettingsError("");
   }
 
-  function updateCodexDefault(
-    field: "model" | "reasoningEffort",
-    value: string
-  ) {
+  function updateGlobalDefaultSelection(value: string) {
+    if (isSavingAiModelSettings) {
+      return;
+    }
+
+    const selection = parseModelSelection(value);
+    if (!selection) {
+      return;
+    }
+
+    setAiModelSettings((currentSettings) => {
+      if (!currentSettings) {
+        return currentSettings;
+      }
+
+      const globalDefault = {
+        ...currentSettings.globalDefault,
+        providerId: selection.providerId,
+        model: selection.model,
+        reasoningEffort: supportsReasoningEffort(
+          selection.providerId,
+          currentSettings.globalDefault.reasoningEffort
+        )
+          ? currentSettings.globalDefault.reasoningEffort
+          : null
+      };
+      const actions = { ...currentSettings.actions };
+      for (const { id } of aiSessionActions) {
+        const actionSettings = actions[id];
+        if (
+          actionSettings.providerId === null &&
+          !supportsReasoningEffort(globalDefault.providerId, actionSettings.reasoningEffort)
+        ) {
+          actions[id] = { ...actionSettings, reasoningEffort: null };
+        }
+      }
+
+      return {
+        ...currentSettings,
+        globalDefault,
+        actions
+      };
+    });
+    setAiModelSettingsError("");
+  }
+
+  function updateGlobalDefaultReasoningEffort(value: string) {
     if (isSavingAiModelSettings) {
       return;
     }
@@ -350,16 +426,12 @@ export function SettingsSection() {
         return currentSettings;
       }
 
-      const codexDefault =
-        field === "model"
-          ? { ...currentSettings.codexDefault, model: value || null }
-          : {
-              ...currentSettings.codexDefault,
-              reasoningEffort: (value || null) as ReasoningEffort | null
-            };
       return {
         ...currentSettings,
-        codexDefault
+        globalDefault: {
+          ...currentSettings.globalDefault,
+          reasoningEffort: (value || null) as ReasoningEffort | null
+        }
       };
     });
     setAiModelSettingsError("");
@@ -539,28 +611,21 @@ export function SettingsSection() {
             ) : aiModelSettings ? (
               <div className="ai-model-defaults">
                 <div className="ai-model-default-list">
-                  <div className="ai-model-default-row is-codex-default">
+                  <div className="ai-model-default-row">
                     <strong>Default</strong>
                     <label className="ai-model-default-field">
                       <span>AI model</span>
                       <select
                         disabled={isSavingAiModelSettings}
                         onChange={(event) =>
-                          updateCodexDefault("model", event.target.value)
+                          updateGlobalDefaultSelection(event.target.value)
                         }
-                        value={aiModelSettings.codexDefault.model ?? ""}
+                        value={modelSelectionValue(aiModelSettings.globalDefault)}
                       >
-                        <option value="">Use local Codex configuration</option>
-                        {codexModelOptions.map((option) => (
-                          <option key={option.model} value={option.model}>
-                            {option.label}
-                          </option>
-                        ))}
-                        {!codexModelOptions.some(
-                          (option) => option.model === aiModelSettings.codexDefault.model
-                        ) && aiModelSettings.codexDefault.model ? (
-                          <option value={aiModelSettings.codexDefault.model}>
-                            {aiModelSettings.codexDefault.model}
+                        {renderModelOptions()}
+                        {!isKnownModelSelection(aiModelSettings.globalDefault) ? (
+                          <option value={modelSelectionValue(aiModelSettings.globalDefault)}>
+                            {formatCustomModelSelection(aiModelSettings.globalDefault)}
                           </option>
                         ) : null}
                       </select>
@@ -570,12 +635,14 @@ export function SettingsSection() {
                       <select
                         disabled={isSavingAiModelSettings}
                         onChange={(event) =>
-                          updateCodexDefault("reasoningEffort", event.target.value)
+                          updateGlobalDefaultReasoningEffort(event.target.value)
                         }
-                        value={aiModelSettings.codexDefault.reasoningEffort ?? ""}
+                        value={aiModelSettings.globalDefault.reasoningEffort ?? ""}
                       >
-                        <option value="">Use local Codex configuration</option>
-                        {reasoningEffortValues.map((effort) => (
+                        <option value="">Use configured default</option>
+                        {reasoningEffortsForProvider(
+                          aiModelSettings.globalDefault.providerId
+                        ).map((effort) => (
                           <option key={effort} value={effort}>
                             {formatReasoningEffort(effort)}
                           </option>
@@ -585,6 +652,8 @@ export function SettingsSection() {
                   </div>
                   {aiSessionActions.map((action) => {
                     const selection = aiModelSettings.actions[action.id];
+                    const effectiveProviderId =
+                      selection.providerId ?? aiModelSettings.globalDefault.providerId;
                     return (
                       <div className="ai-model-default-row" key={action.id}>
                         <strong>{action.label}</strong>
@@ -593,20 +662,17 @@ export function SettingsSection() {
                           <select
                             disabled={isSavingAiModelSettings}
                             onChange={(event) =>
-                              updateAiModelDefault(action.id, "model", event.target.value)
+                              updateAiModelSelection(action.id, event.target.value)
                             }
-                            value={selection.model ?? ""}
+                            value={modelSelectionValue(selection)}
                           >
                             <option value="">Use default</option>
-                            {codexModelOptions.map((option) => (
-                              <option key={option.model} value={option.model}>
-                                {option.label}
+                            {renderModelOptions()}
+                            {selection.providerId !== null &&
+                            !isKnownModelSelection(selection) ? (
+                              <option value={modelSelectionValue(selection)}>
+                                {formatCustomModelSelection(selection)}
                               </option>
-                            ))}
-                            {!codexModelOptions.some(
-                              (option) => option.model === selection.model
-                            ) && selection.model ? (
-                              <option value={selection.model}>{selection.model}</option>
                             ) : null}
                           </select>
                         </label>
@@ -615,16 +681,12 @@ export function SettingsSection() {
                           <select
                             disabled={isSavingAiModelSettings}
                             onChange={(event) =>
-                              updateAiModelDefault(
-                                action.id,
-                                "reasoningEffort",
-                                event.target.value
-                              )
+                              updateAiModelReasoningEffort(action.id, event.target.value)
                             }
                             value={selection.reasoningEffort ?? ""}
                           >
                             <option value="">Use default</option>
-                            {reasoningEffortValues.map((effort) => (
+                            {reasoningEffortsForProvider(effectiveProviderId).map((effort) => (
                               <option key={effort} value={effort}>
                                 {formatReasoningEffort(effort)}
                               </option>
@@ -772,6 +834,96 @@ function aiModelsUrl(): string {
 
 function formatReasoningEffort(effort: ReasoningEffort): string {
   return effort === "xhigh" ? "Extra high" : `${effort[0]?.toUpperCase()}${effort.slice(1)}`;
+}
+
+function renderModelOptions() {
+  return (["codex", "claude-code"] as const).map((providerId) => (
+    <optgroup key={providerId} label={providerDisplayName(providerId)}>
+      <option
+        value={modelSelectionValue({
+          providerId,
+          model: null,
+          reasoningEffort: null
+        })}
+      >
+        {providerDisplayName(providerId)} configured default
+      </option>
+      {aiModelOptions
+        .filter((option) => option.providerId === providerId)
+        .map((option) => (
+          <option
+            key={option.model}
+            value={modelSelectionValue({
+              providerId: option.providerId,
+              model: option.model,
+              reasoningEffort: null
+            })}
+          >
+            {option.label}
+          </option>
+        ))}
+    </optgroup>
+  ));
+}
+
+function modelSelectionValue(selection: AiModelSelection): string {
+  if (!selection.providerId) {
+    return "";
+  }
+
+  return JSON.stringify([selection.providerId, selection.model]);
+}
+
+function parseModelSelection(
+  value: string
+): { providerId: AiProviderId; model: string | null } | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (
+      !Array.isArray(parsed) ||
+      parsed.length !== 2 ||
+      (parsed[0] !== "codex" && parsed[0] !== "claude-code") ||
+      (typeof parsed[1] !== "string" && parsed[1] !== null)
+    ) {
+      return null;
+    }
+
+    return {
+      providerId: parsed[0] as AiProviderId,
+      model: parsed[1]
+    };
+  } catch {
+    return null;
+  }
+}
+
+function isKnownModelSelection(selection: AiModelSelection): boolean {
+  return (
+    selection.providerId !== null &&
+    (selection.model === null ||
+      aiModelOptions.some(
+        (option) =>
+          option.providerId === selection.providerId && option.model === selection.model
+      ))
+  );
+}
+
+function formatCustomModelSelection(selection: AiModelSelection): string {
+  if (!selection.providerId) {
+    return "Use default";
+  }
+
+  return selection.model
+    ? `${providerDisplayName(selection.providerId)}: ${selection.model}`
+    : `${providerDisplayName(selection.providerId)} configured default`;
+}
+
+function providerDisplayName(providerId: AiProviderId): string {
+  return providerId === "codex" ? "Codex" : "Claude Code";
 }
 
 function sortTemplates(templates: PullRequestTemplate[]): PullRequestTemplate[] {

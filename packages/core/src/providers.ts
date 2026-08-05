@@ -11,6 +11,7 @@ export interface ProviderLaunchOptions {
   initialPrompt?: string;
   additionalWritableDirectories?: readonly string[];
   bypassApprovalsAndSandbox?: boolean;
+  readOnly?: boolean;
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
 }
@@ -40,15 +41,26 @@ class CliProviderAdapter implements ProviderAdapter {
       executable: this.executable,
       arguments: [
         ...(this.id === "codex" ? ["--no-alt-screen"] : []),
-        ...(this.id === "codex" && model ? ["--model", model] : []),
+        ...(model ? ["--model", model] : []),
         ...(this.id === "codex" && options?.reasoningEffort
           ? ["--config", `model_reasoning_effort="${options.reasoningEffort}"`]
           : []),
-        ...(this.id === "codex"
+        ...(this.id === "claude-code" && options?.reasoningEffort
+          ? ["--effort", options.reasoningEffort]
+          : []),
+        ...((this.id === "codex" || this.id === "claude-code")
           ? additionalWritableDirectories.flatMap((directory) => ["--add-dir", directory])
           : []),
-        ...(this.id === "codex" && options?.bypassApprovalsAndSandbox
+        ...(this.id === "claude-code" && options?.readOnly
+          ? ["--permission-mode", "plan"]
+          : []),
+        ...(this.id === "codex" && !options?.readOnly && options?.bypassApprovalsAndSandbox
           ? ["--dangerously-bypass-approvals-and-sandbox"]
+          : []),
+        ...(this.id === "claude-code" &&
+        !options?.readOnly &&
+        options?.bypassApprovalsAndSandbox
+          ? ["--dangerously-skip-permissions"]
           : []),
         ...(initialPrompt ? [initialPrompt] : [])
       ]

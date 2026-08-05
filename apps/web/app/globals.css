@@ -1141,6 +1141,18 @@ code {
   color: #edf5ef;
 }
 
+.session-icon-button.is-active {
+  border-color: #2a7963;
+  background: #1e493d;
+  color: #b9f3dc;
+}
+
+.session-icon-button.is-active:hover:not(:disabled) {
+  border-color: #3fbd96;
+  background: #265c4d;
+  color: #e5faf1;
+}
+
 .session-icon-button.is-danger:hover:not(:disabled) {
   border-color: #a54238;
   color: #ffafa3;

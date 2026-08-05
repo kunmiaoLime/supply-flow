@@ -2,7 +2,18 @@
 
 import type { ProjectRecord } from "@supply-flow/core/project";
 import type { SessionRecord } from "@supply-flow/core/session";
-import { Bot, Check, Circle, Plus, Save, Square, TerminalSquare, X } from "lucide-react";
+import {
+  Bot,
+  Check,
+  Circle,
+  Lock,
+  Plus,
+  Save,
+  Square,
+  TerminalSquare,
+  Unlock,
+  X
+} from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { TmuxTerminal } from "./tmux-terminal";
@@ -28,10 +39,14 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
   const [openingTerminalSessionId, setOpeningTerminalSessionId] = useState<string | null>(null);
   const [savingProjectContextSessionId, setSavingProjectContextSessionId] = useState<string | null>(null);
   const [savedProjectContextSessionId, setSavedProjectContextSessionId] = useState<string | null>(null);
+  const [togglingReadOnlySessionId, setTogglingReadOnlySessionId] = useState<string | null>(
+    null
+  );
   const titleInput = useRef<HTMLInputElement>(null);
   const contextSaveResetTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeSession = sessions.find((session) => session.id === activeSessionId) ?? null;
+  const activeSessionIsReadOnly = activeSession?.readOnly !== false;
   const updateSession = useCallback((updatedSession: SessionRecord) => {
     setSessions((currentSessions) =>
       currentSessions.map((session) =>
@@ -264,6 +279,36 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
     }
   }
 
+  async function toggleReadOnly(session: SessionRecord) {
+    if (togglingReadOnlySessionId) {
+      return;
+    }
+
+    const readOnly = session.readOnly === false;
+    setTogglingReadOnlySessionId(session.id);
+    setSessionError("");
+
+    try {
+      const response = await fetch(`${sessionUrl(project.project_id, session.id)}/read-only`, {
+        body: JSON.stringify({ readOnly }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      });
+      const data = (await response.json()) as { session?: SessionRecord; error?: string };
+      if (!response.ok || !data.session) {
+        throw new Error(data.error ?? "Unable to update the read-only mode.");
+      }
+
+      updateSession(data.session);
+    } catch (error) {
+      setSessionError(
+        error instanceof Error ? error.message : "Unable to update the read-only mode."
+      );
+    } finally {
+      setTogglingReadOnlySessionId(null);
+    }
+  }
+
   return (
     <>
       <section aria-label="AI sessions" className="ai-sessions-section">
@@ -364,6 +409,31 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
                             <Check aria-hidden="true" />
                           ) : (
                             <Save aria-hidden="true" />
+                          )}
+                        </button>
+                        <button
+                          aria-label={
+                            activeSessionIsReadOnly
+                              ? `Disable read-only for ${activeSession.title}`
+                              : `Enable read-only for ${activeSession.title}`
+                          }
+                          aria-pressed={activeSessionIsReadOnly}
+                          className={`session-icon-button${
+                            activeSessionIsReadOnly ? " is-active" : ""
+                          }`}
+                          disabled={togglingReadOnlySessionId === activeSession.id}
+                          onClick={() => void toggleReadOnly(activeSession)}
+                          title={
+                            activeSessionIsReadOnly
+                              ? "Read-only is on. Disable read-only"
+                              : "Read-only is off. Enable read-only"
+                          }
+                          type="button"
+                        >
+                          {activeSessionIsReadOnly ? (
+                            <Lock aria-hidden="true" />
+                          ) : (
+                            <Unlock aria-hidden="true" />
                           )}
                         </button>
                         <button

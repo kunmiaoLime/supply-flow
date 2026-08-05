@@ -14,6 +14,14 @@ export function prepareFollowUpAiSessionPrompt(prompt: string): string {
     .replace(/\s{2,}/g, " ");
 }
 
+export function prepareSessionWriteModePrompt(template: string, readOnly: boolean): string {
+  if (!template.includes("<READ_ONLY_MODE>")) {
+    throw new Error("The session write-mode prompt must include <READ_ONLY_MODE>.");
+  }
+
+  return requirePromptContent(template.replaceAll("<READ_ONLY_MODE>", readOnly ? "on" : "off"));
+}
+
 export async function sendAiSessionPrompt(
   transport: Pick<TmuxAdapter, "sendInput"> | AiSessionPromptTransport,
   sessionName: string,
