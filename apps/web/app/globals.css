@@ -649,6 +649,61 @@ button:focus-visible {
   color: var(--muted);
 }
 
+.ai-model-authentication {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.ai-model-authentication > strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.ai-model-authentication-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.ai-model-authentication-field {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.ai-model-authentication-field > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.ai-model-authentication-field input {
+  min-height: 38px;
+  min-width: 0;
+  width: 100%;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+}
+
+.ai-model-authentication-field input:focus {
+  outline: 3px solid rgba(8, 124, 105, 0.18);
+  outline-offset: 0;
+  border-color: var(--teal);
+}
+
+.ai-model-authentication-field input:disabled {
+  cursor: not-allowed;
+  color: var(--muted);
+}
+
 .ai-model-default-toggle {
   display: grid;
   justify-items: start;
@@ -719,6 +774,10 @@ button:focus-visible {
 
   .ai-model-default-row > strong {
     grid-column: 1 / -1;
+  }
+
+  .ai-model-authentication-list {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

@@ -46,6 +46,9 @@ export function SettingsSection() {
     aiModelSettings !== null &&
     savedAiModelSettings !== null &&
     JSON.stringify(aiModelSettings) !== JSON.stringify(savedAiModelSettings);
+  const hasInvalidAuthenticationCommand =
+    aiModelSettings !== null &&
+    Object.values(aiModelSettings.authenticationCommands).some((command) => !command.trim());
 
   useEffect(() => {
     let ignoreResult = false;
@@ -435,6 +438,27 @@ export function SettingsSection() {
     setAiModelSettingsError("");
   }
 
+  function updateAuthenticationCommand(providerId: AiProviderId, command: string) {
+    if (isSavingAiModelSettings) {
+      return;
+    }
+
+    setAiModelSettings((currentSettings) => {
+      if (!currentSettings) {
+        return currentSettings;
+      }
+
+      return {
+        ...currentSettings,
+        authenticationCommands: {
+          ...currentSettings.authenticationCommands,
+          [providerId]: command
+        }
+      };
+    });
+    setAiModelSettingsError("");
+  }
+
   async function saveAiModelSettings() {
     if (
       !aiModelSettings ||
@@ -442,6 +466,10 @@ export function SettingsSection() {
       isLoadingAiModelSettings ||
       isSavingAiModelSettings
     ) {
+      return;
+    }
+    if (hasInvalidAuthenticationCommand) {
+      setAiModelSettingsError("Enter an authentication command line for each AI provider.");
       return;
     }
 
@@ -733,12 +761,40 @@ export function SettingsSection() {
                     );
                   })}
                 </div>
+                <section aria-label="Authentication" className="ai-model-authentication">
+                  <strong>Authentication</strong>
+                  <div className="ai-model-authentication-list">
+                    {(["codex", "claude-code"] as const).map((providerId) => (
+                      <label
+                        className="ai-model-authentication-field"
+                        htmlFor={`authentication-command-${providerId}`}
+                        key={providerId}
+                      >
+                        <span>{providerDisplayName(providerId)} command line</span>
+                        <input
+                          autoCapitalize="none"
+                          autoComplete="off"
+                          disabled={isSavingAiModelSettings}
+                          id={`authentication-command-${providerId}`}
+                          maxLength={4_096}
+                          onChange={(event) =>
+                            updateAuthenticationCommand(providerId, event.target.value)
+                          }
+                          spellCheck={false}
+                          type="text"
+                          value={aiModelSettings.authenticationCommands[providerId]}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </section>
                 <div className="ai-model-default-actions">
                   <button
                     className="save-pr-template-button"
                     disabled={
                       isSavingAiModelSettings ||
                       isLoadingAiModelSettings ||
+                      hasInvalidAuthenticationCommand ||
                       !isAiModelSettingsDirty
                     }
                     onClick={() => void saveAiModelSettings()}

@@ -26,7 +26,10 @@ export async function PATCH(request: Request) {
   const settings = await parseSettings(request);
   if (!settings) {
     return NextResponse.json(
-      { error: "Enter a valid model and reasoning effort default for every AI session action." },
+      {
+        error:
+          "Enter valid AI session defaults and authentication command lines for every provider."
+      },
       { status: 400 }
     );
   }

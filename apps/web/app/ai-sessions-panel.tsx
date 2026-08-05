@@ -16,6 +16,7 @@ import {
   Bot,
   Check,
   Circle,
+  KeyRound,
   Lock,
   Plus,
   Save,
@@ -58,6 +59,8 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
   const [isCreating, setIsCreating] = useState(false);
   const [stoppingSessionId, setStoppingSessionId] = useState<string | null>(null);
   const [openingTerminalSessionId, setOpeningTerminalSessionId] = useState<string | null>(null);
+  const [authenticatingSessionId, setAuthenticatingSessionId] = useState<string | null>(null);
+  const [authenticatedSessionId, setAuthenticatedSessionId] = useState<string | null>(null);
   const [savingProjectContextSessionId, setSavingProjectContextSessionId] = useState<string | null>(null);
   const [savedProjectContextSessionId, setSavedProjectContextSessionId] = useState<string | null>(null);
   const [togglingReadOnlySessionId, setTogglingReadOnlySessionId] = useState<string | null>(
@@ -65,6 +68,7 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
   );
   const titleInput = useRef<HTMLInputElement>(null);
   const contextSaveResetTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const authenticationResetTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeSession = sessions.find((session) => session.id === activeSessionId) ?? null;
   const activeSessionIsReadOnly = activeSession?.readOnly !== false;
@@ -174,6 +178,9 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
     () => () => {
       if (contextSaveResetTimeout.current) {
         clearTimeout(contextSaveResetTimeout.current);
+      }
+      if (authenticationResetTimeout.current) {
+        clearTimeout(authenticationResetTimeout.current);
       }
     },
     []
@@ -317,6 +324,40 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
       );
     } finally {
       setOpeningTerminalSessionId(null);
+    }
+  }
+
+  async function authenticateSession(session: SessionRecord) {
+    if (authenticatingSessionId) {
+      return;
+    }
+
+    setAuthenticatingSessionId(session.id);
+    setSessionError("");
+
+    try {
+      const response = await fetch(`${sessionUrl(project.project_id, session.id)}/authenticate`, {
+        method: "POST"
+      });
+      const data = (await response.json()) as { authenticated?: boolean; error?: string };
+      if (!response.ok || !data.authenticated) {
+        throw new Error(data.error ?? "Unable to complete authentication.");
+      }
+
+      setAuthenticatedSessionId(session.id);
+      if (authenticationResetTimeout.current) {
+        clearTimeout(authenticationResetTimeout.current);
+      }
+      authenticationResetTimeout.current = setTimeout(() => {
+        setAuthenticatedSessionId(null);
+        authenticationResetTimeout.current = null;
+      }, 2_000);
+    } catch (error) {
+      setSessionError(
+        error instanceof Error ? error.message : "Unable to complete authentication."
+      );
+    } finally {
+      setAuthenticatingSessionId(null);
     }
   }
 
@@ -556,6 +597,26 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
                             <Unlock aria-hidden="true" />
                           )}
                         </button>
+                        {supportsAuthentication(activeSession) ? (
+                          <button
+                            aria-label={`Authenticate ${providerDisplayName(activeSession.providerId)}`}
+                            className="session-icon-button"
+                            disabled={authenticatingSessionId === activeSession.id}
+                            onClick={() => void authenticateSession(activeSession)}
+                            title={
+                              authenticatedSessionId === activeSession.id
+                                ? "Authentication complete"
+                                : authenticationTitle(activeSession.providerId)
+                            }
+                            type="button"
+                          >
+                            {authenticatedSessionId === activeSession.id ? (
+                              <Check aria-hidden="true" />
+                            ) : (
+                              <KeyRound aria-hidden="true" />
+                            )}
+                          </button>
+                        ) : null}
                         <button
                           aria-label={`Open ${activeSession.title} in macOS Terminal`}
                           className="session-icon-button"
@@ -860,6 +921,20 @@ function formatReasoningEffort(effort: ReasoningEffort): string {
   return effort === "xhigh" ? "Extra high" : `${effort[0]?.toUpperCase()}${effort.slice(1)}`;
 }
 
-function providerDisplayName(providerId: AiProviderId): string {
-  return providerId === "codex" ? "Codex" : "Claude Code";
+function providerDisplayName(providerId: string): string {
+  if (providerId === "codex") {
+    return "Codex";
+  }
+
+  return providerId === "claude-code" ? "Claude Code" : providerId;
+}
+
+function supportsAuthentication(session: SessionRecord): boolean {
+  return session.providerId === "codex" || session.providerId === "claude-code";
+}
+
+function authenticationTitle(providerId: string): string {
+  return providerId === "codex"
+    ? "Authenticate Codex"
+    : "Authenticate Claude";
 }

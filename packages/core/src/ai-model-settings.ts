@@ -85,8 +85,18 @@ const AiModelActionSettingsInputSchema = AiModelSelectionInputSchema.extend({
   yoloMode: z.boolean().optional()
 });
 
+const AiProviderAuthenticationCommandsInputSchema = z
+  .object({
+    codex: z.string().trim().min(1).max(4_096).optional(),
+    "claude-code": z.string().trim().min(1).max(4_096).optional()
+  })
+  .optional();
+
 type AiModelSelectionInput = z.infer<typeof AiModelSelectionInputSchema>;
 type AiModelActionSettingsInput = z.infer<typeof AiModelActionSettingsInputSchema>;
+type AiProviderAuthenticationCommandsInput = z.infer<
+  typeof AiProviderAuthenticationCommandsInputSchema
+>;
 
 export interface AiModelSelection {
   providerId: AiProviderId | null;
@@ -108,9 +118,15 @@ export interface ResolvedAiSessionActionSettings
   providerId: AiProviderId;
 }
 
+export interface AiProviderAuthenticationCommands {
+  codex: string;
+  "claude-code": string;
+}
+
 export interface AiModelSettings {
   schemaVersion: 1;
   globalDefault: AiModelGlobalDefault;
+  authenticationCommands: AiProviderAuthenticationCommands;
   actions: Record<AiSessionAction, AiSessionActionSettings>;
 }
 
@@ -129,11 +145,18 @@ const AiModelSettingsInputSchema = z.object({
   globalDefault: AiModelSelectionInputSchema.optional(),
   // Keep parsing this field so settings written before provider support migrate on save.
   codexDefault: AiModelSelectionInputSchema.optional(),
+  authenticationCommands: AiProviderAuthenticationCommandsInputSchema,
   actions: AiModelActionDefaultsSchema
 });
 
 export const AiModelSettingsSchema = AiModelSettingsInputSchema.transform(
-  ({ actions, codexDefault, globalDefault, schemaVersion }): AiModelSettings => {
+  ({
+    actions,
+    authenticationCommands,
+    codexDefault,
+    globalDefault,
+    schemaVersion
+  }): AiModelSettings => {
     const normalizedGlobalDefault = normalizeGlobalDefault(
       globalDefault ?? codexDefault ?? createDefaultSelection()
     );
@@ -141,6 +164,7 @@ export const AiModelSettingsSchema = AiModelSettingsInputSchema.transform(
     return {
       schemaVersion,
       globalDefault: normalizedGlobalDefault,
+      authenticationCommands: normalizeAuthenticationCommands(authenticationCommands),
       actions: {
         "new-session": normalizeActionSettings(
           actions["new-session"],
@@ -186,6 +210,7 @@ export function createDefaultAiModelSettings(): AiModelSettings {
   return {
     schemaVersion: 1,
     globalDefault: createDefaultGlobalDefault(),
+    authenticationCommands: createDefaultAuthenticationCommands(),
     actions: {
       "new-session": createDefaultActionSettings("new-session"),
       "initialize-context": createDefaultActionSettings("initialize-context"),
@@ -255,6 +280,23 @@ function createDefaultActionSettings(action: AiSessionAction): AiSessionActionSe
     ...createDefaultSelection(),
     readOnly: action === "new-session",
     yoloMode: action !== "new-session"
+  };
+}
+
+function createDefaultAuthenticationCommands(): AiProviderAuthenticationCommands {
+  return {
+    codex: "aws sso login --profile dev",
+    "claude-code": "aws sso login"
+  };
+}
+
+function normalizeAuthenticationCommands(
+  commands: AiProviderAuthenticationCommandsInput
+): AiProviderAuthenticationCommands {
+  const defaults = createDefaultAuthenticationCommands();
+  return {
+    codex: commands?.codex ?? defaults.codex,
+    "claude-code": commands?.["claude-code"] ?? defaults["claude-code"]
   };
 }
 

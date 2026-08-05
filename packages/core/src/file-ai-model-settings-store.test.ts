@@ -17,6 +17,10 @@ test("returns defaults and persists action-specific AI model settings", async ()
   try {
     const defaults = createDefaultAiModelSettings();
     assert.deepEqual(await store.get(), defaults);
+    assert.deepEqual(defaults.authenticationCommands, {
+      codex: "aws sso login --profile dev",
+      "claude-code": "aws sso login"
+    });
     const { globalDefault: _globalDefault, ...legacyDefaults } = defaults;
     assert.deepEqual(AiModelSettingsSchema.parse(legacyDefaults), defaults);
     assert.deepEqual(resolveAiModelDefault(defaults, "new-session"), {
@@ -57,6 +61,10 @@ test("returns defaults and persists action-specific AI model settings", async ()
 
     const saved = await store.update({
       ...defaults,
+      authenticationCommands: {
+        codex: "aws sso login --profile staging",
+        "claude-code": "aws sso login --profile staging"
+      },
       actions: {
         ...defaults.actions,
         "implement-code": {
@@ -71,6 +79,10 @@ test("returns defaults and persists action-specific AI model settings", async ()
     assert.equal(saved.actions["implement-code"].model, "openai.gpt-5.6-terra");
     assert.equal(saved.actions["implement-code"].providerId, "codex");
     assert.equal(saved.actions["implement-code"].reasoningEffort, "xhigh");
+    assert.deepEqual(saved.authenticationCommands, {
+      codex: "aws sso login --profile staging",
+      "claude-code": "aws sso login --profile staging"
+    });
     assert.deepEqual(await store.get(), saved);
     assert.deepEqual(resolveAiModelDefault(saved, "implement-code"), {
       providerId: "codex",
@@ -152,6 +164,10 @@ test("migrates legacy Codex defaults and action selections to provider-aware set
     reasoningEffort: "high"
   });
   assert.equal(parsed.actions["implement-code"].providerId, "codex");
+  assert.deepEqual(parsed.authenticationCommands, {
+    codex: "aws sso login --profile dev",
+    "claude-code": "aws sso login"
+  });
   assert.deepEqual(parsed.actions["create-pull-request"], {
     providerId: "codex",
     model: "gpt-5.3-codex",
