@@ -3,7 +3,8 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import {
   resolveAiModelDefault,
-  type AiSessionAction
+  type AiSessionAction,
+  type ResolvedAiSessionActionSettings
 } from "@supply-flow/core/ai-model-settings";
 import { FileAiModelSettingsStore } from "@supply-flow/core/file-ai-model-settings-store";
 import { FileSessionStore } from "@supply-flow/core/file-session-store";
@@ -43,6 +44,7 @@ export async function createProjectSession(
     workspacePath?: string;
     additionalWritableDirectories?: readonly string[];
     loadProjectContext?: boolean;
+    sessionConfiguration?: ResolvedAiSessionActionSettings;
   }
 ): Promise<SessionRecord> {
   const workspacePath = input.workspacePath ?? project.repos[0]?.local;
@@ -70,13 +72,15 @@ export async function createProjectSession(
     );
   }
 
-  const modelDefaults = resolveAiModelDefault(
-    await new FileAiModelSettingsStore(dataDirectory).get(),
-    input.action
-  );
-  const provider = findProvider(modelDefaults.providerId);
+  const sessionConfiguration =
+    input.sessionConfiguration ??
+    resolveAiModelDefault(
+      await new FileAiModelSettingsStore(dataDirectory).get(),
+      input.action
+    );
+  const provider = findProvider(sessionConfiguration.providerId);
   if (!provider) {
-    throw new Error(`AI provider "${modelDefaults.providerId}" is not configured.`);
+    throw new Error(`AI provider "${sessionConfiguration.providerId}" is not configured.`);
   }
 
   const id = `session_${randomUUID().replaceAll("-", "")}`;
@@ -84,7 +88,7 @@ export async function createProjectSession(
     ? null
     : await withProjectContext(project.project_id, input.goal);
   const writeModePrompt = await getSessionWriteModePrompt(
-    modelDefaults.readOnly,
+    sessionConfiguration.readOnly,
     project.project_id,
     id
   );
@@ -107,12 +111,12 @@ export async function createProjectSession(
     title: input.title,
     goal,
     providerId: provider.id,
-    ...(modelDefaults.model ? { model: modelDefaults.model } : {}),
-    ...(modelDefaults.reasoningEffort
-      ? { reasoningEffort: modelDefaults.reasoningEffort }
+    ...(sessionConfiguration.model ? { model: sessionConfiguration.model } : {}),
+    ...(sessionConfiguration.reasoningEffort
+      ? { reasoningEffort: sessionConfiguration.reasoningEffort }
       : {}),
-    readOnly: modelDefaults.readOnly,
-    yoloMode: modelDefaults.yoloMode,
+    readOnly: sessionConfiguration.readOnly,
+    yoloMode: sessionConfiguration.yoloMode,
     workspacePath,
     tmuxSessionName,
     status: "starting",
@@ -141,10 +145,10 @@ export async function createProjectSession(
             projectDirectory(project.project_id)
           ])
         ),
-        bypassApprovalsAndSandbox: modelDefaults.yoloMode,
-        readOnly: modelDefaults.readOnly,
-        model: modelDefaults.model,
-        reasoningEffort: modelDefaults.reasoningEffort
+        bypassApprovalsAndSandbox: sessionConfiguration.yoloMode,
+        readOnly: sessionConfiguration.readOnly,
+        model: sessionConfiguration.model,
+        reasoningEffort: sessionConfiguration.reasoningEffort
       })
     });
     session = await store.update(id, { status: "running" });

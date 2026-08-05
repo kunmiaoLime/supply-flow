@@ -4,6 +4,12 @@ import type { SessionRecord } from "@supply-flow/core/session";
 import { TmuxAdapter } from "@supply-flow/core/tmux";
 import { NextResponse } from "next/server";
 import {
+  AiProviderIdSchema,
+  ReasoningEffortSchema,
+  supportsReasoningEffort
+} from "@supply-flow/core/ai-model-settings";
+import { z } from "zod";
+import {
   createProjectSession,
   dataDirectory,
   projectDirectory,
@@ -19,10 +25,27 @@ interface ProjectRouteContext {
   params: Promise<{ projectId: string }>;
 }
 
-interface NewSessionInput {
-  title: string;
-  goal: string;
-}
+const NewSessionInputSchema = z
+  .object({
+    title: z.string().trim().min(1).max(120),
+    goal: z.string().trim().min(1).max(16_000),
+    providerId: AiProviderIdSchema,
+    model: z.string().trim().min(1).max(120).nullable(),
+    reasoningEffort: ReasoningEffortSchema.nullable(),
+    readOnly: z.boolean(),
+    yoloMode: z.boolean()
+  })
+  .superRefine((input, context) => {
+    if (!supportsReasoningEffort(input.providerId, input.reasoningEffort)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "The reasoning effort is not supported by the selected AI provider.",
+        path: ["reasoningEffort"]
+      });
+    }
+  });
+
+type NewSessionInput = z.infer<typeof NewSessionInputSchema>;
 
 export async function GET(_request: Request, context: ProjectRouteContext) {
   const { projectId } = await context.params;
@@ -52,7 +75,10 @@ export async function POST(request: Request, context: ProjectRouteContext) {
   const input = await parseNewSessionInput(request);
   if (!input) {
     return NextResponse.json(
-      { error: "Enter a title of 120 characters or fewer and a goal of 16,000 characters or fewer." },
+      {
+        error:
+          "Enter a valid title and goal, then choose a supported AI model configuration."
+      },
       { status: 400 }
     );
   }
@@ -66,8 +92,16 @@ export async function POST(request: Request, context: ProjectRouteContext) {
     }
 
     const session = await createProjectSession(project, {
-      ...input,
-      action: "new-session"
+      action: "new-session",
+      goal: input.goal,
+      sessionConfiguration: {
+        providerId: input.providerId,
+        model: input.model,
+        reasoningEffort: input.reasoningEffort,
+        readOnly: input.readOnly,
+        yoloMode: input.yoloMode
+      },
+      title: input.title
     });
     return NextResponse.json({ session }, { status: 201 });
   } catch (error) {
@@ -84,25 +118,7 @@ export async function POST(request: Request, context: ProjectRouteContext) {
 
 async function parseNewSessionInput(request: Request): Promise<NewSessionInput | null> {
   try {
-    const body: unknown = await request.json();
-    if (
-      typeof body !== "object" ||
-      body === null ||
-      !("title" in body) ||
-      !("goal" in body) ||
-      typeof body.title !== "string" ||
-      typeof body.goal !== "string"
-    ) {
-      return null;
-    }
-
-    const title = body.title.trim();
-    const goal = body.goal.trim();
-    if (!title || !goal || title.length > 120 || goal.length > 16_000) {
-      return null;
-    }
-
-    return { title, goal };
+    return NewSessionInputSchema.parse(await request.json());
   } catch {
     return null;
   }

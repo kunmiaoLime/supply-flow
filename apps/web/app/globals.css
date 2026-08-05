@@ -1903,6 +1903,12 @@ code {
   line-height: 1.2;
 }
 
+.new-session-dialog {
+  width: min(620px, 100%);
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+}
+
 .project-name-field,
 .repository-form-fields,
 .requirement-form-fields,
@@ -1918,7 +1924,8 @@ code {
 .requirement-form-fields label,
 .branch-form-fields label,
 .task-form-fields label,
-.session-form-fields label {
+.session-form-fields label,
+.session-configuration-fields label {
   display: grid;
   gap: 7px;
 }
@@ -1928,7 +1935,9 @@ code {
 .requirement-form-fields label > span,
 .branch-form-fields label > span,
 .task-form-fields label > span,
-.session-form-fields label > span {
+.session-form-fields label > span,
+.session-configuration-fields label > span,
+.session-mode-toggle > span {
   color: var(--muted);
   font-size: 12px;
   font-weight: 750;
@@ -1943,7 +1952,8 @@ code {
 .task-form-fields input,
 .task-form-fields textarea,
 .session-form-fields input,
-.session-form-fields textarea {
+.session-form-fields textarea,
+.session-configuration-fields select {
   min-height: 40px;
   width: 100%;
   padding: 0 11px;
@@ -1962,7 +1972,8 @@ code {
 .task-form-fields input::placeholder,
 .task-form-fields textarea::placeholder,
 .session-form-fields input::placeholder,
-.session-form-fields textarea::placeholder {
+.session-form-fields textarea::placeholder,
+.session-configuration-fields select::placeholder {
   color: var(--muted);
 }
 
@@ -1975,10 +1986,38 @@ code {
 .task-form-fields input:focus,
 .task-form-fields textarea:focus,
 .session-form-fields input:focus,
-.session-form-fields textarea:focus {
+.session-form-fields textarea:focus,
+.session-configuration-fields select:focus {
   outline: 3px solid rgba(8, 124, 105, 0.18);
   outline-offset: 0;
   border-color: var(--teal);
+}
+
+.session-configuration-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+}
+
+.session-configuration-fields select {
+  cursor: pointer;
+}
+
+.session-configuration-fields select:disabled {
+  cursor: not-allowed;
+  color: var(--muted);
+}
+
+.session-mode-toggles {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 24px;
+}
+
+.session-mode-toggle {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
 }
 
 .session-form-fields textarea {
@@ -1993,6 +2032,16 @@ code {
   padding-top: 10px;
   padding-bottom: 10px;
   resize: vertical;
+}
+
+@media (max-width: 560px) {
+  .new-session-dialog {
+    max-height: calc(100dvh - 32px);
+  }
+
+  .session-configuration-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .pull-requests-section {
