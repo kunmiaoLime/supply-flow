@@ -300,7 +300,7 @@ function normalizeActionSettings(
       ? selection.reasoningEffort
       : null,
     readOnly,
-    yoloMode: readOnly ? false : (settings.yoloMode ?? defaults.yoloMode)
+    yoloMode: settings.yoloMode ?? defaults.yoloMode
   };
 }
 

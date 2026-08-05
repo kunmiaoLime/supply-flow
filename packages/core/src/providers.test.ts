@@ -78,13 +78,39 @@ test("configures Claude model, effort, directories, and YOLO mode", () => {
   );
 });
 
-test("configures Claude read-only sessions in plan mode", () => {
+test("configures Codex read-only YOLO sessions without write access", () => {
+  const provider = findProvider("codex");
+
+  assert.deepEqual(
+    provider?.createLaunchSpec({
+      initialPrompt: "Inspect the project.",
+      additionalWritableDirectories: ["/tmp/project-context"],
+      bypassApprovalsAndSandbox: true,
+      model: "gpt-5.3-codex",
+      readOnly: true
+    }),
+    {
+      executable: "codex",
+      arguments: [
+        "--no-alt-screen",
+        "--model",
+        "gpt-5.3-codex",
+        "--sandbox",
+        "read-only",
+        "--ask-for-approval",
+        "never",
+        "Inspect the project."
+      ]
+    }
+  );
+});
+
+test("configures Claude read-only sessions in plan mode when YOLO is off", () => {
   const provider = findProvider("claude-code");
 
   assert.deepEqual(
     provider?.createLaunchSpec({
       initialPrompt: "Review the project.",
-      bypassApprovalsAndSandbox: true,
       model: "opus",
       reasoningEffort: "high",
       readOnly: true
@@ -99,6 +125,31 @@ test("configures Claude read-only sessions in plan mode", () => {
         "--permission-mode",
         "plan",
         "Review the project."
+      ]
+    }
+  );
+});
+
+test("configures Claude YOLO sessions with the local read-only policy", () => {
+  const provider = findProvider("claude-code");
+
+  assert.deepEqual(
+    provider?.createLaunchSpec({
+      initialPrompt: "Inspect the project.",
+      bypassApprovalsAndSandbox: true,
+      model: "opus",
+      reasoningEffort: "high",
+      readOnly: true
+    }),
+    {
+      executable: "claude",
+      arguments: [
+        "--model",
+        "opus",
+        "--effort",
+        "high",
+        "--dangerously-skip-permissions",
+        "Inspect the project."
       ]
     }
   );

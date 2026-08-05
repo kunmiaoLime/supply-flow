@@ -48,18 +48,24 @@ class CliProviderAdapter implements ProviderAdapter {
         ...(this.id === "claude-code" && options?.reasoningEffort
           ? ["--effort", options.reasoningEffort]
           : []),
-        ...((this.id === "codex" || this.id === "claude-code")
+        ...(this.id === "codex" && options?.readOnly
+          ? ["--sandbox", "read-only"]
+          : []),
+        ...((this.id === "claude-code" || (this.id === "codex" && !options?.readOnly))
           ? additionalWritableDirectories.flatMap((directory) => ["--add-dir", directory])
           : []),
-        ...(this.id === "claude-code" && options?.readOnly
+        ...(this.id === "claude-code" &&
+        options?.readOnly &&
+        !options?.bypassApprovalsAndSandbox
           ? ["--permission-mode", "plan"]
           : []),
         ...(this.id === "codex" && !options?.readOnly && options?.bypassApprovalsAndSandbox
           ? ["--dangerously-bypass-approvals-and-sandbox"]
           : []),
-        ...(this.id === "claude-code" &&
-        !options?.readOnly &&
-        options?.bypassApprovalsAndSandbox
+        ...(this.id === "codex" && options?.readOnly && options?.bypassApprovalsAndSandbox
+          ? ["--ask-for-approval", "never"]
+          : []),
+        ...(this.id === "claude-code" && options?.bypassApprovalsAndSandbox
           ? ["--dangerously-skip-permissions"]
           : []),
         ...(initialPrompt ? [initialPrompt] : [])

@@ -360,9 +360,7 @@ export function SettingsSection() {
           ...currentSettings.actions,
           [action]: {
             ...currentSelection,
-            [field]: nextValue,
-            ...(field === "readOnly" && nextValue ? { yoloMode: false } : {}),
-            ...(field === "yoloMode" && nextValue ? { readOnly: false } : {})
+            [field]: nextValue
           }
         }
       };

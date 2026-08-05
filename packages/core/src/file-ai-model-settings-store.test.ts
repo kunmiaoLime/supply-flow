@@ -39,6 +39,21 @@ test("returns defaults and persists action-specific AI model settings", async ()
       )
     };
     assert.deepEqual(AiModelSettingsSchema.parse(legacyActionDefaults), defaults);
+    const independentPermissions = AiModelSettingsSchema.parse({
+      ...defaults,
+      actions: {
+        ...defaults.actions,
+        "new-session": {
+          ...defaults.actions["new-session"],
+          yoloMode: true
+        }
+      }
+    });
+    assert.deepEqual(independentPermissions.actions["new-session"], {
+      ...defaults.actions["new-session"],
+      readOnly: true,
+      yoloMode: true
+    });
 
     const saved = await store.update({
       ...defaults,

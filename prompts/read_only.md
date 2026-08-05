@@ -5,6 +5,10 @@ the project-local session index, not in an environment-specific skill.
 
 Configured write mode: `<READ_ONLY_MODE>`
 
+YOLO mode may allow commands to run without a confirmation, but it never
+authorizes a filesystem, Git, or project-data write while this local mode is
+`on`.
+
 ## Persistent State
 
 - Current session ID: `<AI_SESSION_ID>`
