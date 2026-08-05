@@ -79,6 +79,7 @@ export interface ProjectStore {
   get(id: string): Promise<ProjectRecord | null>;
   list(): Promise<ProjectRecord[]>;
   update(id: string, update: ProjectUpdate): Promise<ProjectRecord>;
+  remove(id: string): Promise<boolean>;
 }
 
 export function createProjectId(name: string, existingProjectIds: Iterable<string>): string {

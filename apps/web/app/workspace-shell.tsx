@@ -158,6 +158,10 @@ export function WorkspaceShell({
   const [newProjectName, setNewProjectName] = useState("");
   const [creationError, setCreationError] = useState("");
   const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [isRemoveProjectDialogOpen, setIsRemoveProjectDialogOpen] = useState(false);
+  const [removeProjectConfirmation, setRemoveProjectConfirmation] = useState("");
+  const [removeProjectError, setRemoveProjectError] = useState("");
+  const [isRemovingProject, setIsRemovingProject] = useState(false);
   const [repositoryDialogMode, setRepositoryDialogMode] =
     useState<RepositoryDialogMode>(null);
   const [editingRepositoryIndex, setEditingRepositoryIndex] = useState<number | null>(null);
@@ -173,6 +177,7 @@ export function WorkspaceShell({
   const [requirementListError, setRequirementListError] = useState("");
   const [isSavingRequirement, setIsSavingRequirement] = useState(false);
   const projectNameInput = useRef<HTMLInputElement>(null);
+  const removeProjectNameInput = useRef<HTMLInputElement>(null);
   const repositoryLocalPathInput = useRef<HTMLInputElement>(null);
   const requirementLinkInput = useRef<HTMLInputElement>(null);
   const selectedProjectId = projectId ?? "";
@@ -230,6 +235,12 @@ export function WorkspaceShell({
   }, [isCreateProjectDialogOpen]);
 
   useEffect(() => {
+    if (isRemoveProjectDialogOpen) {
+      removeProjectNameInput.current?.focus();
+    }
+  }, [isRemoveProjectDialogOpen]);
+
+  useEffect(() => {
     if (repositoryDialogMode) {
       repositoryLocalPathInput.current?.focus();
     }
@@ -256,6 +267,22 @@ export function WorkspaceShell({
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [isCreateProjectDialogOpen, isCreatingProject]);
+
+  useEffect(() => {
+    if (!isRemoveProjectDialogOpen) {
+      return;
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && !isRemovingProject) {
+        setIsRemoveProjectDialogOpen(false);
+        setRemoveProjectError("");
+      }
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [isRemoveProjectDialogOpen, isRemovingProject]);
 
   useEffect(() => {
     if (!repositoryDialogMode) {
@@ -299,6 +326,23 @@ export function WorkspaceShell({
     if (!isCreatingProject) {
       setIsCreateProjectDialogOpen(false);
       setCreationError("");
+    }
+  }
+
+  function openRemoveProjectDialog() {
+    if (!selectedProject) {
+      return;
+    }
+
+    setRemoveProjectConfirmation("");
+    setRemoveProjectError("");
+    setIsRemoveProjectDialogOpen(true);
+  }
+
+  function closeRemoveProjectDialog() {
+    if (!isRemovingProject) {
+      setIsRemoveProjectDialogOpen(false);
+      setRemoveProjectError("");
     }
   }
 
@@ -351,6 +395,47 @@ export function WorkspaceShell({
       setCreationError(error instanceof Error ? error.message : "Unable to create the project.");
     } finally {
       setIsCreatingProject(false);
+    }
+  }
+
+  async function removeProject(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const project = selectedProject;
+    if (!project) {
+      closeRemoveProjectDialog();
+      return;
+    }
+    if (removeProjectConfirmation !== project.project_name) {
+      setRemoveProjectError("Type the project name exactly to confirm removal.");
+      return;
+    }
+
+    setIsRemovingProject(true);
+    setRemoveProjectError("");
+
+    try {
+      const response = await fetch(`/api/projects/${encodeURIComponent(project.project_id)}`, {
+        body: JSON.stringify({ projectName: removeProjectConfirmation }),
+        headers: { "Content-Type": "application/json" },
+        method: "DELETE"
+      });
+      const data = (await response.json()) as { deleted?: boolean; error?: string };
+      if (!response.ok || !data.deleted) {
+        throw new Error(data.error ?? "Unable to remove the project.");
+      }
+
+      setProjects((currentProjects) =>
+        currentProjects.filter((currentProject) => currentProject.project_id !== project.project_id)
+      );
+      setIsRemoveProjectDialogOpen(false);
+      setRemoveProjectConfirmation("");
+      router.push("/project");
+    } catch (error) {
+      setRemoveProjectError(
+        error instanceof Error ? error.message : "Unable to remove the project."
+      );
+    } finally {
+      setIsRemovingProject(false);
     }
   }
 
@@ -682,6 +767,17 @@ export function WorkspaceShell({
             <Plus aria-hidden="true" />
             <span>Create project</span>
           </button>
+          <button
+            aria-label="Remove current project"
+            className="remove-project-button"
+            disabled={!selectedProject || isRemovingProject}
+            onClick={openRemoveProjectDialog}
+            title="Remove current project"
+            type="button"
+          >
+            <Trash2 aria-hidden="true" />
+            <span>Remove project</span>
+          </button>
         </div>
         <span className="local-status">
           <span />
@@ -823,6 +919,74 @@ export function WorkspaceShell({
                 <button className="create-project-button" disabled={isCreatingProject} type="submit">
                   <Plus aria-hidden="true" />
                   <span>{isCreatingProject ? "Creating..." : "Create project"}</span>
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      ) : null}
+
+      {isRemoveProjectDialogOpen && selectedProject ? (
+        <div
+          className="dialog-backdrop"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) {
+              closeRemoveProjectDialog();
+            }
+          }}
+        >
+          <section
+            aria-labelledby="remove-project-title"
+            aria-modal="true"
+            className="create-project-dialog remove-project-dialog"
+            role="dialog"
+          >
+            <h2 id="remove-project-title">Remove project</h2>
+            <p className="remove-project-warning">
+              This permanently deletes the project data and terminates its AI sessions.
+            </p>
+            <form onSubmit={removeProject}>
+              <label className="project-name-field" htmlFor="remove-project-name">
+                <span>
+                  Type <strong>{selectedProject.project_name}</strong> to confirm
+                </span>
+                <input
+                  autoCapitalize="off"
+                  autoComplete="off"
+                  id="remove-project-name"
+                  maxLength={120}
+                  onChange={(event) => setRemoveProjectConfirmation(event.target.value)}
+                  ref={removeProjectNameInput}
+                  required
+                  spellCheck={false}
+                  type="text"
+                  value={removeProjectConfirmation}
+                />
+              </label>
+              {removeProjectError ? (
+                <p className="create-project-error" role="alert">
+                  {removeProjectError}
+                </p>
+              ) : null}
+              <div className="dialog-actions">
+                <button
+                  className="dialog-cancel-button"
+                  disabled={isRemovingProject}
+                  onClick={closeRemoveProjectDialog}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button
+                  className="remove-project-button"
+                  disabled={
+                    isRemovingProject ||
+                    removeProjectConfirmation !== selectedProject.project_name
+                  }
+                  type="submit"
+                >
+                  <Trash2 aria-hidden="true" />
+                  <span>{isRemovingProject ? "Removing..." : "Remove project"}</span>
                 </button>
               </div>
             </form>

@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { BranchIndexSchema } from "@supply-flow/core/branch";
@@ -102,6 +102,19 @@ export class FileProjectStore implements ProjectStore {
 
     await writeJsonAtomically(this.projectPath(id), updated);
     return updated;
+  }
+
+  public async remove(id: string): Promise<boolean> {
+    try {
+      await rm(this.projectDirectory(id), { force: false, recursive: true });
+      return true;
+    } catch (error) {
+      if (isMissingFileError(error)) {
+        return false;
+      }
+
+      throw error;
+    }
   }
 
   public async assignMissingDocumentTitle(

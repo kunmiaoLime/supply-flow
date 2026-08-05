@@ -309,6 +309,43 @@ button:focus-visible {
   height: 16px;
 }
 
+.remove-project-button {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 1px solid #c88780;
+  border-radius: 6px;
+  background: #fff4f2;
+  color: #9f3329;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.remove-project-button:hover:not(:disabled) {
+  border-color: #ab3429;
+  background: #ffe6e1;
+}
+
+.remove-project-button:focus-visible {
+  outline: 3px solid rgba(171, 52, 41, 0.24);
+  outline-offset: 1px;
+}
+
+.remove-project-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.remove-project-button svg {
+  width: 16px;
+  height: 16px;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -1956,6 +1993,13 @@ code {
   line-height: 1.2;
 }
 
+.remove-project-warning {
+  margin: -8px 0 20px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .new-session-dialog {
   width: min(620px, 100%);
   max-height: calc(100dvh - 48px);
@@ -2527,6 +2571,12 @@ code {
     font-size: 12px;
   }
 
+  .remove-project-button {
+    min-height: 36px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
   .workspace-sidebar {
     position: static;
     grid-column: 1;
@@ -2660,6 +2710,15 @@ code {
     order: 3;
     width: 100%;
     flex: 1 0 100%;
+  }
+
+  .project-controls .remove-project-button {
+    width: 36px;
+    padding: 0;
+  }
+
+  .project-controls .remove-project-button span {
+    display: none;
   }
 
   .local-status {

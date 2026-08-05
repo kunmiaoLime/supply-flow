@@ -1,5 +1,6 @@
 import path from "node:path";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
+import { FileSessionStore } from "@supply-flow/core/file-session-store";
 import {
   ProjectUpdateSchema,
   type ProjectUpdate
@@ -8,6 +9,7 @@ import {
   inspectGitRepository,
   RepositoryInspectionError
 } from "@supply-flow/core/repository-discovery";
+import { TmuxAdapter } from "@supply-flow/core/tmux";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +17,7 @@ export const runtime = "nodejs";
 
 const projectRoot = path.resolve(process.cwd(), "../..");
 const dataDirectory = process.env.SUPPLY_FLOW_DATA_DIR ?? path.join(projectRoot, ".supply-flow");
+const tmux = new TmuxAdapter();
 
 interface ProjectRouteContext {
   params: Promise<{ projectId: string }>;
@@ -84,6 +87,53 @@ export async function PATCH(request: Request, context: ProjectRouteContext) {
   }
 }
 
+export async function DELETE(request: Request, context: ProjectRouteContext) {
+  const projectName = await parseProjectRemovalConfirmation(request);
+  if (projectName === null) {
+    return NextResponse.json(
+      { error: "Type the project name exactly to confirm removal." },
+      { status: 400 }
+    );
+  }
+
+  const { projectId } = await context.params;
+  const store = new FileProjectStore(dataDirectory);
+
+  try {
+    const project = await store.get(projectId);
+    if (!project) {
+      return NextResponse.json({ error: `Unknown project "${projectId}".` }, { status: 404 });
+    }
+    if (projectName !== project.project_name) {
+      return NextResponse.json(
+        { error: "The typed project name does not match the selected project." },
+        { status: 400 }
+      );
+    }
+
+    const sessions = await new FileSessionStore(projectDirectory(project.project_id)).list();
+    for (const session of sessions) {
+      try {
+        await tmux.terminateSession(session.tmuxSessionName);
+      } catch {
+        // The terminal may have exited before project removal.
+      }
+    }
+
+    const removed = await store.remove(project.project_id);
+    if (!removed) {
+      return NextResponse.json({ error: `Unknown project "${projectId}".` }, { status: 404 });
+    }
+
+    return NextResponse.json({ deleted: true });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Unable to remove the project." },
+      { status: 500 }
+    );
+  }
+}
+
 async function parseLocalPath(request: Request): Promise<string | null> {
   try {
     const body: unknown = await request.json();
@@ -103,6 +153,24 @@ async function parseLocalPath(request: Request): Promise<string | null> {
   }
 }
 
+async function parseProjectRemovalConfirmation(request: Request): Promise<string | null> {
+  try {
+    const body: unknown = await request.json();
+    if (
+      typeof body !== "object" ||
+      body === null ||
+      !("projectName" in body) ||
+      typeof body.projectName !== "string"
+    ) {
+      return null;
+    }
+
+    return body.projectName;
+  } catch {
+    return null;
+  }
+}
+
 async function parseProjectUpdate(request: Request): Promise<ProjectUpdate | null> {
   try {
     const body: unknown = await request.json();
@@ -111,4 +179,8 @@ async function parseProjectUpdate(request: Request): Promise<ProjectUpdate | nul
   } catch {
     return null;
   }
+}
+
+function projectDirectory(projectId: string): string {
+  return path.join(dataDirectory, "projects", projectId);
 }

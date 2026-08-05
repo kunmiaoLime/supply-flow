@@ -213,3 +213,27 @@ test("normalizes project names into collision-safe directory ids", () => {
   );
   assert.equal(createProjectId("Café & tea", []), "cafe-and-tea");
 });
+
+test("removes a complete project directory", async () => {
+  const rootDirectory = await mkdtemp(path.join(os.tmpdir(), "supply-flow-projects-"));
+  const store = new FileProjectStore(rootDirectory);
+  const projectDirectory = path.join(rootDirectory, "projects", "removable-project");
+
+  try {
+    await store.create({
+      project_name: "Removable project",
+      project_id: "removable-project",
+      repos: [],
+      documents: [],
+      tasks: []
+    });
+    await writeFile(path.join(projectDirectory, "context.md"), "# Temporary context\n", "utf8");
+
+    assert.equal(await store.remove("removable-project"), true);
+    assert.equal(await store.get("removable-project"), null);
+    await assert.rejects(readFile(path.join(projectDirectory, "context.md"), "utf8"), /ENOENT/);
+    assert.equal(await store.remove("removable-project"), false);
+  } finally {
+    await rm(rootDirectory, { recursive: true, force: true });
+  }
+});
