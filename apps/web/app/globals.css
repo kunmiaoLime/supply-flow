@@ -580,6 +580,77 @@ button:focus-visible {
   background: var(--surface-soft);
 }
 
+.ai-model-defaults {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.ai-model-default-list {
+  border-top: 1px solid var(--line);
+}
+
+.ai-model-default-row {
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) minmax(220px, 1.1fr) minmax(180px, 0.8fr);
+  align-items: center;
+  gap: 18px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.ai-model-default-row > strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.ai-model-default-field {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.ai-model-default-field > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.ai-model-default-field select {
+  min-height: 38px;
+  min-width: 0;
+  width: 100%;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ai-model-default-field select:focus {
+  outline: 3px solid rgba(8, 124, 105, 0.18);
+  outline-offset: 0;
+  border-color: var(--teal);
+}
+
+.ai-model-default-field select:disabled {
+  cursor: not-allowed;
+  color: var(--muted);
+}
+
+.ai-model-default-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+  padding-top: 18px;
+}
+
 .pr-template-editor-heading {
   border-bottom: 1px solid var(--line);
 }
@@ -2357,6 +2428,15 @@ code {
 
   .import-pr-template-button {
     align-self: flex-start;
+  }
+
+  .ai-model-default-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .ai-model-default-row > strong {
+    grid-column: 1 / -1;
   }
 
   .repository-list li,

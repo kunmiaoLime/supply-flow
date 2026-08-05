@@ -1,3 +1,5 @@
+import type { ReasoningEffort } from "@supply-flow/core/ai-model-settings";
+
 export type ProviderId = "codex" | "claude-code" | "gemini-cli";
 
 export interface ProviderLaunchSpec {
@@ -9,6 +11,8 @@ export interface ProviderLaunchOptions {
   initialPrompt?: string;
   additionalWritableDirectories?: readonly string[];
   bypassApprovalsAndSandbox?: boolean;
+  model?: string | null;
+  reasoningEffort?: ReasoningEffort | null;
 }
 
 export interface ProviderAdapter {
@@ -26,6 +30,7 @@ class CliProviderAdapter implements ProviderAdapter {
 
   public createLaunchSpec(options?: ProviderLaunchOptions): ProviderLaunchSpec {
     const initialPrompt = options?.initialPrompt?.trim();
+    const model = options?.model?.trim();
     const additionalWritableDirectories =
       options?.additionalWritableDirectories
         ?.map((directory) => directory.trim())
@@ -35,6 +40,10 @@ class CliProviderAdapter implements ProviderAdapter {
       executable: this.executable,
       arguments: [
         ...(this.id === "codex" ? ["--no-alt-screen"] : []),
+        ...(this.id === "codex" && model ? ["--model", model] : []),
+        ...(this.id === "codex" && options?.reasoningEffort
+          ? ["--config", `model_reasoning_effort="${options.reasoningEffort}"`]
+          : []),
         ...(this.id === "codex"
           ? additionalWritableDirectories.flatMap((directory) => ["--add-dir", directory])
           : []),

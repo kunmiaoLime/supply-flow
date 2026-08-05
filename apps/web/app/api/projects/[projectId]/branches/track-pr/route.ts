@@ -154,6 +154,7 @@ export async function POST(request: Request, context: ProjectRouteContext) {
     }
 
     const session = await createProjectSession(project, {
+      action: "create-pull-request",
       title: pullRequestSessionTitle(task),
       goal: prompt,
       workspacePath: repository.local,

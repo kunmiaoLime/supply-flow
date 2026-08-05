@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ReasoningEffortSchema } from "@supply-flow/core/ai-model-settings";
 
 export const sessionStatuses = ["starting", "running", "stopped", "failed"] as const;
 
@@ -10,6 +11,8 @@ export const SessionRecordSchema = z.object({
   title: z.string().trim().min(1).max(120),
   goal: z.string().trim().min(1).max(16_000),
   providerId: z.string().min(1),
+  model: z.string().trim().min(1).max(120).optional(),
+  reasoningEffort: ReasoningEffortSchema.optional(),
   workspacePath: z.string().min(1),
   tmuxSessionName: z.string().min(1),
   status: SessionStatusSchema,

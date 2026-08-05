@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { stat } from "node:fs/promises";
 import path from "node:path";
+import {
+  resolveAiModelDefault,
+  type AiSessionAction
+} from "@supply-flow/core/ai-model-settings";
+import { FileAiModelSettingsStore } from "@supply-flow/core/file-ai-model-settings-store";
 import { FileSessionStore } from "@supply-flow/core/file-session-store";
 import type { ProjectRecord } from "@supply-flow/core/project";
 import { findProvider } from "@supply-flow/core/providers";
@@ -28,6 +33,7 @@ export class ProjectSessionError extends Error {
 export async function createProjectSession(
   project: ProjectRecord,
   input: {
+    action: AiSessionAction;
     title: string;
     goal: string;
     workspacePath?: string;
@@ -66,6 +72,10 @@ export async function createProjectSession(
   if (!provider) {
     throw new Error("Codex provider is not configured.");
   }
+  const modelDefaults = resolveAiModelDefault(
+    await new FileAiModelSettingsStore(dataDirectory).get(),
+    input.action
+  );
 
   const id = `session_${randomUUID().replaceAll("-", "")}`;
   const contextGoal = input.loadProjectContext === false
@@ -93,6 +103,10 @@ export async function createProjectSession(
     title: input.title,
     goal,
     providerId: provider.id,
+    ...(modelDefaults.model ? { model: modelDefaults.model } : {}),
+    ...(modelDefaults.reasoningEffort
+      ? { reasoningEffort: modelDefaults.reasoningEffort }
+      : {}),
     workspacePath,
     tmuxSessionName,
     status: "starting",
@@ -121,7 +135,9 @@ export async function createProjectSession(
             projectDirectory(project.project_id)
           ])
         ),
-        bypassApprovalsAndSandbox: input.bypassApprovalsAndSandbox
+        bypassApprovalsAndSandbox: input.bypassApprovalsAndSandbox,
+        model: modelDefaults.model,
+        reasoningEffort: modelDefaults.reasoningEffort
       })
     });
     session = await store.update(id, { status: "running" });

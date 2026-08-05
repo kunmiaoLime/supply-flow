@@ -65,7 +65,10 @@ export async function POST(request: Request, context: ProjectRouteContext) {
       return NextResponse.json({ error: `Unknown project "${projectId}".` }, { status: 404 });
     }
 
-    const session = await createProjectSession(project, input);
+    const session = await createProjectSession(project, {
+      ...input,
+      action: "new-session"
+    });
     return NextResponse.json({ session }, { status: 201 });
   } catch (error) {
     if (error instanceof ProjectSessionError) {

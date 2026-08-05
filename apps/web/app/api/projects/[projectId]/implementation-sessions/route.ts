@@ -97,6 +97,7 @@ export async function POST(request: Request, context: ProjectRouteContext) {
     }
 
     const session = await createProjectSession(project, {
+      action: "implement-code",
       title: implementationSessionTitle(task),
       goal: await buildImplementationGoal(
         project,

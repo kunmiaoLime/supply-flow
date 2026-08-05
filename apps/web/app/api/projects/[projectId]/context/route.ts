@@ -110,6 +110,7 @@ export async function POST(request: Request, context: ProjectRouteContext) {
     }
 
     const session = await createProjectSession(project, {
+      action: operation === "initialize" ? "initialize-context" : "update-context",
       title: operation === "initialize" ? "Initialize project context" : "Update project context",
       goal,
       additionalWritableDirectories: [projectDirectory(project.project_id)],

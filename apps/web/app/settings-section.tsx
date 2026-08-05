@@ -1,10 +1,18 @@
 "use client";
 
+import {
+  aiSessionActions,
+  codexModelOptions,
+  reasoningEffortValues,
+  type AiModelSettings,
+  type AiSessionAction,
+  type ReasoningEffort
+} from "@supply-flow/core/ai-model-settings";
 import type { PullRequestTemplate } from "@supply-flow/core/file-pull-request-template-store";
-import { FileDown, FileText, Save } from "lucide-react";
+import { Bot, FileDown, FileText, Save } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
-type SettingsTab = "pr-templates";
+type SettingsTab = "pr-templates" | "ai-model";
 
 const MAX_TEMPLATE_LENGTH = 100_000;
 
@@ -19,11 +27,22 @@ export function SettingsSection() {
   const [pullRequestUrl, setPullRequestUrl] = useState("");
   const [listError, setListError] = useState("");
   const [dialogError, setDialogError] = useState("");
+  const [aiModelSettings, setAiModelSettings] = useState<AiModelSettings | null>(null);
+  const [savedAiModelSettings, setSavedAiModelSettings] = useState<AiModelSettings | null>(
+    null
+  );
+  const [isLoadingAiModelSettings, setIsLoadingAiModelSettings] = useState(true);
+  const [isSavingAiModelSettings, setIsSavingAiModelSettings] = useState(false);
+  const [aiModelSettingsError, setAiModelSettingsError] = useState("");
   const importInput = useRef<HTMLInputElement>(null);
 
   const selectedTemplate =
     templates.find((template) => template.repository === selectedRepository) ?? null;
   const isDirty = selectedTemplate !== null && editorContent !== selectedTemplate.content;
+  const isAiModelSettingsDirty =
+    aiModelSettings !== null &&
+    savedAiModelSettings !== null &&
+    JSON.stringify(aiModelSettings) !== JSON.stringify(savedAiModelSettings);
 
   useEffect(() => {
     let ignoreResult = false;
@@ -58,6 +77,48 @@ export function SettingsSection() {
     }
 
     void loadTemplates();
+    return () => {
+      ignoreResult = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let ignoreResult = false;
+
+    async function loadAiModelSettings() {
+      setIsLoadingAiModelSettings(true);
+      setAiModelSettingsError("");
+
+      try {
+        const response = await fetch(aiModelsUrl(), { cache: "no-store" });
+        const data = (await response.json()) as {
+          settings?: AiModelSettings;
+          error?: string;
+        };
+        if (!response.ok || !data.settings) {
+          throw new Error(data.error ?? "Unable to load AI model settings.");
+        }
+
+        if (!ignoreResult) {
+          setAiModelSettings(data.settings);
+          setSavedAiModelSettings(data.settings);
+        }
+      } catch (error) {
+        if (!ignoreResult) {
+          setAiModelSettings(null);
+          setSavedAiModelSettings(null);
+          setAiModelSettingsError(
+            error instanceof Error ? error.message : "Unable to load AI model settings."
+          );
+        }
+      } finally {
+        if (!ignoreResult) {
+          setIsLoadingAiModelSettings(false);
+        }
+      }
+    }
+
+    void loadAiModelSettings();
     return () => {
       ignoreResult = true;
     };
@@ -215,6 +276,105 @@ export function SettingsSection() {
     }
   }
 
+  function updateAiModelDefault(
+    action: AiSessionAction,
+    field: "model" | "reasoningEffort",
+    value: string
+  ) {
+    if (isSavingAiModelSettings) {
+      return;
+    }
+
+    setAiModelSettings((currentSettings) => {
+      if (!currentSettings) {
+        return currentSettings;
+      }
+
+      const currentSelection = currentSettings.actions[action];
+      const selection =
+        field === "model"
+          ? { ...currentSelection, model: value || null }
+          : {
+              ...currentSelection,
+              reasoningEffort: (value || null) as ReasoningEffort | null
+            };
+      return {
+        ...currentSettings,
+        actions: {
+          ...currentSettings.actions,
+          [action]: selection
+        }
+      };
+    });
+    setAiModelSettingsError("");
+  }
+
+  function updateCodexDefault(
+    field: "model" | "reasoningEffort",
+    value: string
+  ) {
+    if (isSavingAiModelSettings) {
+      return;
+    }
+
+    setAiModelSettings((currentSettings) => {
+      if (!currentSettings) {
+        return currentSettings;
+      }
+
+      const codexDefault =
+        field === "model"
+          ? { ...currentSettings.codexDefault, model: value || null }
+          : {
+              ...currentSettings.codexDefault,
+              reasoningEffort: (value || null) as ReasoningEffort | null
+            };
+      return {
+        ...currentSettings,
+        codexDefault
+      };
+    });
+    setAiModelSettingsError("");
+  }
+
+  async function saveAiModelSettings() {
+    if (
+      !aiModelSettings ||
+      !isAiModelSettingsDirty ||
+      isLoadingAiModelSettings ||
+      isSavingAiModelSettings
+    ) {
+      return;
+    }
+
+    setIsSavingAiModelSettings(true);
+    setAiModelSettingsError("");
+
+    try {
+      const response = await fetch(aiModelsUrl(), {
+        body: JSON.stringify(aiModelSettings),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH"
+      });
+      const data = (await response.json()) as {
+        settings?: AiModelSettings;
+        error?: string;
+      };
+      if (!response.ok || !data.settings) {
+        throw new Error(data.error ?? "Unable to save AI model settings.");
+      }
+
+      setAiModelSettings(data.settings);
+      setSavedAiModelSettings(data.settings);
+    } catch (error) {
+      setAiModelSettingsError(
+        error instanceof Error ? error.message : "Unable to save AI model settings."
+      );
+    } finally {
+      setIsSavingAiModelSettings(false);
+    }
+  }
+
   return (
     <>
       <section aria-label="Settings" className="settings-section">
@@ -222,13 +382,24 @@ export function SettingsSection() {
           <button
             aria-controls="pr-template-panel"
             aria-selected={activeTab === "pr-templates"}
-            className="settings-tab is-active"
+            className={`settings-tab${activeTab === "pr-templates" ? " is-active" : ""}`}
             id="pr-template-tab"
             onClick={() => setActiveTab("pr-templates")}
             role="tab"
             type="button"
           >
             PR templates
+          </button>
+          <button
+            aria-controls="ai-model-panel"
+            aria-selected={activeTab === "ai-model"}
+            className={`settings-tab${activeTab === "ai-model" ? " is-active" : ""}`}
+            id="ai-model-tab"
+            onClick={() => setActiveTab("ai-model")}
+            role="tab"
+            type="button"
+          >
+            AI model
           </button>
         </div>
 
@@ -318,6 +489,148 @@ export function SettingsSection() {
             )}
           </div>
         ) : null}
+
+        {activeTab === "ai-model" ? (
+          <div
+            aria-labelledby="ai-model-tab"
+            className="settings-tab-panel"
+            id="ai-model-panel"
+            role="tabpanel"
+          >
+            {aiModelSettingsError ? (
+              <p className="create-project-error" role="alert">
+                {aiModelSettingsError}
+              </p>
+            ) : null}
+
+            {isLoadingAiModelSettings ? (
+              <div className="pr-template-empty-state">
+                <Bot aria-hidden="true" />
+                <span>Loading AI model defaults...</span>
+              </div>
+            ) : aiModelSettings ? (
+              <div className="ai-model-defaults">
+                <div className="ai-model-default-list">
+                  <div className="ai-model-default-row is-codex-default">
+                    <strong>Default</strong>
+                    <label className="ai-model-default-field">
+                      <span>AI model</span>
+                      <select
+                        disabled={isSavingAiModelSettings}
+                        onChange={(event) =>
+                          updateCodexDefault("model", event.target.value)
+                        }
+                        value={aiModelSettings.codexDefault.model ?? ""}
+                      >
+                        <option value="">Use local Codex configuration</option>
+                        {codexModelOptions.map((option) => (
+                          <option key={option.model} value={option.model}>
+                            {option.label}
+                          </option>
+                        ))}
+                        {!codexModelOptions.some(
+                          (option) => option.model === aiModelSettings.codexDefault.model
+                        ) && aiModelSettings.codexDefault.model ? (
+                          <option value={aiModelSettings.codexDefault.model}>
+                            {aiModelSettings.codexDefault.model}
+                          </option>
+                        ) : null}
+                      </select>
+                    </label>
+                    <label className="ai-model-default-field">
+                      <span>Reasoning effort</span>
+                      <select
+                        disabled={isSavingAiModelSettings}
+                        onChange={(event) =>
+                          updateCodexDefault("reasoningEffort", event.target.value)
+                        }
+                        value={aiModelSettings.codexDefault.reasoningEffort ?? ""}
+                      >
+                        <option value="">Use local Codex configuration</option>
+                        {reasoningEffortValues.map((effort) => (
+                          <option key={effort} value={effort}>
+                            {formatReasoningEffort(effort)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  {aiSessionActions.map((action) => {
+                    const selection = aiModelSettings.actions[action.id];
+                    return (
+                      <div className="ai-model-default-row" key={action.id}>
+                        <strong>{action.label}</strong>
+                        <label className="ai-model-default-field">
+                          <span>AI model</span>
+                          <select
+                            disabled={isSavingAiModelSettings}
+                            onChange={(event) =>
+                              updateAiModelDefault(action.id, "model", event.target.value)
+                            }
+                            value={selection.model ?? ""}
+                          >
+                            <option value="">Use default</option>
+                            {codexModelOptions.map((option) => (
+                              <option key={option.model} value={option.model}>
+                                {option.label}
+                              </option>
+                            ))}
+                            {!codexModelOptions.some(
+                              (option) => option.model === selection.model
+                            ) && selection.model ? (
+                              <option value={selection.model}>{selection.model}</option>
+                            ) : null}
+                          </select>
+                        </label>
+                        <label className="ai-model-default-field">
+                          <span>Reasoning effort</span>
+                          <select
+                            disabled={isSavingAiModelSettings}
+                            onChange={(event) =>
+                              updateAiModelDefault(
+                                action.id,
+                                "reasoningEffort",
+                                event.target.value
+                              )
+                            }
+                            value={selection.reasoningEffort ?? ""}
+                          >
+                            <option value="">Use default</option>
+                            {reasoningEffortValues.map((effort) => (
+                              <option key={effort} value={effort}>
+                                {formatReasoningEffort(effort)}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="ai-model-default-actions">
+                  <button
+                    className="save-pr-template-button"
+                    disabled={
+                      isSavingAiModelSettings ||
+                      isLoadingAiModelSettings ||
+                      !isAiModelSettingsDirty
+                    }
+                    onClick={() => void saveAiModelSettings()}
+                    type="button"
+                  >
+                    <Save aria-hidden="true" />
+                    <span>{isSavingAiModelSettings ? "Saving..." : "Save"}</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="pr-template-empty-state">
+                <Bot aria-hidden="true" />
+                <span>AI model defaults are unavailable.</span>
+              </div>
+            )}
+          </div>
+        ) : null}
       </section>
 
       {isImportDialogOpen ? (
@@ -385,6 +698,14 @@ export function SettingsSection() {
 
 function prTemplatesUrl(): string {
   return "/api/settings/pr-templates";
+}
+
+function aiModelsUrl(): string {
+  return "/api/settings/ai-models";
+}
+
+function formatReasoningEffort(effort: ReasoningEffort): string {
+  return effort === "xhigh" ? "Extra high" : `${effort[0]?.toUpperCase()}${effort.slice(1)}`;
 }
 
 function sortTemplates(templates: PullRequestTemplate[]): PullRequestTemplate[] {

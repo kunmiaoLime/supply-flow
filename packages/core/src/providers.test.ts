@@ -9,12 +9,18 @@ test("configures Codex additional writable directories and YOLO mode", () => {
     provider?.createLaunchSpec({
       initialPrompt: "Create project context.",
       additionalWritableDirectories: [" /tmp/project-context "],
-      bypassApprovalsAndSandbox: true
+      bypassApprovalsAndSandbox: true,
+      model: "openai.gpt-5.6-terra",
+      reasoningEffort: "xhigh"
     }),
     {
       executable: "codex",
       arguments: [
         "--no-alt-screen",
+        "--model",
+        "openai.gpt-5.6-terra",
+        "--config",
+        'model_reasoning_effort="xhigh"',
         "--add-dir",
         "/tmp/project-context",
         "--dangerously-bypass-approvals-and-sandbox",

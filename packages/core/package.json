@@ -4,8 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./ai-model-settings": "./src/ai-model-settings.ts",
     "./branch": "./src/branch.ts",
     "./context-analysis": "./src/context-analysis.ts",
+    "./file-ai-model-settings-store": "./src/file-ai-model-settings-store.ts",
     "./file-branch-store": "./src/file-branch-store.ts",
     "./file-context-analysis-store": "./src/file-context-analysis-store.ts",
     "./file-pull-request-store": "./src/file-pull-request-store.ts",
@@ -22,7 +24,7 @@
     "./tmux": "./src/tmux.ts"
   },
   "scripts": {
-    "test": "tsx --test src/file-branch-store.test.ts src/file-context-analysis-store.test.ts src/file-pull-request-store.test.ts src/file-pull-request-template-store.test.ts src/file-project-store.test.ts src/file-session-store.test.ts src/github-pull-request.test.ts src/providers.test.ts src/repository-discovery.test.ts src/session-prompt.test.ts src/tmux.test.ts",
+    "test": "tsx --test src/file-ai-model-settings-store.test.ts src/file-branch-store.test.ts src/file-context-analysis-store.test.ts src/file-pull-request-store.test.ts src/file-pull-request-template-store.test.ts src/file-project-store.test.ts src/file-session-store.test.ts src/github-pull-request.test.ts src/providers.test.ts src/repository-discovery.test.ts src/session-prompt.test.ts src/tmux.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

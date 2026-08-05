@@ -45,6 +45,7 @@ export async function POST(request: Request, context: ProjectRouteContext) {
     }
 
     const session = await createProjectSession(project, {
+      action: "create-task",
       title: input.title,
       goal: buildTaskCreationGoal(project, input),
       additionalWritableDirectories: [projectDirectory(project.project_id)],

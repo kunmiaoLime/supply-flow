@@ -112,6 +112,7 @@ export async function POST(request: Request, context: ProjectRouteContext) {
       reusedSession = true;
     } else {
       session = await createProjectSession(project, {
+        action: "address-pull-request",
         title: `Address PR #${pullRequest.number}: ${pullRequest.title}`.slice(0, 120),
         goal: prompt,
         workspacePath: repository.local,
