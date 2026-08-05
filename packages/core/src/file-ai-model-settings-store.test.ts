@@ -19,12 +19,32 @@ test("returns defaults and persists action-specific AI model settings", async ()
     assert.deepEqual(await store.get(), defaults);
     const { codexDefault: _codexDefault, ...legacyDefaults } = defaults;
     assert.deepEqual(AiModelSettingsSchema.parse(legacyDefaults), defaults);
+    assert.deepEqual(resolveAiModelDefault(defaults, "new-session"), {
+      model: null,
+      reasoningEffort: null,
+      readOnly: true,
+      yoloMode: false
+    });
+    const legacyActionDefaults = {
+      ...legacyDefaults,
+      actions: Object.fromEntries(
+        Object.entries(defaults.actions).map(([action, setting]) => [
+          action,
+          {
+            model: setting.model,
+            reasoningEffort: setting.reasoningEffort
+          }
+        ])
+      )
+    };
+    assert.deepEqual(AiModelSettingsSchema.parse(legacyActionDefaults), defaults);
 
     const saved = await store.update({
       ...defaults,
       actions: {
         ...defaults.actions,
         "implement-code": {
+          ...defaults.actions["implement-code"],
           model: "openai.gpt-5.6-terra",
           reasoningEffort: "xhigh"
         }
@@ -36,7 +56,9 @@ test("returns defaults and persists action-specific AI model settings", async ()
     assert.deepEqual(await store.get(), saved);
     assert.deepEqual(resolveAiModelDefault(saved, "implement-code"), {
       model: "openai.gpt-5.6-terra",
-      reasoningEffort: "xhigh"
+      reasoningEffort: "xhigh",
+      readOnly: false,
+      yoloMode: true
     });
 
     const inherited = {
@@ -48,7 +70,9 @@ test("returns defaults and persists action-specific AI model settings", async ()
     };
     assert.deepEqual(resolveAiModelDefault(inherited, "create-task"), {
       model: "gpt-5.3-codex",
-      reasoningEffort: "high"
+      reasoningEffort: "high",
+      readOnly: false,
+      yoloMode: true
     });
     assert.deepEqual(
       JSON.parse(

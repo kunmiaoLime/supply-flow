@@ -13,6 +13,8 @@ export const SessionRecordSchema = z.object({
   providerId: z.string().min(1),
   model: z.string().trim().min(1).max(120).optional(),
   reasoningEffort: ReasoningEffortSchema.optional(),
+  readOnly: z.boolean().optional(),
+  yoloMode: z.boolean().optional(),
   workspacePath: z.string().min(1),
   tmuxSessionName: z.string().min(1),
   status: SessionStatusSchema,

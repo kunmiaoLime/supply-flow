@@ -309,6 +309,34 @@ export function SettingsSection() {
     setAiModelSettingsError("");
   }
 
+  function toggleAiSessionSetting(
+    action: AiSessionAction,
+    field: "readOnly" | "yoloMode"
+  ) {
+    if (isSavingAiModelSettings) {
+      return;
+    }
+
+    setAiModelSettings((currentSettings) => {
+      if (!currentSettings) {
+        return currentSettings;
+      }
+
+      const currentSelection = currentSettings.actions[action];
+      return {
+        ...currentSettings,
+        actions: {
+          ...currentSettings.actions,
+          [action]: {
+            ...currentSelection,
+            [field]: !currentSelection[field]
+          }
+        }
+      };
+    });
+    setAiModelSettingsError("");
+  }
+
   function updateCodexDefault(
     field: "model" | "reasoningEffort",
     value: string
@@ -603,6 +631,44 @@ export function SettingsSection() {
                             ))}
                           </select>
                         </label>
+                        <div className="ai-model-default-toggle">
+                          <span>Read-only</span>
+                          <button
+                            aria-checked={selection.readOnly}
+                            aria-label={`${action.label} read-only`}
+                            className="ai-model-toggle"
+                            disabled={isSavingAiModelSettings}
+                            onClick={() => toggleAiSessionSetting(action.id, "readOnly")}
+                            role="switch"
+                            title={
+                              selection.readOnly
+                                ? "Disable read-only"
+                                : "Enable read-only"
+                            }
+                            type="button"
+                          >
+                            <span aria-hidden="true" />
+                          </button>
+                        </div>
+                        <div className="ai-model-default-toggle">
+                          <span>YOLO mode</span>
+                          <button
+                            aria-checked={selection.yoloMode}
+                            aria-label={`${action.label} YOLO mode`}
+                            className="ai-model-toggle"
+                            disabled={isSavingAiModelSettings}
+                            onClick={() => toggleAiSessionSetting(action.id, "yoloMode")}
+                            role="switch"
+                            title={
+                              selection.yoloMode
+                                ? "Disable YOLO mode"
+                                : "Enable YOLO mode"
+                            }
+                            type="button"
+                          >
+                            <span aria-hidden="true" />
+                          </button>
+                        </div>
                       </div>
                     );
                   })}

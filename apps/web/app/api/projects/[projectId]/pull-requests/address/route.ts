@@ -117,9 +117,7 @@ export async function POST(request: Request, context: ProjectRouteContext) {
         goal: prompt,
         workspacePath: repository.local,
         additionalWritableDirectories: [projectDirectory(project.project_id)],
-        bypassApprovalsAndSandbox: true,
-        loadProjectContext: true,
-        readOnlyOffAtStart: true
+        loadProjectContext: true
       });
     }
 

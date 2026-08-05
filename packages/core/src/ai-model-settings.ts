@@ -55,40 +55,73 @@ const AiModelSelectionSchema = z.object({
   reasoningEffort: ReasoningEffortSchema.nullable()
 });
 
+const AiModelActionSettingsSchema = AiModelSelectionSchema.extend({
+  readOnly: z.boolean().optional(),
+  yoloMode: z.boolean().optional()
+});
+
+export type AiModelSelection = z.infer<typeof AiModelSelectionSchema>;
+
+export interface AiSessionActionSettings extends AiModelSelection {
+  readOnly: boolean;
+  yoloMode: boolean;
+}
+
+export interface AiModelSettings {
+  schemaVersion: 1;
+  codexDefault: AiModelSelection;
+  actions: Record<AiSessionAction, AiSessionActionSettings>;
+}
+
 const AiModelActionDefaultsSchema = z.object({
-  "new-session": AiModelSelectionSchema,
-  "initialize-context": AiModelSelectionSchema,
-  "update-context": AiModelSelectionSchema,
-  "create-task": AiModelSelectionSchema,
-  "implement-code": AiModelSelectionSchema,
-  "create-pull-request": AiModelSelectionSchema,
-  "address-pull-request": AiModelSelectionSchema
+  "new-session": AiModelActionSettingsSchema,
+  "initialize-context": AiModelActionSettingsSchema,
+  "update-context": AiModelActionSettingsSchema,
+  "create-task": AiModelActionSettingsSchema,
+  "implement-code": AiModelActionSettingsSchema,
+  "create-pull-request": AiModelActionSettingsSchema,
+  "address-pull-request": AiModelActionSettingsSchema
 });
 
 export const AiModelSettingsSchema = z.object({
   schemaVersion: z.literal(1),
   codexDefault: AiModelSelectionSchema.optional(),
   actions: AiModelActionDefaultsSchema
-}).transform(({ codexDefault, ...settings }) => ({
+}).transform(({ actions, codexDefault, ...settings }): AiModelSettings => ({
   ...settings,
-  codexDefault: codexDefault ?? createDefaultSelection()
+  codexDefault: codexDefault ?? createDefaultSelection(),
+  actions: {
+    "new-session": normalizeActionSettings(actions["new-session"], "new-session"),
+    "initialize-context": normalizeActionSettings(
+      actions["initialize-context"],
+      "initialize-context"
+    ),
+    "update-context": normalizeActionSettings(actions["update-context"], "update-context"),
+    "create-task": normalizeActionSettings(actions["create-task"], "create-task"),
+    "implement-code": normalizeActionSettings(actions["implement-code"], "implement-code"),
+    "create-pull-request": normalizeActionSettings(
+      actions["create-pull-request"],
+      "create-pull-request"
+    ),
+    "address-pull-request": normalizeActionSettings(
+      actions["address-pull-request"],
+      "address-pull-request"
+    )
+  }
 }));
-
-export type AiModelSelection = z.infer<typeof AiModelSelectionSchema>;
-export type AiModelSettings = z.infer<typeof AiModelSettingsSchema>;
 
 export function createDefaultAiModelSettings(): AiModelSettings {
   return {
     schemaVersion: 1,
     codexDefault: createDefaultSelection(),
     actions: {
-      "new-session": createDefaultSelection(),
-      "initialize-context": createDefaultSelection(),
-      "update-context": createDefaultSelection(),
-      "create-task": createDefaultSelection(),
-      "implement-code": createDefaultSelection(),
-      "create-pull-request": createDefaultSelection(),
-      "address-pull-request": createDefaultSelection()
+      "new-session": createDefaultActionSettings("new-session"),
+      "initialize-context": createDefaultActionSettings("initialize-context"),
+      "update-context": createDefaultActionSettings("update-context"),
+      "create-task": createDefaultActionSettings("create-task"),
+      "implement-code": createDefaultActionSettings("implement-code"),
+      "create-pull-request": createDefaultActionSettings("create-pull-request"),
+      "address-pull-request": createDefaultActionSettings("address-pull-request")
     }
   };
 }
@@ -96,11 +129,13 @@ export function createDefaultAiModelSettings(): AiModelSettings {
 export function resolveAiModelDefault(
   settings: AiModelSettings,
   action: AiSessionAction
-): AiModelSelection {
+): AiSessionActionSettings {
   const actionDefault = settings.actions[action];
   return {
     model: actionDefault.model ?? settings.codexDefault.model,
-    reasoningEffort: actionDefault.reasoningEffort ?? settings.codexDefault.reasoningEffort
+    reasoningEffort: actionDefault.reasoningEffort ?? settings.codexDefault.reasoningEffort,
+    readOnly: actionDefault.readOnly,
+    yoloMode: actionDefault.yoloMode
   };
 }
 
@@ -108,5 +143,26 @@ function createDefaultSelection(): AiModelSelection {
   return {
     model: null,
     reasoningEffort: null
+  };
+}
+
+function createDefaultActionSettings(action: AiSessionAction): AiSessionActionSettings {
+  return {
+    ...createDefaultSelection(),
+    readOnly: action === "new-session",
+    yoloMode: action !== "new-session"
+  };
+}
+
+function normalizeActionSettings(
+  settings: z.infer<typeof AiModelActionSettingsSchema>,
+  action: AiSessionAction
+): AiSessionActionSettings {
+  const defaults = createDefaultActionSettings(action);
+  return {
+    model: settings.model,
+    reasoningEffort: settings.reasoningEffort,
+    readOnly: settings.readOnly ?? defaults.readOnly,
+    yoloMode: settings.yoloMode ?? defaults.yoloMode
   };
 }

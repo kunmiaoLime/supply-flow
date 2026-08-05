@@ -38,9 +38,7 @@ export async function createProjectSession(
     goal: string;
     workspacePath?: string;
     additionalWritableDirectories?: readonly string[];
-    bypassApprovalsAndSandbox?: boolean;
     loadProjectContext?: boolean;
-    readOnlyOffAtStart?: boolean;
   }
 ): Promise<SessionRecord> {
   const workspacePath = input.workspacePath ?? project.repos[0]?.local;
@@ -78,13 +76,14 @@ export async function createProjectSession(
   );
 
   const id = `session_${randomUUID().replaceAll("-", "")}`;
+  const readOnlyOffAtStart = !modelDefaults.readOnly;
   const contextGoal = input.loadProjectContext === false
     ? null
-    : await withProjectContext(project.project_id, input.goal, input.readOnlyOffAtStart);
+    : await withProjectContext(project.project_id, input.goal, readOnlyOffAtStart);
   const goal = prepareInitialAiSessionPrompt(
     (
       contextGoal ??
-      (input.readOnlyOffAtStart ? withReadOnlyOffInstruction(input.goal) : input.goal)
+      (readOnlyOffAtStart ? withReadOnlyOffInstruction(input.goal) : input.goal)
     ).replaceAll("<AI_SESSION_ID>", id)
   );
   if (goal.length > MAX_SESSION_GOAL_LENGTH) {
@@ -107,6 +106,8 @@ export async function createProjectSession(
     ...(modelDefaults.reasoningEffort
       ? { reasoningEffort: modelDefaults.reasoningEffort }
       : {}),
+    readOnly: modelDefaults.readOnly,
+    yoloMode: modelDefaults.yoloMode,
     workspacePath,
     tmuxSessionName,
     status: "starting",
@@ -135,7 +136,7 @@ export async function createProjectSession(
             projectDirectory(project.project_id)
           ])
         ),
-        bypassApprovalsAndSandbox: input.bypassApprovalsAndSandbox,
+        bypassApprovalsAndSandbox: modelDefaults.yoloMode,
         model: modelDefaults.model,
         reasoningEffort: modelDefaults.reasoningEffort
       })

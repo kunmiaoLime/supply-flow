@@ -48,9 +48,7 @@ export async function POST(request: Request, context: ProjectRouteContext) {
       action: "create-task",
       title: input.title,
       goal: buildTaskCreationGoal(project, input),
-      additionalWritableDirectories: [projectDirectory(project.project_id)],
-      bypassApprovalsAndSandbox: true,
-      readOnlyOffAtStart: true
+      additionalWritableDirectories: [projectDirectory(project.project_id)]
     });
     return NextResponse.json({ session }, { status: 201 });
   } catch (error) {

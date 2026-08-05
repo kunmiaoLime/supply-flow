@@ -593,7 +593,12 @@ button:focus-visible {
 
 .ai-model-default-row {
   display: grid;
-  grid-template-columns: minmax(190px, 1fr) minmax(220px, 1.1fr) minmax(180px, 0.8fr);
+  grid-template-columns:
+    minmax(150px, 1fr)
+    minmax(200px, 1.1fr)
+    minmax(160px, 0.8fr)
+    minmax(104px, auto)
+    minmax(104px, auto);
   align-items: center;
   gap: 18px;
   padding: 14px 0;
@@ -644,11 +649,77 @@ button:focus-visible {
   color: var(--muted);
 }
 
+.ai-model-default-toggle {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
+
+.ai-model-default-toggle > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.ai-model-toggle {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 11px;
+  background: var(--surface-soft);
+  cursor: pointer;
+}
+
+.ai-model-toggle > span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 140ms ease, background 140ms ease;
+}
+
+.ai-model-toggle[aria-checked="true"] {
+  border-color: var(--teal);
+  background: var(--teal);
+}
+
+.ai-model-toggle[aria-checked="true"] > span {
+  transform: translateX(16px);
+  background: #ffffff;
+}
+
+.ai-model-toggle:focus-visible {
+  outline: 3px solid rgba(8, 124, 105, 0.18);
+  outline-offset: 2px;
+}
+
+.ai-model-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .ai-model-default-actions {
   display: flex;
   justify-content: flex-end;
   margin-top: auto;
   padding-top: 18px;
+}
+
+@media (max-width: 1120px) {
+  .ai-model-default-row {
+    grid-template-columns: minmax(180px, 1fr) minmax(220px, 1fr);
+    gap: 12px;
+  }
+
+  .ai-model-default-row > strong {
+    grid-column: 1 / -1;
+  }
 }
 
 .pr-template-editor-heading {
