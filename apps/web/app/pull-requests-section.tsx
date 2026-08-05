@@ -6,6 +6,7 @@ import type { SessionRecord } from "@supply-flow/core/session";
 import { ExternalLink, GitPullRequest, ListPlus, Trash2, Wrench } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { workspaceTabUrl } from "./workspace-url";
 
 export function PullRequestsSection({ project }: { project: ProjectRecord }) {
   const router = useRouter();
@@ -302,11 +303,7 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
           )
         );
       }
-      router.push(
-        `/ai_sessions/${encodeURIComponent(project.project_id)}?session=${encodeURIComponent(
-          data.session.id
-        )}`
-      );
+      router.push(workspaceTabUrl("/ai_sessions", project.project_id, data.session.id));
     } catch (error) {
       setListError(
         error instanceof Error

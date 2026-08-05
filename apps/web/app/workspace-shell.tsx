@@ -8,6 +8,12 @@ import { CodeImplementationSection } from "./code-implementation-section";
 import { PullRequestsSection } from "./pull-requests-section";
 import { ProjectContextSection } from "./project-context-section";
 import { SettingsSection } from "./settings-section";
+import {
+  defaultSettingsTab,
+  settingsTabUrl,
+  workspaceTabUrl,
+  type SettingsTab
+} from "./workspace-url";
 import { TaskPlanSection } from "./task-plan-section";
 import type {
   DocumentSource,
@@ -94,7 +100,12 @@ const navigationTabs: readonly NavigationTab[] = [
     icon: Code2
   },
   { id: "pr", label: "PR", href: "/pr", icon: GitPullRequest },
-  { id: "settings", label: "Settings", href: "/settings", icon: Settings2 },
+  {
+    id: "settings",
+    label: "Settings",
+    href: settingsTabUrl(defaultSettingsTab),
+    icon: Settings2
+  },
   { id: "ai-sessions", label: "AI sessions", href: "/ai_sessions", icon: MessageSquare }
 ];
 
@@ -133,9 +144,11 @@ const tabHeadings: Record<TabId, { eyebrow: string; title: string; description: 
 
 export function WorkspaceShell({
   projectId,
+  settingsTab,
   tab
 }: {
   projectId?: string;
+  settingsTab?: SettingsTab;
   tab: TabId;
 }) {
   const router = useRouter();
@@ -291,8 +304,11 @@ export function WorkspaceShell({
 
   function selectProject(projectId: string) {
     const currentTab = navigationTabs.find((navigationTab) => navigationTab.id === tab);
-    const pathname = currentTab?.href ?? "/project";
-    router.push(projectId ? `${pathname}/${encodeURIComponent(projectId)}` : pathname);
+    const href =
+      tab === "settings"
+        ? settingsTabUrl(settingsTab ?? defaultSettingsTab, projectId || undefined)
+        : workspaceTabUrl(currentTab?.href ?? "/project", projectId || undefined);
+    router.push(href);
   }
 
   function replaceProject(updatedProject: ProjectRecord) {
@@ -684,9 +700,9 @@ export function WorkspaceShell({
                 aria-current={isActive ? "page" : undefined}
                 className={`workspace-nav-tab${isActive ? " is-active" : ""}`}
                 href={
-                  selectedProjectId
-                    ? `${navigationTab.href}/${encodeURIComponent(selectedProjectId)}`
-                    : navigationTab.href
+                  navigationTab.id === "settings"
+                    ? settingsTabUrl(settingsTab ?? defaultSettingsTab, selectedProjectId)
+                    : workspaceTabUrl(navigationTab.href, selectedProjectId)
                 }
                 key={navigationTab.id}
               >
@@ -752,6 +768,8 @@ export function WorkspaceShell({
             project={selectedProject}
             repositoryListError={repositoryListError}
             requirementListError={requirementListError}
+            selectedProjectId={selectedProjectId}
+            settingsTab={settingsTab}
             tab={tab}
           />
         </section>
@@ -1043,6 +1061,8 @@ function PanelContent({
   project,
   repositoryListError,
   requirementListError,
+  selectedProjectId,
+  settingsTab,
   tab
 }: {
   isSavingRepositories: boolean;
@@ -1057,10 +1077,17 @@ function PanelContent({
   project: ProjectRecord | undefined;
   repositoryListError: string;
   requirementListError: string;
+  selectedProjectId: string;
+  settingsTab?: SettingsTab;
   tab: TabId;
 }) {
   if (tab === "settings") {
-    return <SettingsSection />;
+    return (
+      <SettingsSection
+        activeTab={settingsTab ?? defaultSettingsTab}
+        projectId={selectedProjectId || undefined}
+      />
+    );
   }
 
   if (!project) {

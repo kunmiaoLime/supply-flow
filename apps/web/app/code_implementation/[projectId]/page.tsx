@@ -1,4 +1,5 @@
-import { WorkspaceShell } from "../../workspace-shell";
+import { redirect } from "next/navigation";
+import { workspaceTabUrl } from "../../workspace-url";
 
 export default async function CodeImplementationPage({
   params
@@ -7,5 +8,5 @@ export default async function CodeImplementationPage({
 }) {
   const { projectId } = await params;
 
-  return <WorkspaceShell projectId={projectId} tab="code-implementation" />;
+  redirect(workspaceTabUrl("/code_implementation", projectId));
 }

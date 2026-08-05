@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { settingsTabUrl, type SettingsTab } from "./workspace-url";
 import {
   aiSessionActions,
   aiModelOptions,
@@ -15,12 +17,15 @@ import type { PullRequestTemplate } from "@supply-flow/core/file-pull-request-te
 import { Bot, FileDown, FileText, Save } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
-type SettingsTab = "pr-templates" | "ai-model";
-
 const MAX_TEMPLATE_LENGTH = 100_000;
 
-export function SettingsSection() {
-  const [activeTab, setActiveTab] = useState<SettingsTab>("pr-templates");
+export function SettingsSection({
+  activeTab,
+  projectId
+}: {
+  activeTab: SettingsTab;
+  projectId?: string;
+}) {
   const [templates, setTemplates] = useState<PullRequestTemplate[]>([]);
   const [selectedRepository, setSelectedRepository] = useState("");
   const [editorContent, setEditorContent] = useState("");
@@ -505,28 +510,26 @@ export function SettingsSection() {
     <>
       <section aria-label="Settings" className="settings-section">
         <div aria-label="Settings sections" className="settings-tab-list" role="tablist">
-          <button
+          <Link
             aria-controls="pr-template-panel"
             aria-selected={activeTab === "pr-templates"}
             className={`settings-tab${activeTab === "pr-templates" ? " is-active" : ""}`}
+            href={settingsTabUrl("pr-templates", projectId)}
             id="pr-template-tab"
-            onClick={() => setActiveTab("pr-templates")}
             role="tab"
-            type="button"
           >
             PR templates
-          </button>
-          <button
+          </Link>
+          <Link
             aria-controls="ai-model-panel"
             aria-selected={activeTab === "ai-model"}
             className={`settings-tab${activeTab === "ai-model" ? " is-active" : ""}`}
+            href={settingsTabUrl("ai-model", projectId)}
             id="ai-model-tab"
-            onClick={() => setActiveTab("ai-model")}
             role="tab"
-            type="button"
           >
             AI model
-          </button>
+          </Link>
         </div>
 
         {activeTab === "pr-templates" ? (

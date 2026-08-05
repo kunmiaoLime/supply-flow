@@ -5,6 +5,7 @@ import type { SessionRecord } from "@supply-flow/core/session";
 import { Check, Copy, ExternalLink, ListPlus, ListTodo, Pencil, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { workspaceTabUrl } from "./workspace-url";
 
 type TaskDialogMode = "add" | "edit" | "track" | null;
 
@@ -203,11 +204,7 @@ export function TaskPlanSection({
         throw new Error(data.error ?? "Unable to start the task session.");
       }
 
-      router.push(
-        `/ai_sessions/${encodeURIComponent(project.project_id)}?session=${encodeURIComponent(
-          data.session.id
-        )}`
-      );
+      router.push(workspaceTabUrl("/ai_sessions", project.project_id, data.session.id));
     } catch (error) {
       setDialogError(
         error instanceof Error ? error.message : "Unable to start the task session."

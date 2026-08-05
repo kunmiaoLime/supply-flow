@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { workspaceTabUrl } from "./workspace-url";
 
 type BranchDialogMode = "import" | "edit" | null;
 
@@ -304,11 +305,7 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
       }
 
       if (data.session) {
-        router.push(
-          `/ai_sessions/${encodeURIComponent(project.project_id)}?session=${encodeURIComponent(
-            data.session.id
-          )}`
-        );
+        router.push(workspaceTabUrl("/ai_sessions", project.project_id, data.session.id));
       }
     } catch (error) {
       setListError(
@@ -389,9 +386,11 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
                         disabled={Boolean(removingBranch) || Boolean(trackingPullRequest)}
                         onClick={() =>
                           router.push(
-                            `/ai_sessions/${encodeURIComponent(
-                              project.project_id
-                            )}?session=${encodeURIComponent(branch.last_session_id as string)}`
+                            workspaceTabUrl(
+                              "/ai_sessions",
+                              project.project_id,
+                              branch.last_session_id as string
+                            )
                           )
                         }
                         title={`Open the last AI session for ${branch.name}`}

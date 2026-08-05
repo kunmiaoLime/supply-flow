@@ -11,6 +11,7 @@ import type { SessionRecord } from "@supply-flow/core/session";
 import { CircleHelp, FileText, GitCompareArrows, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { workspaceTabUrl } from "./workspace-url";
 
 interface ContextStatus {
   path: "context.md";
@@ -98,11 +99,7 @@ export function ProjectContextSection({ project }: { project: ProjectRecord }) {
         throw new Error(data.error ?? "Unable to start the context session.");
       }
 
-      router.push(
-        `/ai_sessions/${encodeURIComponent(project.project_id)}?session=${encodeURIComponent(
-          data.session.id
-        )}`
-      );
+      router.push(workspaceTabUrl("/ai_sessions", project.project_id, data.session.id));
     } catch (error) {
       setActionError(
         error instanceof Error ? error.message : "Unable to start the context session."

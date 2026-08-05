@@ -1,11 +1,14 @@
-import { WorkspaceShell } from "../../workspace-shell";
+import { redirect } from "next/navigation";
+import { queryParamValue, workspaceTabUrl } from "../../workspace-url";
 
 export default async function AiSessionsProjectPage({
-  params
+  params,
+  searchParams
 }: {
   params: Promise<{ projectId: string }>;
+  searchParams: Promise<{ session?: string | string[] }>;
 }) {
-  const { projectId } = await params;
+  const [{ projectId }, { session }] = await Promise.all([params, searchParams]);
 
-  return <WorkspaceShell projectId={projectId} tab="ai-sessions" />;
+  redirect(workspaceTabUrl("/ai_sessions", projectId, queryParamValue(session)));
 }
