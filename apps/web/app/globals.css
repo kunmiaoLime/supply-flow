@@ -1336,6 +1336,169 @@ code {
   line-height: 1.45;
 }
 
+.context-analysis-pending,
+.context-analysis-warning {
+  margin: 18px 0 0;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.context-analysis-warning {
+  color: #a64b00;
+}
+
+.context-analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 30px;
+  margin-top: 24px;
+}
+
+.context-analysis-group {
+  min-width: 0;
+}
+
+.context-analysis-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.context-analysis-group-header > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.context-analysis-group-header svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  color: var(--teal);
+}
+
+.context-analysis-group-header h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.context-analysis-group-header > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.context-analysis-empty {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.context-analysis-list,
+.context-analysis-sources {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.context-analysis-list > li {
+  padding: 15px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.context-analysis-item-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.context-analysis-item-heading strong {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.context-analysis-severity {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.context-analysis-severity.is-blocking {
+  color: #b42318;
+}
+
+.context-analysis-severity.is-high {
+  color: #c26100;
+}
+
+.context-analysis-severity.is-medium {
+  color: #756300;
+}
+
+.context-analysis-severity.is-low {
+  color: var(--teal);
+}
+
+.context-analysis-description,
+.context-analysis-detail {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.context-analysis-detail {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.context-analysis-detail > span {
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.context-analysis-sources {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.context-analysis-sources li {
+  display: grid;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.context-analysis-sources a {
+  overflow-wrap: anywhere;
+  color: var(--teal);
+  font-weight: 700;
+}
+
+.context-analysis-sources code {
+  width: fit-content;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
 .repository-list,
 .requirement-list,
 .branch-list,
@@ -2190,6 +2353,11 @@ code {
   .requirement-list li,
   .project-task-list li {
     grid-template-columns: 1fr;
+  }
+
+  .context-analysis-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
   }
 
   .ai-session-terminal {

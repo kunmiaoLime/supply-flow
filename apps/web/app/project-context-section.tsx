@@ -1,8 +1,14 @@
 "use client";
 
+import type {
+  ContextAnalysis,
+  ContextConflict,
+  ContextGap,
+  ContextIssueSource
+} from "@supply-flow/core/context-analysis";
 import type { ProjectRecord } from "@supply-flow/core/project";
 import type { SessionRecord } from "@supply-flow/core/session";
-import { FileText, RefreshCw } from "lucide-react";
+import { CircleHelp, FileText, GitCompareArrows, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -13,15 +19,19 @@ interface ContextStatus {
 
 interface ContextStatusResponse {
   context?: ContextStatus | null;
+  analysis?: ContextAnalysis | null;
+  analysisError?: string;
   error?: string;
 }
 
 export function ProjectContextSection({ project }: { project: ProjectRecord }) {
   const router = useRouter();
   const [context, setContext] = useState<ContextStatus | null>(null);
+  const [analysis, setAnalysis] = useState<ContextAnalysis | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [statusError, setStatusError] = useState("");
+  const [analysisError, setAnalysisError] = useState("");
   const [actionError, setActionError] = useState("");
   const hasRepository = project.repos.length > 0;
 
@@ -31,6 +41,7 @@ export function ProjectContextSection({ project }: { project: ProjectRecord }) {
     async function loadContextStatus() {
       setIsLoading(true);
       setStatusError("");
+      setAnalysisError("");
       setActionError("");
 
       try {
@@ -42,10 +53,14 @@ export function ProjectContextSection({ project }: { project: ProjectRecord }) {
 
         if (!ignoreResult) {
           setContext(data.context ?? null);
+          setAnalysis(data.analysis ?? null);
+          setAnalysisError(data.analysisError ?? "");
         }
       } catch (error) {
         if (!ignoreResult) {
           setContext(null);
+          setAnalysis(null);
+          setAnalysisError("");
           setStatusError(
             error instanceof Error ? error.message : "Unable to load project context."
           );
@@ -141,8 +156,153 @@ export function ProjectContextSection({ project }: { project: ProjectRecord }) {
           </span>
         </div>
       </div>
+
+      {context && !isLoading ? (
+        <ContextAnalysisPanel analysis={analysis} analysisError={analysisError} />
+      ) : null}
     </section>
   );
+}
+
+function ContextAnalysisPanel({
+  analysis,
+  analysisError
+}: {
+  analysis: ContextAnalysis | null;
+  analysisError: string;
+}) {
+  if (analysisError) {
+    return (
+      <p className="context-analysis-warning" role="alert">
+        {analysisError} Run Update context to regenerate the analysis files.
+      </p>
+    );
+  }
+
+  if (!analysis) {
+    return (
+      <p className="context-analysis-pending">
+        Run Update context to identify gaps and conflicts.
+      </p>
+    );
+  }
+
+  return (
+    <div className="context-analysis-grid">
+      <ContextGapList gaps={analysis.gaps} />
+      <ContextConflictList conflicts={analysis.conflicts} />
+    </div>
+  );
+}
+
+function ContextGapList({ gaps }: { gaps: ContextGap[] }) {
+  return (
+    <section aria-labelledby="context-gaps-heading" className="context-analysis-group">
+      <div className="context-analysis-group-header">
+        <div>
+          <CircleHelp aria-hidden="true" />
+          <h3 id="context-gaps-heading">Gaps</h3>
+        </div>
+        <span>{gaps.length}</span>
+      </div>
+      {gaps.length === 0 ? (
+        <p className="context-analysis-empty">No gaps identified.</p>
+      ) : (
+        <ul className="context-analysis-list">
+          {gaps.map((gap) => (
+            <li key={gap.id}>
+              <ContextIssueHeading issue={gap} />
+              <p className="context-analysis-description">{gap.description}</p>
+              <ContextIssueDetail label="Impact" value={gap.impact} />
+              <ContextIssueDetail label="Clarify" value={gap.questions.join(" ")} />
+              <ContextIssueSources sources={gap.sources} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function ContextConflictList({ conflicts }: { conflicts: ContextConflict[] }) {
+  return (
+    <section aria-labelledby="context-conflicts-heading" className="context-analysis-group">
+      <div className="context-analysis-group-header">
+        <div>
+          <GitCompareArrows aria-hidden="true" />
+          <h3 id="context-conflicts-heading">Conflicts</h3>
+        </div>
+        <span>{conflicts.length}</span>
+      </div>
+      {conflicts.length === 0 ? (
+        <p className="context-analysis-empty">No conflicts identified.</p>
+      ) : (
+        <ul className="context-analysis-list">
+          {conflicts.map((conflict) => (
+            <li key={conflict.id}>
+              <ContextIssueHeading issue={conflict} />
+              <p className="context-analysis-description">{conflict.description}</p>
+              <ContextIssueDetail label="Impact" value={conflict.impact} />
+              <ContextIssueDetail
+                label="Resolve"
+                value={conflict.resolution_options.join(" ")}
+              />
+              <ContextIssueSources sources={conflict.sources} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function ContextIssueHeading({
+  issue
+}: {
+  issue: Pick<ContextGap | ContextConflict, "severity" | "title">;
+}) {
+  return (
+    <div className="context-analysis-item-heading">
+      <strong>{issue.title}</strong>
+      <span className={`context-analysis-severity is-${issue.severity}`}>
+        {formatSeverity(issue.severity)}
+      </span>
+    </div>
+  );
+}
+
+function ContextIssueDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <p className="context-analysis-detail">
+      <span>{label}</span>
+      {value}
+    </p>
+  );
+}
+
+function ContextIssueSources({ sources }: { sources: ContextIssueSource[] }) {
+  return (
+    <ul aria-label="Source evidence" className="context-analysis-sources">
+      {sources.map((source, index) => (
+        <li key={`${source.reference}-${index}`}>
+          <ContextSourceReference reference={source.reference} />
+          <span>{source.detail}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ContextSourceReference({ reference }: { reference: string }) {
+  if (isHttpUrl(reference)) {
+    return (
+      <a href={reference} rel="noreferrer" target="_blank">
+        {reference}
+      </a>
+    );
+  }
+
+  return <code>{reference}</code>;
 }
 
 function contextUrl(projectId: string): string {
@@ -152,4 +312,17 @@ function contextUrl(projectId: string): string {
 function formatUpdatedAt(updatedAt: string): string {
   const date = new Date(updatedAt);
   return Number.isNaN(date.getTime()) ? "at an unknown time" : date.toLocaleString();
+}
+
+function formatSeverity(severity: ContextGap["severity"]): string {
+  return `${severity.slice(0, 1).toUpperCase()}${severity.slice(1)}`;
+}
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
