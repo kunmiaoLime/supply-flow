@@ -7,6 +7,7 @@ import { BranchesSection } from "./branches-section";
 import { CodeImplementationSection } from "./code-implementation-section";
 import { PullRequestsSection } from "./pull-requests-section";
 import { ProjectContextSection } from "./project-context-section";
+import { SettingsSection } from "./settings-section";
 import { TaskPlanSection } from "./task-plan-section";
 import type {
   DocumentSource,
@@ -167,11 +168,12 @@ export function WorkspaceShell({
     tab !== "project" &&
     tab !== "task-plan" &&
     tab !== "code-implementation" &&
-    tab !== "pr";
+    tab !== "pr" &&
+    tab !== "settings";
   const panelEyebrow = selectedProject
     ? `${selectedProject.project_name} / ${heading.eyebrow}`
     : heading.eyebrow;
-  const panelDescription = selectedProject
+  const panelDescription = selectedProject || tab === "settings"
     ? heading.description
     : "Select a project from the top panel to view this content.";
 
@@ -720,6 +722,7 @@ export function WorkspaceShell({
           }${tab === "task-plan" ? " is-task-plan-panel" : ""}${
             tab === "code-implementation" ? " is-code-implementation-panel" : ""
           }${tab === "pr" ? " is-pull-requests-panel" : ""
+          }${tab === "settings" ? " is-settings-panel" : ""
           }`}
         >
           {hasPanelHeading ? (
@@ -1033,6 +1036,10 @@ function PanelContent({
   requirementListError: string;
   tab: TabId;
 }) {
+  if (tab === "settings") {
+    return <SettingsSection />;
+  }
+
   if (!project) {
     return (
       <div className="empty-state project-selection-state">
@@ -1078,29 +1085,6 @@ function PanelContent({
           <PullRequestsSection project={project} />
           <BranchesSection project={project} />
         </>
-      );
-    case "settings":
-      return (
-        <dl className="detail-list">
-          <div>
-            <dt>Runner host</dt>
-            <dd>Local development environment</dd>
-          </div>
-          <div>
-            <dt>State directory</dt>
-            <dd>
-              <code>.supply-flow</code>
-            </dd>
-          </div>
-          <div>
-            <dt>Database</dt>
-            <dd>Not configured</dd>
-          </div>
-          <div>
-            <dt>Session transport</dt>
-            <dd>tmux terminal adapter</dd>
-          </div>
-        </dl>
       );
     case "ai-sessions":
       return (

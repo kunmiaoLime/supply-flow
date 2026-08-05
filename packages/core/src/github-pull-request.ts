@@ -41,6 +41,11 @@ interface GitHubPullRequestPayload {
   headRefName: string;
 }
 
+interface GitHubPullRequestDescriptionPayload {
+  url: string;
+  body: string;
+}
+
 interface GitHubPullRequestHealthPayload {
   state: string;
   isDraft: boolean;
@@ -146,6 +151,27 @@ export async function getGitHubPullRequest(
     title: payload.title,
     branch: payload.headRefName
   };
+}
+
+export async function getGitHubPullRequestDescription(
+  reference: GitHubPullRequestReference
+): Promise<string> {
+  const payload = parseGitHubPullRequestDescriptionPayload(
+    await runGh(["pr", "view", reference.url, "--json", "url,body"])
+  );
+  const resolvedReference = parseGitHubPullRequestUrl(payload.url);
+  if (
+    !resolvedReference ||
+    resolvedReference.repository !== reference.repository ||
+    resolvedReference.number !== reference.number
+  ) {
+    throw new GitHubPullRequestError(
+      "GitHub returned pull request metadata that does not match the requested link.",
+      502
+    );
+  }
+
+  return payload.body;
 }
 
 export async function findGitHubPullRequestForBranch(
@@ -470,6 +496,26 @@ function parseGitHubPullRequestHealthPayload(value: unknown): GitHubPullRequestH
     state: value.state,
     isDraft: value.isDraft,
     statusCheckRollup: value.statusCheckRollup
+  };
+}
+
+function parseGitHubPullRequestDescriptionPayload(
+  value: unknown
+): GitHubPullRequestDescriptionPayload {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("url" in value) ||
+    !("body" in value) ||
+    typeof value.url !== "string" ||
+    typeof value.body !== "string"
+  ) {
+    throw new GitHubPullRequestError("GitHub returned invalid pull request metadata.", 502);
+  }
+
+  return {
+    url: value.url,
+    body: value.body
   };
 }
 

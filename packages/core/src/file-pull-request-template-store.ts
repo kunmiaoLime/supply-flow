@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { githubRepositoryFromRemote } from "@supply-flow/core/github-pull-request";
 
@@ -30,16 +31,91 @@ export class FilePullRequestTemplateStore {
       return null;
     }
 
+    return this.get(repository);
+  }
+
+  public async list(): Promise<PullRequestTemplate[]> {
+    const mapping = await this.readMapping();
+    if (!mapping) {
+      return [];
+    }
+
+    const templates = await Promise.all(
+      Object.entries(mapping).map(([repository, configuredTemplatePath]) =>
+        this.readMappedTemplate(repository, configuredTemplatePath)
+      )
+    );
+
+    return templates.sort((first, second) => first.repository.localeCompare(second.repository));
+  }
+
+  public async get(repository: string): Promise<PullRequestTemplate | null> {
+    const normalizedRepository = normalizeRepositoryName(repository);
     const mapping = await this.readMapping();
     if (!mapping) {
       return null;
     }
 
-    const configuredTemplatePath = mapping[repository];
+    const configuredTemplatePath = mapping[normalizedRepository];
     if (!configuredTemplatePath) {
       return null;
     }
 
+    return this.readMappedTemplate(normalizedRepository, configuredTemplatePath);
+  }
+
+  public async create(repository: string, content: string): Promise<PullRequestTemplate> {
+    const normalizedRepository = normalizeRepositoryName(repository);
+    const templateContent = normalizeTemplateContent(content);
+    const mapping = (await this.readMapping()) ?? {};
+    if (mapping[normalizedRepository]) {
+      throw new PullRequestTemplateError(
+        `A PR template is already configured for ${normalizedRepository}. Edit the existing template instead.`,
+        409
+      );
+    }
+
+    const configuredTemplatePath = defaultTemplatePath(normalizedRepository);
+    const templatePath = this.resolveTemplatePath(configuredTemplatePath);
+    await mkdir(this.templatesDirectory(), { recursive: true });
+    await writeFileAtomically(templatePath, templateContent);
+    await this.writeMapping({
+      ...mapping,
+      [normalizedRepository]: configuredTemplatePath
+    });
+    return {
+      content: templateContent,
+      path: templatePath,
+      repository: normalizedRepository
+    };
+  }
+
+  public async update(repository: string, content: string): Promise<PullRequestTemplate> {
+    const normalizedRepository = normalizeRepositoryName(repository);
+    const templateContent = normalizeTemplateContent(content);
+    const mapping = await this.readMapping();
+    const configuredTemplatePath = mapping?.[normalizedRepository];
+    if (!configuredTemplatePath) {
+      throw new PullRequestTemplateError(
+        `No PR template is configured for ${normalizedRepository}. Import a pull request first.`,
+        404
+      );
+    }
+
+    const templatePath = this.resolveTemplatePath(configuredTemplatePath);
+    await mkdir(path.dirname(templatePath), { recursive: true });
+    await writeFileAtomically(templatePath, templateContent);
+    return {
+      content: templateContent,
+      path: templatePath,
+      repository: normalizedRepository
+    };
+  }
+
+  private async readMappedTemplate(
+    repository: string,
+    configuredTemplatePath: string
+  ): Promise<PullRequestTemplate> {
     const templatePath = this.resolveTemplatePath(configuredTemplatePath);
     let content: string;
     try {
@@ -94,9 +170,22 @@ export class FilePullRequestTemplateStore {
 
     return Object.fromEntries(
       Object.entries(value).map(([repository, templatePath]) => [
-        repository.toLowerCase(),
+        normalizeRepositoryName(repository),
         templatePath.trim()
       ])
+    );
+  }
+
+  private async writeMapping(mapping: Record<string, string>): Promise<void> {
+    await mkdir(this.templatesDirectory(), { recursive: true });
+    const sortedMapping = Object.fromEntries(
+      Object.entries(mapping).sort(([firstRepository], [secondRepository]) =>
+        firstRepository.localeCompare(secondRepository)
+      )
+    );
+    await writeFileAtomically(
+      path.join(this.templatesDirectory(), TEMPLATE_MAPPING_FILE),
+      `${JSON.stringify(sortedMapping, null, 2)}\n`
     );
   }
 
@@ -131,6 +220,36 @@ export class FilePullRequestTemplateStore {
 
 function isRepositoryName(value: string): boolean {
   return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value);
+}
+
+function normalizeRepositoryName(value: string): string {
+  const repository = value.trim().toLowerCase();
+  if (!isRepositoryName(repository)) {
+    throw new PullRequestTemplateError(
+      "A PR template repository must use the GitHub owner/repository format.",
+      400
+    );
+  }
+
+  return repository;
+}
+
+function normalizeTemplateContent(value: string): string {
+  if (!value.trim()) {
+    throw new PullRequestTemplateError("A PR template cannot be empty.", 400);
+  }
+
+  return value;
+}
+
+function defaultTemplatePath(repository: string): string {
+  return `${repository.replace("/", "-")}-pr-template.md`;
+}
+
+async function writeFileAtomically(targetPath: string, content: string): Promise<void> {
+  const temporaryPath = `${targetPath}.${randomUUID()}.tmp`;
+  await writeFile(temporaryPath, content, "utf8");
+  await rename(temporaryPath, targetPath);
 }
 
 function isMissingFileError(error: unknown): error is NodeJS.ErrnoException {
