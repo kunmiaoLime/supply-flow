@@ -4,11 +4,17 @@ import {
   isTrackableProjectBranchName,
   type ProjectBranch
 } from "@supply-flow/core/branch";
+import {
+  resolveAiModelDefault,
+  type AiModelSettings,
+  type ResolvedAiSessionActionSettings
+} from "@supply-flow/core/ai-model-settings";
 import type { ProjectRecord } from "@supply-flow/core/project";
 import type { SessionRecord } from "@supply-flow/core/session";
 import {
   GitBranch,
   GitPullRequest,
+  FileSearch,
   ListPlus,
   MessageSquare,
   Pencil,
@@ -16,6 +22,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { AiSessionConfigurationFields } from "./ai-session-configuration-fields";
 import { workspaceTabUrl } from "./workspace-url";
 
 type BranchDialogMode = "import" | "edit" | null;
@@ -24,6 +31,26 @@ interface BranchForm {
   name: string;
   repository_local: string;
   jira_ticket: string;
+}
+
+interface AiModelSettingsResponse {
+  settings?: AiModelSettings;
+  error?: string;
+}
+
+interface ReviewResult {
+  content: string;
+  filename: string;
+}
+
+interface ReviewResponse {
+  branch?: ProjectBranch;
+  review?: ReviewResult | null;
+  reviewError?: string;
+  reviewRequested?: boolean;
+  session?: SessionRecord | null;
+  reusedSession?: boolean;
+  error?: string;
 }
 
 const emptyBranchForm: BranchForm = {
@@ -47,6 +74,16 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
   const [isSaving, setIsSaving] = useState(false);
   const [removingBranch, setRemovingBranch] = useState<ProjectBranch | null>(null);
   const [trackingPullRequest, setTrackingPullRequest] = useState<ProjectBranch | null>(null);
+  const [reviewingBranch, setReviewingBranch] = useState<ProjectBranch | null>(null);
+  const [reviewDialogBranch, setReviewDialogBranch] = useState<ProjectBranch | null>(null);
+  const [reviewResult, setReviewResult] = useState<ReviewResult | null>(null);
+  const [reviewSession, setReviewSession] = useState<SessionRecord | null>(null);
+  const [isLoadingReview, setIsLoadingReview] = useState(false);
+  const [reviewDialogError, setReviewDialogError] = useState("");
+  const [reviewConfiguration, setReviewConfiguration] =
+    useState<ResolvedAiSessionActionSettings | null>(null);
+  const [isLoadingReviewConfiguration, setIsLoadingReviewConfiguration] = useState(false);
+  const [reviewConfigurationError, setReviewConfigurationError] = useState("");
   const repositoryInput = useRef<HTMLSelectElement>(null);
   const hasRepositories = project.repos.length > 0;
 
@@ -107,6 +144,21 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [dialogMode, isSaving]);
+
+  useEffect(() => {
+    if (!reviewDialogBranch) {
+      return;
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && !reviewingBranch) {
+        closeReviewDialog();
+      }
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [reviewDialogBranch, reviewingBranch]);
 
   useEffect(() => {
     let ignoreResult = false;
@@ -259,7 +311,7 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
   }
 
   async function removeBranch(branch: ProjectBranch) {
-    if (removingBranch || trackingPullRequest) {
+    if (removingBranch || trackingPullRequest || reviewingBranch) {
       return;
     }
 
@@ -286,7 +338,7 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
   }
 
   async function trackPullRequest(branch: ProjectBranch) {
-    if (removingBranch || trackingPullRequest) {
+    if (removingBranch || trackingPullRequest || reviewingBranch) {
       return;
     }
 
@@ -313,6 +365,139 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
       );
     } finally {
       setTrackingPullRequest(null);
+    }
+  }
+
+  function openReviewDialog(branch: ProjectBranch) {
+    if (removingBranch || trackingPullRequest || reviewingBranch) {
+      return;
+    }
+
+    setReviewDialogBranch(branch);
+    setReviewResult(null);
+    setReviewSession(null);
+    setReviewDialogError("");
+    setReviewConfiguration(null);
+    setReviewConfigurationError("");
+    setIsLoadingReview(true);
+    setIsLoadingReviewConfiguration(true);
+
+    void loadReviewDialog(branch);
+    void loadReviewConfiguration();
+  }
+
+  function closeReviewDialog(force = false) {
+    if (!reviewingBranch || force) {
+      setReviewDialogBranch(null);
+      setReviewResult(null);
+      setReviewSession(null);
+      setReviewDialogError("");
+      setReviewConfiguration(null);
+      setReviewConfigurationError("");
+    }
+  }
+
+  async function loadReviewDialog(branch: ProjectBranch) {
+    try {
+      const response = await fetch(reviewDetailsUrl(project.project_id, branch), {
+        cache: "no-store"
+      });
+      const data = (await response.json()) as ReviewResponse;
+      if (!response.ok || !data.branch) {
+        throw new Error(data.error ?? "Unable to load the branch review.");
+      }
+
+      setBranches((currentBranches) =>
+        currentBranches.map((currentBranch) =>
+          isSameBranch(currentBranch, branch) ? data.branch as ProjectBranch : currentBranch
+        )
+      );
+      setReviewDialogBranch(data.branch);
+      setReviewResult(data.review ?? null);
+      setReviewSession(data.session ?? null);
+      setReviewDialogError(data.reviewError ?? "");
+    } catch (error) {
+      setReviewDialogError(
+        error instanceof Error ? error.message : "Unable to load the branch review."
+      );
+    } finally {
+      setIsLoadingReview(false);
+    }
+  }
+
+  async function loadReviewConfiguration() {
+    try {
+      const response = await fetch("/api/settings/ai-models", { cache: "no-store" });
+      const data = (await response.json()) as AiModelSettingsResponse;
+      if (!response.ok || !data.settings) {
+        throw new Error(data.error ?? "Unable to load AI review defaults.");
+      }
+
+      setReviewConfiguration(resolveAiModelDefault(data.settings, "review-code"));
+    } catch (error) {
+      setReviewConfigurationError(
+        error instanceof Error ? error.message : "Unable to load AI review defaults."
+      );
+    } finally {
+      setIsLoadingReviewConfiguration(false);
+    }
+  }
+
+  function openReviewSession() {
+    if (!reviewSession || reviewingBranch) {
+      return;
+    }
+
+    closeReviewDialog();
+    router.push(workspaceTabUrl("/ai_sessions", project.project_id, reviewSession.id));
+  }
+
+  async function reviewAgain() {
+    if (!reviewDialogBranch || reviewingBranch) {
+      return;
+    }
+    if (!reviewSession && !reviewConfiguration) {
+      setReviewDialogError(
+        reviewConfigurationError || "AI review defaults are still loading. Try again shortly."
+      );
+      return;
+    }
+
+    setReviewingBranch(reviewDialogBranch);
+    setReviewDialogError("");
+
+    try {
+      const response = await fetch(reviewBranchUrl(project.project_id), {
+        body: JSON.stringify({
+          name: reviewDialogBranch.name,
+          repositoryLocal: reviewDialogBranch.repository_local,
+          ...(reviewSession || !reviewConfiguration
+            ? {}
+            : { sessionConfiguration: reviewConfiguration })
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      });
+      const data = (await response.json()) as ReviewResponse;
+      if (!response.ok || !data.branch || !data.session) {
+        throw new Error(data.error ?? "Unable to start the branch review.");
+      }
+
+      setBranches((currentBranches) =>
+        currentBranches.map((currentBranch) =>
+          isSameBranch(currentBranch, reviewDialogBranch)
+            ? (data.branch as ProjectBranch)
+            : currentBranch
+        )
+      );
+      closeReviewDialog(true);
+      router.push(workspaceTabUrl("/ai_sessions", project.project_id, data.session.id));
+    } catch (error) {
+      setReviewDialogError(
+        error instanceof Error ? error.message : "Unable to start the branch review."
+      );
+    } finally {
+      setReviewingBranch(null);
     }
   }
 
@@ -366,8 +551,12 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
               );
               const isRemoving = isSameBranch(removingBranch, branch);
               const isTrackingPullRequest = isSameBranch(trackingPullRequest, branch);
+              const isReviewing = isSameBranch(reviewingBranch, branch);
               const task = project.tasks.find(
                 (currentTask) => currentTask.jira_ticket === branch.jira_ticket
+              );
+              const isBranchActionPending = Boolean(
+                removingBranch || trackingPullRequest || reviewingBranch
               );
 
               return (
@@ -383,7 +572,7 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
                       <button
                         aria-label={`Open the last AI session for ${branch.name}`}
                         className="repository-icon-button"
-                        disabled={Boolean(removingBranch) || Boolean(trackingPullRequest)}
+                        disabled={isBranchActionPending}
                         onClick={() =>
                           router.push(
                             workspaceTabUrl(
@@ -400,9 +589,24 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
                       </button>
                     ) : null}
                     <button
+                      aria-label={`Review ${branch.name}`}
+                      className="review-branch-button"
+                      disabled={isBranchActionPending || !task}
+                      onClick={() => openReviewDialog(branch)}
+                      title={
+                        task
+                          ? `Review code for ${branch.name}`
+                          : "Associate a tracked Jira task before reviewing this branch"
+                      }
+                      type="button"
+                    >
+                      <FileSearch aria-hidden="true" />
+                      <span>{isReviewing ? "Reviewing..." : "Review"}</span>
+                    </button>
+                    <button
                       aria-label={`Track pull request for ${branch.name}`}
                       className="repository-icon-button"
-                      disabled={Boolean(removingBranch) || Boolean(trackingPullRequest)}
+                      disabled={isBranchActionPending}
                       onClick={() => void trackPullRequest(branch)}
                       title={`Track pull request for ${branch.name}`}
                       type="button"
@@ -412,7 +616,7 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
                     <button
                       aria-label={`Edit ${branch.name}`}
                       className="repository-icon-button"
-                      disabled={Boolean(removingBranch) || Boolean(trackingPullRequest)}
+                      disabled={isBranchActionPending}
                       onClick={() => openEditDialog(branch)}
                       title={`Edit ${branch.name}`}
                       type="button"
@@ -422,7 +626,7 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
                     <button
                       aria-label={`Remove ${branch.name}`}
                       className="repository-icon-button is-danger"
-                      disabled={Boolean(removingBranch) || Boolean(trackingPullRequest)}
+                      disabled={isBranchActionPending}
                       onClick={() => void removeBranch(branch)}
                       title={`Remove ${branch.name}`}
                       type="button"
@@ -433,6 +637,7 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
                     {isTrackingPullRequest ? (
                       <span className="sr-only">Finding pull request for {branch.name}</span>
                     ) : null}
+                    {isReviewing ? <span className="sr-only">Starting review for {branch.name}</span> : null}
                   </div>
                 </li>
               );
@@ -440,6 +645,107 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
           </ul>
         )}
       </section>
+
+      {reviewDialogBranch ? (
+        <div
+          className="dialog-backdrop"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) {
+              closeReviewDialog();
+            }
+          }}
+        >
+          <section
+            aria-labelledby="review-dialog-title"
+            aria-modal="true"
+            className="create-project-dialog review-dialog"
+            role="dialog"
+          >
+            <div className="review-dialog-heading">
+              <div>
+                <h2 id="review-dialog-title">Review branch</h2>
+                <code>{reviewDialogBranch.name}</code>
+              </div>
+              {reviewSession ? <span className="review-session-status">Session active</span> : null}
+            </div>
+
+            <section aria-labelledby="review-results-heading" className="review-results">
+              <div className="review-results-heading">
+                <h3 id="review-results-heading">Review results</h3>
+                {reviewResult ? <code>{reviewResult.filename}</code> : null}
+              </div>
+              {isLoadingReview ? (
+                <p className="review-results-empty">Loading review results...</p>
+              ) : reviewResult ? (
+                <pre className="review-results-content">{reviewResult.content}</pre>
+              ) : (
+                <p className="review-results-empty">No review results.</p>
+              )}
+            </section>
+
+            <section aria-labelledby="review-configuration-heading" className="review-configuration">
+              <h3 id="review-configuration-heading">Review configuration</h3>
+              <AiSessionConfigurationFields
+                configuration={reviewConfiguration}
+                disabled={
+                  Boolean(reviewSession) ||
+                  Boolean(reviewingBranch) ||
+                  isLoadingReviewConfiguration
+                }
+                idPrefix="review"
+                isLoading={isLoadingReviewConfiguration}
+                onChange={setReviewConfiguration}
+              />
+            </section>
+
+            {reviewConfigurationError || reviewDialogError ? (
+              <p className="create-project-error" role="alert">
+                {reviewConfigurationError || reviewDialogError}
+              </p>
+            ) : null}
+
+            <div className="dialog-actions">
+              <button
+                className="dialog-cancel-button"
+                disabled={Boolean(reviewingBranch)}
+                onClick={() => closeReviewDialog()}
+                type="button"
+              >
+                Cancel
+              </button>
+              {reviewSession ? (
+                <button
+                  className="dialog-primary-button"
+                  disabled={Boolean(reviewingBranch)}
+                  onClick={openReviewSession}
+                  type="button"
+                >
+                  <MessageSquare aria-hidden="true" />
+                  <span>Open review session</span>
+                </button>
+              ) : null}
+              <button
+                className="dialog-secondary-button"
+                disabled={
+                  Boolean(reviewingBranch) ||
+                  isLoadingReview ||
+                  (!reviewSession &&
+                    (isLoadingReviewConfiguration || !reviewConfiguration))
+                }
+                onClick={() => void reviewAgain()}
+                type="button"
+              >
+                <FileSearch aria-hidden="true" />
+                <span>
+                  {reviewingBranch
+                    ? "Starting..."
+                    : "Review again"}
+                </span>
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       {dialogMode ? (
         <div
@@ -584,6 +890,17 @@ function removeBranchUrl(projectId: string, branch: ProjectBranch): string {
 
 function trackPullRequestUrl(projectId: string): string {
   return `${branchesUrl(projectId)}/track-pr`;
+}
+
+function reviewBranchUrl(projectId: string): string {
+  return `${branchesUrl(projectId)}/review`;
+}
+
+function reviewDetailsUrl(projectId: string, branch: ProjectBranch): string {
+  const url = new URL(reviewBranchUrl(projectId), window.location.origin);
+  url.searchParams.set("name", branch.name);
+  url.searchParams.set("repositoryLocal", branch.repository_local);
+  return `${url.pathname}${url.search}`;
 }
 
 function toRequestBranch(branch: ProjectBranch): {

@@ -7,7 +7,8 @@ export const aiSessionActionIds = [
   "create-task",
   "implement-code",
   "create-pull-request",
-  "address-pull-request"
+  "address-pull-request",
+  "review-code"
 ] as const;
 
 export const AiSessionActionSchema = z.enum(aiSessionActionIds);
@@ -24,7 +25,8 @@ export const aiSessionActions: readonly {
   { id: "create-task", label: "Create Jira task" },
   { id: "implement-code", label: "Implement code" },
   { id: "create-pull-request", label: "Create pull request" },
-  { id: "address-pull-request", label: "Address PR issues" }
+  { id: "address-pull-request", label: "Address PR issues" },
+  { id: "review-code", label: "Review code" }
 ];
 
 export const aiProviderIds = ["codex", "claude-code"] as const;
@@ -137,7 +139,8 @@ const AiModelActionDefaultsSchema = z.object({
   "create-task": AiModelActionSettingsInputSchema,
   "implement-code": AiModelActionSettingsInputSchema,
   "create-pull-request": AiModelActionSettingsInputSchema,
-  "address-pull-request": AiModelActionSettingsInputSchema
+  "address-pull-request": AiModelActionSettingsInputSchema,
+  "review-code": AiModelActionSettingsInputSchema.optional()
 });
 
 const AiModelSettingsInputSchema = z.object({
@@ -200,6 +203,11 @@ export const AiModelSettingsSchema = AiModelSettingsInputSchema.transform(
           actions["address-pull-request"],
           "address-pull-request",
           normalizedGlobalDefault
+        ),
+        "review-code": normalizeActionSettings(
+          actions["review-code"] ?? createDefaultActionSettings("review-code"),
+          "review-code",
+          normalizedGlobalDefault
         )
       }
     };
@@ -218,7 +226,8 @@ export function createDefaultAiModelSettings(): AiModelSettings {
       "create-task": createDefaultActionSettings("create-task"),
       "implement-code": createDefaultActionSettings("implement-code"),
       "create-pull-request": createDefaultActionSettings("create-pull-request"),
-      "address-pull-request": createDefaultActionSettings("address-pull-request")
+      "address-pull-request": createDefaultActionSettings("address-pull-request"),
+      "review-code": createDefaultActionSettings("review-code")
     }
   };
 }

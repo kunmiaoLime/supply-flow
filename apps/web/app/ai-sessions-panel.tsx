@@ -1,13 +1,8 @@
 "use client";
 
 import {
-  aiModelOptions,
-  reasoningEffortsForProvider,
   resolveAiModelDefault,
-  supportsReasoningEffort,
   type AiModelSettings,
-  type AiProviderId,
-  type ReasoningEffort,
   type ResolvedAiSessionActionSettings
 } from "@supply-flow/core/ai-model-settings";
 import type { ProjectRecord } from "@supply-flow/core/project";
@@ -27,6 +22,7 @@ import {
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { AiSessionConfigurationFields } from "./ai-session-configuration-fields";
 import { TmuxTerminal } from "./tmux-terminal";
 
 interface SessionListResponse {
@@ -426,50 +422,6 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
     }
   }
 
-  function updateNewSessionModel(value: string) {
-    const selection = parseModelSelection(value);
-    if (!selection) {
-      return;
-    }
-
-    setNewSessionConfiguration((currentConfiguration) => {
-      if (!currentConfiguration) {
-        return currentConfiguration;
-      }
-
-      return {
-        ...currentConfiguration,
-        providerId: selection.providerId,
-        model: selection.model,
-        reasoningEffort: supportsReasoningEffort(
-          selection.providerId,
-          currentConfiguration.reasoningEffort
-        )
-          ? currentConfiguration.reasoningEffort
-          : null
-      };
-    });
-  }
-
-  function updateNewSessionReasoningEffort(value: string) {
-    setNewSessionConfiguration((currentConfiguration) =>
-      currentConfiguration
-        ? {
-            ...currentConfiguration,
-            reasoningEffort: (value || null) as ReasoningEffort | null
-          }
-        : currentConfiguration
-    );
-  }
-
-  function toggleNewSessionMode(field: "readOnly" | "yoloMode") {
-    setNewSessionConfiguration((currentConfiguration) =>
-      currentConfiguration
-        ? { ...currentConfiguration, [field]: !currentConfiguration[field] }
-        : currentConfiguration
-    );
-  }
-
   return (
     <>
       <section aria-label="AI sessions" className="ai-sessions-section">
@@ -704,106 +656,13 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
                     value={goal}
                   />
                 </label>
-                <div aria-label="Session configuration" className="session-configuration-fields">
-                  <label htmlFor="session-model">
-                    <span>AI model</span>
-                    <select
-                      disabled={isCreating || isLoadingNewSessionDefaults || !newSessionConfiguration}
-                      id="session-model"
-                      onChange={(event) => updateNewSessionModel(event.target.value)}
-                      value={
-                        newSessionConfiguration
-                          ? modelSelectionValue(newSessionConfiguration)
-                          : ""
-                      }
-                    >
-                      {!newSessionConfiguration ? (
-                        <option value="">
-                          {isLoadingNewSessionDefaults
-                            ? "Loading models..."
-                            : "Models unavailable"}
-                        </option>
-                      ) : null}
-                      {renderSessionModelOptions()}
-                      {newSessionConfiguration &&
-                      !isKnownModelSelection(newSessionConfiguration) ? (
-                        <option value={modelSelectionValue(newSessionConfiguration)}>
-                          {formatCustomModelSelection(newSessionConfiguration)}
-                        </option>
-                      ) : null}
-                    </select>
-                  </label>
-                  <label htmlFor="session-reasoning-effort">
-                    <span>Reasoning effort</span>
-                    <select
-                      disabled={isCreating || isLoadingNewSessionDefaults || !newSessionConfiguration}
-                      id="session-reasoning-effort"
-                      onChange={(event) =>
-                        updateNewSessionReasoningEffort(event.target.value)
-                      }
-                      value={newSessionConfiguration?.reasoningEffort ?? ""}
-                    >
-                      <option value="">Use configured default</option>
-                      {newSessionConfiguration
-                        ? reasoningEffortsForProvider(newSessionConfiguration.providerId).map(
-                            (effort) => (
-                              <option key={effort} value={effort}>
-                                {formatReasoningEffort(effort)}
-                              </option>
-                            )
-                          )
-                        : null}
-                    </select>
-                  </label>
-                  <div className="session-mode-toggles">
-                    <div className="session-mode-toggle">
-                      <span>Read-only</span>
-                      <button
-                        aria-checked={newSessionConfiguration?.readOnly ?? false}
-                        aria-label="New session read-only"
-                        className="ai-model-toggle"
-                        disabled={
-                          isCreating ||
-                          isLoadingNewSessionDefaults ||
-                          !newSessionConfiguration
-                        }
-                        onClick={() => toggleNewSessionMode("readOnly")}
-                        role="switch"
-                        title={
-                          newSessionConfiguration?.readOnly
-                            ? "Disable read-only"
-                            : "Enable read-only"
-                        }
-                        type="button"
-                      >
-                        <span aria-hidden="true" />
-                      </button>
-                    </div>
-                    <div className="session-mode-toggle">
-                      <span>YOLO mode</span>
-                      <button
-                        aria-checked={newSessionConfiguration?.yoloMode ?? false}
-                        aria-label="New session YOLO mode"
-                        className="ai-model-toggle"
-                        disabled={
-                          isCreating ||
-                          isLoadingNewSessionDefaults ||
-                          !newSessionConfiguration
-                        }
-                        onClick={() => toggleNewSessionMode("yoloMode")}
-                        role="switch"
-                        title={
-                          newSessionConfiguration?.yoloMode
-                            ? "Disable YOLO mode"
-                            : "Enable YOLO mode"
-                        }
-                        type="button"
-                      >
-                        <span aria-hidden="true" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                <AiSessionConfigurationFields
+                  configuration={newSessionConfiguration}
+                  disabled={isCreating || isLoadingNewSessionDefaults}
+                  idPrefix="session"
+                  isLoading={isLoadingNewSessionDefaults}
+                  onChange={setNewSessionConfiguration}
+                />
               </div>
               {newSessionDefaultsError ? (
                 <p className="create-project-error" role="alert">
@@ -843,82 +702,6 @@ function sessionCollectionUrl(projectId: string): string {
 
 function sessionUrl(projectId: string, sessionId: string): string {
   return `${sessionCollectionUrl(projectId)}/${encodeURIComponent(sessionId)}`;
-}
-
-function modelSelectionValue(
-  selection: Pick<ResolvedAiSessionActionSettings, "providerId" | "model">
-): string {
-  return JSON.stringify([selection.providerId, selection.model]);
-}
-
-function parseModelSelection(
-  value: string
-): { providerId: AiProviderId; model: string | null } | null {
-  try {
-    const parsed: unknown = JSON.parse(value);
-    if (
-      !Array.isArray(parsed) ||
-      parsed.length !== 2 ||
-      (parsed[0] !== "codex" && parsed[0] !== "claude-code") ||
-      (typeof parsed[1] !== "string" && parsed[1] !== null)
-    ) {
-      return null;
-    }
-
-    return {
-      providerId: parsed[0] as AiProviderId,
-      model: parsed[1]
-    };
-  } catch {
-    return null;
-  }
-}
-
-function renderSessionModelOptions() {
-  return (["codex", "claude-code"] as const).map((providerId) => (
-    <optgroup key={providerId} label={providerDisplayName(providerId)}>
-      <option value={modelSelectionValue({ providerId, model: null })}>
-        {providerDisplayName(providerId)} configured default
-      </option>
-      {aiModelOptions
-        .filter((option) => option.providerId === providerId)
-        .map((option) => (
-          <option
-            key={option.model}
-            value={modelSelectionValue({
-              providerId: option.providerId,
-              model: option.model
-            })}
-          >
-            {option.label}
-          </option>
-        ))}
-    </optgroup>
-  ));
-}
-
-function isKnownModelSelection(
-  selection: Pick<ResolvedAiSessionActionSettings, "providerId" | "model">
-): boolean {
-  return (
-    selection.model === null ||
-    aiModelOptions.some(
-      (option) =>
-        option.providerId === selection.providerId && option.model === selection.model
-    )
-  );
-}
-
-function formatCustomModelSelection(
-  selection: Pick<ResolvedAiSessionActionSettings, "providerId" | "model">
-): string {
-  return selection.model
-    ? `${providerDisplayName(selection.providerId)}: ${selection.model}`
-    : `${providerDisplayName(selection.providerId)} configured default`;
-}
-
-function formatReasoningEffort(effort: ReasoningEffort): string {
-  return effort === "xhigh" ? "Extra high" : `${effort[0]?.toUpperCase()}${effort.slice(1)}`;
 }
 
 function providerDisplayName(providerId: string): string {

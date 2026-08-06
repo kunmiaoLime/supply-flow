@@ -6,7 +6,8 @@ export const ProjectBranchSchema = z.object({
   name: z.string().trim().min(1).max(255),
   repository_local: z.string().trim().min(1).max(4_096),
   jira_ticket: z.string().trim().url().max(2_048).nullable().default(null),
-  last_session_id: z.string().trim().min(1).max(255).nullable().default(null)
+  last_session_id: z.string().trim().min(1).max(255).nullable().default(null),
+  review_result: z.string().trim().min(1).max(255).nullable().default(null)
 });
 
 export type ProjectBranch = z.infer<typeof ProjectBranchSchema>;

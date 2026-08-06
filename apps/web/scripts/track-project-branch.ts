@@ -15,7 +15,8 @@ async function main(): Promise<void> {
     name: arguments_.branch,
     repository_local: arguments_.repositoryLocal,
     jira_ticket: arguments_.jiraTicket,
-    last_session_id: arguments_.sessionId
+    last_session_id: arguments_.sessionId,
+    review_result: null
   };
   const existing = (await store.list()).find(
     (branch) =>

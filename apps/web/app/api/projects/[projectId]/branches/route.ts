@@ -107,7 +107,8 @@ export async function PATCH(request: Request, context: ProjectRouteContext) {
 
     const branch = await branchStore.update(currentBranch, {
       ...toProjectBranch(input.branch),
-      last_session_id: currentBranch.last_session_id
+      last_session_id: currentBranch.last_session_id,
+      review_result: currentBranch.review_result
     });
     return NextResponse.json({ branch });
   } catch (error) {
@@ -241,7 +242,8 @@ function toProjectBranch(input: BranchMutationInput): ProjectBranch {
     name: input.name,
     repository_local: input.repositoryLocal,
     jira_ticket: input.jiraTicket,
-    last_session_id: null
+    last_session_id: null,
+    review_result: null
   };
 }
 

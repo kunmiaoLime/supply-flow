@@ -27,9 +27,9 @@ export class FileBranchStore {
 
   public async initialize(): Promise<ProjectBranch[]> {
     try {
-      const branches = await this.readBranches();
+      const { branches, needsMigration } = await this.readBranchIndex();
       const trackableBranches = filterTrackableBranches(branches);
-      if (trackableBranches.length !== branches.length) {
+      if (trackableBranches.length !== branches.length || needsMigration) {
         await this.write(trackableBranches);
       }
       return trackableBranches;
@@ -108,8 +108,21 @@ export class FileBranchStore {
   }
 
   private async readBranches(): Promise<ProjectBranch[]> {
+    return (await this.readBranchIndex()).branches;
+  }
+
+  private async readBranchIndex(): Promise<{
+    branches: ProjectBranch[];
+    needsMigration: boolean;
+  }> {
     const content = await readFile(this.indexPath(), "utf8");
-    return sortBranches(BranchIndexSchema.parse(JSON.parse(content)).branches);
+    const rawIndex: unknown = JSON.parse(content);
+    const parsedIndex = BranchIndexSchema.parse(rawIndex);
+
+    return {
+      branches: sortBranches(parsedIndex.branches),
+      needsMigration: hasMissingReviewResults(rawIndex)
+    };
   }
 
   private async write(branches: ProjectBranch[]): Promise<void> {
@@ -140,6 +153,25 @@ function sortBranches(branches: ProjectBranch[]): ProjectBranch[] {
 
 function isSameBranch(first: ProjectBranch, second: ProjectBranch): boolean {
   return first.name === second.name && first.repository_local === second.repository_local;
+}
+
+function hasMissingReviewResults(value: unknown): boolean {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("branches" in value) ||
+    !Array.isArray(value.branches)
+  ) {
+    return false;
+  }
+
+  return value.branches.some(
+    (branch) =>
+      typeof branch === "object" &&
+      branch !== null &&
+      !Array.isArray(branch) &&
+      !("review_result" in branch)
+  );
 }
 
 async function writeJsonAtomically(targetPath: string, value: unknown): Promise<void> {
