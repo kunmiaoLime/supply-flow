@@ -12,8 +12,12 @@ test("tracks feature branches by repository path in branches.json", async () => 
     name: "kun/SXP-123-ride-validation",
     repository_local: "/Users/example/code/ios/Apps/Supply",
     jira_ticket: "https://limebike.atlassian.net/browse/SXP-123",
+    implementation_session_id: "session_implementation",
+    review_session_id: null,
     last_session_id: "session_implementation",
-    review_result: null
+    review_result: null,
+    review_state: "coding" as const,
+    auto_resolve: false
   };
 
   try {
@@ -40,8 +44,12 @@ test("tracks feature branches by repository path in branches.json", async () => 
         name: "master",
         repository_local: feature.repository_local,
         jira_ticket: null,
+        implementation_session_id: null,
+        review_session_id: null,
         last_session_id: null,
-        review_result: null
+        review_result: null,
+        review_state: "coding",
+        auto_resolve: false
       }),
       /main and master branches cannot be tracked/
     );
@@ -50,8 +58,12 @@ test("tracks feature branches by repository path in branches.json", async () => 
         name: "main",
         repository_local: "/Users/example/code/limebike-web",
         jira_ticket: null,
+        implementation_session_id: null,
+        review_session_id: null,
         last_session_id: null,
-        review_result: null
+        review_result: null,
+        review_state: "coding",
+        auto_resolve: false
       }),
       /main and master branches cannot be tracked/
     );
@@ -60,8 +72,12 @@ test("tracks feature branches by repository path in branches.json", async () => 
       name: "kun/SXP-123-validated-ride",
       repository_local: feature.repository_local,
       jira_ticket: feature.jira_ticket,
+      implementation_session_id: feature.implementation_session_id,
+      review_session_id: feature.review_session_id,
       last_session_id: feature.last_session_id,
-      review_result: "review-sxp-123.md"
+      review_result: "review-sxp-123.md",
+      review_state: feature.review_state,
+      auto_resolve: feature.auto_resolve
     };
     assert.deepEqual(await store.update(feature, renamed), renamed);
     await assert.rejects(
@@ -110,8 +126,12 @@ test("removes default branches from legacy branch records", async () => {
       name: "feature/legacy",
       repository_local: "/Users/example/code/supply-flow",
       jira_ticket: null,
+      implementation_session_id: null,
+      review_session_id: null,
       last_session_id: null,
-      review_result: null
+      review_result: null,
+      review_state: "coding",
+      auto_resolve: false
     };
     assert.deepEqual(await store.list(), [feature]);
     assert.deepEqual(await store.initialize(), [feature]);
@@ -127,7 +147,7 @@ test("removes default branches from legacy branch records", async () => {
   }
 });
 
-test("migrates legacy branches with no review result", async () => {
+test("migrates legacy branches with no review orchestration fields", async () => {
   const rootDirectory = await mkdtemp(path.join(os.tmpdir(), "supply-flow-branches-"));
   const legacyBranch = {
     name: "feature/review",
@@ -144,7 +164,14 @@ test("migrates legacy branches with no review result", async () => {
     );
 
     const store = new FileBranchStore(rootDirectory);
-    const migratedBranch = { ...legacyBranch, review_result: null };
+    const migratedBranch = {
+      ...legacyBranch,
+      implementation_session_id: null,
+      review_session_id: null,
+      review_result: null,
+      review_state: "coding",
+      auto_resolve: false
+    };
     assert.deepEqual(await store.initialize(), [migratedBranch]);
     assert.deepEqual(
       JSON.parse(await readFile(path.join(rootDirectory, "branches.json"), "utf8")),

@@ -48,9 +48,10 @@ Read the shared context when it exists. Do not modify it.
    worktree. Determine a merge base without modifying Git state: consider
    `origin/main`, `origin/master`, `main`, and `master` in that order when the
    ref exists, and use the first valid merge base. If none are usable, inspect
-   the branch's full reachable diff with `git diff --root`. Inspect only
-   committed branch changes with `git diff <merge-base>...<branch>`, relevant
-   source, tests, history, and repository conventions.
+   the branch's full reachable diff with `git diff --root`. Inspect committed
+   changes with `git diff <merge-base>...<branch>` and, when the worktree is
+   already on the selected branch, inspect its staged and unstaged diffs too.
+   Review relevant source, tests, history, and repository conventions.
 
 3. Review the implementation against the authenticated ticket and available
    project context. Identify correctness defects, regressions, security or
@@ -72,14 +73,25 @@ Read the shared context when it exists. Do not modify it.
    - `## Findings`, ordered by severity (`critical`, `high`, `medium`, `low`);
      each finding must state its impact and a file/line reference
    - an explicit `No findings.` entry when no actionable findings exist
+   - `## Review verdict` containing exactly one of:
+     `review_issue_found` when there is at least one valid `critical` or
+     `high` finding, or `review_passed` when there is no blocking finding
    - `## Validation` with commands or evidence inspected
    - `## Limitations` for unavailable Jira, context, tests, or other evidence
 
-6. Verify the file exists, then execute this exact command to persist only its
-   filename to the tracked branch:
+6. Verify the file exists, then execute exactly one command below. Use the
+   first command only when the required verdict is `review_passed`; use the
+   second only when the required verdict is `review_issue_found`. This
+   persists the result and advances the branch review state. When Auto resolve
+   is enabled, the second command starts or prompts the implementation session
+   to resolve the blocking findings.
 
    ```sh
-   <REVIEW_RESULT_TRACKER_COMMAND>
+   <REVIEW_PASSED_COMMAND>
+   ```
+
+   ```sh
+   <REVIEW_ISSUES_FOUND_COMMAND>
    ```
 
 Report the review path, findings count by severity, and any limitations in the

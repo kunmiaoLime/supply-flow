@@ -6,6 +6,7 @@ interface Arguments {
   branch: string;
   jiraTicket: string;
   sessionId: string;
+  autoResolve: boolean;
 }
 
 async function main(): Promise<void> {
@@ -15,8 +16,12 @@ async function main(): Promise<void> {
     name: arguments_.branch,
     repository_local: arguments_.repositoryLocal,
     jira_ticket: arguments_.jiraTicket,
+    implementation_session_id: arguments_.sessionId,
+    review_session_id: null,
     last_session_id: arguments_.sessionId,
-    review_result: null
+    review_result: null,
+    review_state: "coding" as const,
+    auto_resolve: arguments_.autoResolve
   };
   const existing = (await store.list()).find(
     (branch) =>
@@ -29,16 +34,27 @@ async function main(): Promise<void> {
     );
   }
 
+  const nextBranch = existing
+    ? {
+        ...existing,
+        jira_ticket: trackedBranch.jira_ticket,
+        implementation_session_id: trackedBranch.implementation_session_id,
+        review_session_id: null,
+        last_session_id: trackedBranch.last_session_id,
+        review_result: null,
+        review_state: "coding" as const,
+        auto_resolve: trackedBranch.auto_resolve
+      }
+    : trackedBranch;
   const result = existing
     ? {
         branch:
-          existing.jira_ticket === trackedBranch.jira_ticket &&
-          existing.last_session_id === trackedBranch.last_session_id
+          JSON.stringify(existing) === JSON.stringify(nextBranch)
             ? existing
-            : await store.update(existing, trackedBranch),
+            : await store.update(existing, nextBranch),
         created: false
       }
-    : await store.ensure(trackedBranch);
+    : await store.ensure(nextBranch);
 
   console.log(
     result.created
@@ -54,7 +70,7 @@ function parseArguments(values: string[]): Arguments {
     const value = values[index + 1];
     if (!flag?.startsWith("--") || !value) {
       throw new Error(
-        "Usage: track-project-branch --project-directory <path> --repository-local <path> --branch <name> --jira-ticket <url> --session-id <id>"
+        "Usage: track-project-branch --project-directory <path> --repository-local <path> --branch <name> --jira-ticket <url> --session-id <id> --auto-resolve <true|false>"
       );
     }
 
@@ -66,20 +82,29 @@ function parseArguments(values: string[]): Arguments {
   const branch = arguments_.get("--branch")?.trim();
   const jiraTicket = arguments_.get("--jira-ticket")?.trim();
   const sessionId = arguments_.get("--session-id")?.trim();
+  const autoResolve = arguments_.get("--auto-resolve")?.trim();
   if (
     !projectDirectory ||
     !repositoryLocal ||
     !branch ||
     !jiraTicket ||
     !sessionId ||
-    arguments_.size !== 5
+    (autoResolve !== "true" && autoResolve !== "false") ||
+    arguments_.size !== 6
   ) {
     throw new Error(
-      "Usage: track-project-branch --project-directory <path> --repository-local <path> --branch <name> --jira-ticket <url> --session-id <id>"
+      "Usage: track-project-branch --project-directory <path> --repository-local <path> --branch <name> --jira-ticket <url> --session-id <id> --auto-resolve <true|false>"
     );
   }
 
-  return { projectDirectory, repositoryLocal, branch, jiraTicket, sessionId };
+  return {
+    projectDirectory,
+    repositoryLocal,
+    branch,
+    jiraTicket,
+    sessionId,
+    autoResolve: autoResolve === "true"
+  };
 }
 
 void main().catch((error: unknown) => {

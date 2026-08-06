@@ -1470,8 +1470,32 @@ code {
 
 .implementation-actions {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
   margin-top: 20px;
+}
+
+.implementation-auto-resolve {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.implementation-auto-resolve > div {
+  display: grid;
+  gap: 4px;
+}
+
+.implementation-auto-resolve strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.implementation-auto-resolve span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .task-plan-actions {
@@ -2052,6 +2076,14 @@ code {
   gap: 14px;
 }
 
+.review-dialog-status {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .review-dialog-heading h2 {
   margin-bottom: 7px;
 }
@@ -2075,6 +2107,7 @@ code {
 }
 
 .review-results,
+.review-auto-resolve,
 .review-configuration {
   margin-top: 20px;
   padding-top: 18px;
@@ -2082,10 +2115,25 @@ code {
 }
 
 .review-results h3,
+.review-auto-resolve h3,
 .review-configuration h3 {
   margin: 0;
   color: var(--ink);
   font-size: 14px;
+}
+
+.review-auto-resolve {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.review-auto-resolve p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .review-results-content,
@@ -2116,6 +2164,38 @@ code {
 
 .review-configuration .session-configuration-fields {
   margin-top: 14px;
+}
+
+.branch-review-state {
+  display: inline-flex;
+  width: fit-content;
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.branch-review-state.is-code_complete,
+.branch-review-state.is-review_passed {
+  border-color: #97d6c2;
+  background: var(--teal-soft);
+  color: #05634f;
+}
+
+.branch-review-state.is-reviewing {
+  border-color: #91b6e6;
+  background: #edf5ff;
+  color: #1f5e9d;
+}
+
+.branch-review-state.is-review_issue_found {
+  border-color: #e2ad79;
+  background: #fff4e8;
+  color: #945214;
 }
 
 .project-name-field,
@@ -2204,7 +2284,11 @@ code {
 
 .session-configuration-fields {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns:
+    minmax(180px, 1fr)
+    minmax(150px, 0.8fr)
+    auto;
+  align-items: end;
   gap: 14px 16px;
 }
 
@@ -2218,9 +2302,9 @@ code {
 }
 
 .session-mode-toggles {
-  grid-column: 1 / -1;
-  display: flex;
-  gap: 24px;
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  gap: 18px;
 }
 
 .session-mode-toggle {
@@ -2678,6 +2762,14 @@ code {
     gap: 10px;
   }
 
+  .session-configuration-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .session-mode-toggles {
+    grid-column: 1 / -1;
+  }
+
   .workspace-brand {
     gap: 7px;
   }
@@ -2889,6 +2981,25 @@ code {
 
   .implementation-selection-grid {
     grid-template-columns: 1fr;
+  }
+
+  .implementation-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .implementation-auto-resolve {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .session-configuration-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .session-mode-toggles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
   }
 
   .pr-template-editor-heading {

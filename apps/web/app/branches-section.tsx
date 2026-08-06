@@ -84,15 +84,17 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
     useState<ResolvedAiSessionActionSettings | null>(null);
   const [isLoadingReviewConfiguration, setIsLoadingReviewConfiguration] = useState(false);
   const [reviewConfigurationError, setReviewConfigurationError] = useState("");
+  const [isUpdatingAutoResolve, setIsUpdatingAutoResolve] = useState(false);
   const repositoryInput = useRef<HTMLSelectElement>(null);
   const hasRepositories = project.repos.length > 0;
 
   useEffect(() => {
     let ignoreResult = false;
 
-    async function loadBranches() {
-      setIsLoading(true);
-      setListError("");
+    async function loadBranches(initialLoad: boolean) {
+      if (initialLoad) {
+        setIsLoading(true);
+      }
 
       try {
         const response = await fetch(branchesUrl(project.project_id), { cache: "no-store" });
@@ -103,24 +105,28 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
 
         if (!ignoreResult) {
           setBranches(data.branches ?? []);
+          setListError("");
         }
       } catch (error) {
         if (!ignoreResult) {
-          setBranches([]);
           setListError(
             error instanceof Error ? error.message : "Unable to load project branches."
           );
         }
       } finally {
-        if (!ignoreResult) {
+        if (!ignoreResult && initialLoad) {
           setIsLoading(false);
         }
       }
     }
 
-    void loadBranches();
+    void loadBranches(true);
+    const interval = window.setInterval(() => {
+      void loadBranches(false);
+    }, 3_000);
     return () => {
       ignoreResult = true;
+      window.clearInterval(interval);
     };
   }, [project.project_id]);
 
@@ -159,6 +165,21 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [reviewDialogBranch, reviewingBranch]);
+
+  useEffect(() => {
+    if (!reviewDialogBranch) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      void loadReviewDialog(reviewDialogBranch);
+    }, 3_000);
+    return () => window.clearInterval(interval);
+  }, [
+    project.project_id,
+    reviewDialogBranch?.name,
+    reviewDialogBranch?.repository_local
+  ]);
 
   useEffect(() => {
     let ignoreResult = false;
@@ -379,6 +400,7 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
     setReviewDialogError("");
     setReviewConfiguration(null);
     setReviewConfigurationError("");
+    setIsUpdatingAutoResolve(false);
     setIsLoadingReview(true);
     setIsLoadingReviewConfiguration(true);
 
@@ -394,6 +416,7 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
       setReviewDialogError("");
       setReviewConfiguration(null);
       setReviewConfigurationError("");
+      setIsUpdatingAutoResolve(false);
     }
   }
 
@@ -450,6 +473,44 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
 
     closeReviewDialog();
     router.push(workspaceTabUrl("/ai_sessions", project.project_id, reviewSession.id));
+  }
+
+  async function toggleAutoResolve() {
+    if (!reviewDialogBranch || reviewingBranch || isUpdatingAutoResolve) {
+      return;
+    }
+
+    setIsUpdatingAutoResolve(true);
+    setReviewDialogError("");
+    try {
+      const response = await fetch(autoResolveUrl(project.project_id), {
+        body: JSON.stringify({
+          name: reviewDialogBranch.name,
+          repositoryLocal: reviewDialogBranch.repository_local,
+          autoResolve: !reviewDialogBranch.auto_resolve
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      });
+      const data = (await response.json()) as { branch?: ProjectBranch; error?: string };
+      if (!response.ok || !data.branch) {
+        throw new Error(data.error ?? "Unable to update Auto resolve.");
+      }
+
+      const updatedBranch = data.branch;
+      setBranches((currentBranches) =>
+        currentBranches.map((branch) =>
+          isSameBranch(branch, reviewDialogBranch) ? updatedBranch : branch
+        )
+      );
+      setReviewDialogBranch(updatedBranch);
+    } catch (error) {
+      setReviewDialogError(
+        error instanceof Error ? error.message : "Unable to update Auto resolve."
+      );
+    } finally {
+      setIsUpdatingAutoResolve(false);
+    }
   }
 
   async function reviewAgain() {
@@ -565,6 +626,9 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
                     <strong>{branch.name}</strong>
                     <span>{repository?.name ?? "Removed repository"}</span>
                     <span>{task?.title ?? (branch.jira_ticket ? "Removed task" : "No Jira task")}</span>
+                    <span className={`branch-review-state is-${branch.review_state}`}>
+                      {reviewStateLabel(branch.review_state)}
+                    </span>
                     <code>{branch.repository_local}</code>
                   </div>
                   <div className="repository-actions">
@@ -666,7 +730,12 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
                 <h2 id="review-dialog-title">Review branch</h2>
                 <code>{reviewDialogBranch.name}</code>
               </div>
-              {reviewSession ? <span className="review-session-status">Session active</span> : null}
+              <div className="review-dialog-status">
+                <span className={`branch-review-state is-${reviewDialogBranch.review_state}`}>
+                  {reviewStateLabel(reviewDialogBranch.review_state)}
+                </span>
+                {reviewSession ? <span className="review-session-status">Session active</span> : null}
+              </div>
             </div>
 
             <section aria-labelledby="review-results-heading" className="review-results">
@@ -681,6 +750,29 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
               ) : (
                 <p className="review-results-empty">No review results.</p>
               )}
+            </section>
+
+            <section aria-labelledby="auto-resolve-heading" className="review-auto-resolve">
+              <div>
+                <h3 id="auto-resolve-heading">Auto resolve</h3>
+                <p>Resolve blocking review findings, then request another review.</p>
+              </div>
+              <button
+                aria-checked={reviewDialogBranch.auto_resolve}
+                aria-label="Auto resolve"
+                className="ai-model-toggle"
+                disabled={Boolean(reviewingBranch) || isUpdatingAutoResolve}
+                onClick={() => void toggleAutoResolve()}
+                role="switch"
+                title={
+                  reviewDialogBranch.auto_resolve
+                    ? "Disable Auto resolve"
+                    : "Enable Auto resolve"
+                }
+                type="button"
+              >
+                <span aria-hidden="true" />
+              </button>
             </section>
 
             <section aria-labelledby="review-configuration-heading" className="review-configuration">
@@ -903,6 +995,10 @@ function reviewDetailsUrl(projectId: string, branch: ProjectBranch): string {
   return `${url.pathname}${url.search}`;
 }
 
+function autoResolveUrl(projectId: string): string {
+  return `${branchesUrl(projectId)}/auto-resolve`;
+}
+
 function toRequestBranch(branch: ProjectBranch): {
   name: string;
   repositoryLocal: string;
@@ -928,4 +1024,19 @@ function sortBranches(branches: ProjectBranch[]): ProjectBranch[] {
     (first, second) =>
       first.repository_local.localeCompare(second.repository_local) || first.name.localeCompare(second.name)
   );
+}
+
+function reviewStateLabel(state: ProjectBranch["review_state"]): string {
+  switch (state) {
+    case "coding":
+      return "Coding";
+    case "code_complete":
+      return "Code complete";
+    case "reviewing":
+      return "Reviewing";
+    case "review_issue_found":
+      return "Review issues found";
+    case "review_passed":
+      return "Review passed";
+  }
 }

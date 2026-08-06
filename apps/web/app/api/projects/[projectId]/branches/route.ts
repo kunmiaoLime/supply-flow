@@ -107,8 +107,12 @@ export async function PATCH(request: Request, context: ProjectRouteContext) {
 
     const branch = await branchStore.update(currentBranch, {
       ...toProjectBranch(input.branch),
+      implementation_session_id: currentBranch.implementation_session_id,
+      review_session_id: currentBranch.review_session_id,
       last_session_id: currentBranch.last_session_id,
-      review_result: currentBranch.review_result
+      review_result: currentBranch.review_result,
+      review_state: currentBranch.review_state,
+      auto_resolve: currentBranch.auto_resolve
     });
     return NextResponse.json({ branch });
   } catch (error) {
@@ -242,8 +246,12 @@ function toProjectBranch(input: BranchMutationInput): ProjectBranch {
     name: input.name,
     repository_local: input.repositoryLocal,
     jira_ticket: input.jiraTicket,
+    implementation_session_id: null,
+    review_session_id: null,
     last_session_id: null,
-    review_result: null
+    review_result: null,
+    review_state: "coding",
+    auto_resolve: false
   };
 }
 

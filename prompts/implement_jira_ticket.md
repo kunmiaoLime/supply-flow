@@ -30,6 +30,7 @@ Read the shared context first when it exists.
 - Project scope: <REPOSITORY_LOCAL>
 - Remote: <REPOSITORY_REMOTE>
 - Parent branch: <PARENT_BRANCH>
+- Auto resolve blocking review findings: <AUTO_RESOLVE>
 
 ## Additional Instructions
 
@@ -104,7 +105,13 @@ Read the shared context first when it exists.
 7. Before finishing, update `<PROJECT_CONTEXT_PATH>` with concise, durable
    implementation decisions, completed work, validation, risks, and open
    questions. Merge with useful existing context. Do not use `save_context`
-   and do not write beneath `~/.codex/sessions`.
+   and do not write beneath `~/.codex/sessions`. When the implementation is
+   complete and no material blocker remains, execute this exact command to
+   mark the branch ready for review:
+
+   ```sh
+   <CODE_COMPLETE_COMMAND>
+   ```
 
 Report the branch, Jira status, changed files, validation, and remaining
 blockers in the terminal.

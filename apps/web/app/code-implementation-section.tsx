@@ -15,6 +15,7 @@ export function CodeImplementationSection({ project }: { project: ProjectRecord 
   const [repositoryLocal, setRepositoryLocal] = useState("");
   const [parentBranch, setParentBranch] = useState("master");
   const [instructions, setInstructions] = useState("");
+  const [autoResolve, setAutoResolve] = useState(false);
   const [error, setError] = useState("");
   const [isStarting, setIsStarting] = useState(false);
   const [availableBranches, setAvailableBranches] = useState<string[]>([]);
@@ -28,6 +29,7 @@ export function CodeImplementationSection({ project }: { project: ProjectRecord 
     setRepositoryLocal("");
     setParentBranch("master");
     setInstructions("");
+    setAutoResolve(false);
     setError("");
   }, [project.project_id]);
 
@@ -96,6 +98,7 @@ export function CodeImplementationSection({ project }: { project: ProjectRecord 
           jiraTicket,
           repositoryLocal,
           parentBranch,
+          autoResolve,
           ...(instructions.trim() ? { instructions: instructions.trim() } : {})
         }),
         headers: { "Content-Type": "application/json" },
@@ -224,6 +227,24 @@ export function CodeImplementationSection({ project }: { project: ProjectRecord 
         ) : null}
 
         <div className="implementation-actions">
+          <div className="implementation-auto-resolve">
+            <div>
+              <strong>Auto resolve</strong>
+              <span>Review the branch automatically after code is complete.</span>
+            </div>
+            <button
+              aria-checked={autoResolve}
+              aria-label="Auto resolve implementation review findings"
+              className="ai-model-toggle"
+              disabled={isStarting}
+              onClick={() => setAutoResolve((current) => !current)}
+              role="switch"
+              title={autoResolve ? "Disable Auto resolve" : "Enable Auto resolve"}
+              type="button"
+            >
+              <span aria-hidden="true" />
+            </button>
+          </div>
           <button
             className="start-implementation-button"
             disabled={

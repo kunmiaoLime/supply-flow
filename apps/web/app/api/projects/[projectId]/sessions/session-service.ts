@@ -17,7 +17,9 @@ import {
 } from "@supply-flow/core/session-prompt";
 import { TmuxAdapter } from "@supply-flow/core/tmux";
 
-const projectRoot = path.resolve(process.cwd(), "../..");
+export const projectRoot = path.resolve(
+  process.env.SUPPLY_FLOW_ROOT ?? path.resolve(process.cwd(), "../..")
+);
 const CONTEXT_FILE = "context.md";
 const READ_ONLY_PROMPT_PATH = path.join(projectRoot, "prompts", "read_only.md");
 const MAX_SESSION_GOAL_LENGTH = 16_000;

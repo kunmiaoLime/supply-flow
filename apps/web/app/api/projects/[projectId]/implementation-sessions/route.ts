@@ -31,6 +31,7 @@ interface ImplementationSessionInput {
   jiraTicket: string;
   repositoryLocal: string;
   parentBranch: string;
+  autoResolve: boolean;
   instructions?: string;
 }
 
@@ -105,6 +106,7 @@ export async function POST(request: Request, context: ProjectRouteContext) {
         repository,
         issue,
         input.parentBranch,
+        input.autoResolve,
         input.instructions
       ),
       workspacePath: repository.local,
@@ -144,6 +146,7 @@ async function parseImplementationSessionInput(
       typeof body.jiraTicket !== "string" ||
       typeof body.repositoryLocal !== "string" ||
       typeof body.parentBranch !== "string" ||
+      ("autoResolve" in body && typeof body.autoResolve !== "boolean") ||
       ("instructions" in body && typeof body.instructions !== "string")
     ) {
       return null;
@@ -152,6 +155,10 @@ async function parseImplementationSessionInput(
     const jiraTicket = body.jiraTicket.trim();
     const repositoryLocal = body.repositoryLocal.trim();
     const parentBranch = body.parentBranch.trim();
+    const autoResolve =
+      "autoResolve" in body && typeof body.autoResolve === "boolean"
+        ? body.autoResolve
+        : false;
     const instructions =
       "instructions" in body && typeof body.instructions === "string"
         ? body.instructions.trim()
@@ -173,6 +180,7 @@ async function parseImplementationSessionInput(
       jiraTicket,
       repositoryLocal,
       parentBranch,
+      autoResolve,
       ...(instructions ? { instructions } : {})
     };
   } catch {
@@ -210,6 +218,7 @@ async function buildImplementationGoal(
   repository: ProjectRepository,
   issue: JiraIssue,
   parentBranch: string,
+  autoResolve: boolean,
   instructions?: string
 ): Promise<string> {
   const contextPath = path.join(projectDirectory(project.project_id), "context.md");
@@ -225,7 +234,24 @@ async function buildImplementationGoal(
     "--jira-ticket",
     JSON.stringify(issue.link),
     "--session-id",
-    JSON.stringify("<AI_SESSION_ID>")
+    JSON.stringify("<AI_SESSION_ID>"),
+    "--auto-resolve",
+    String(autoResolve)
+  ].join(" ");
+  const codeCompleteCommand = [
+    `SUPPLY_FLOW_ROOT=${JSON.stringify(projectRoot)}`,
+    JSON.stringify(path.join(projectRoot, "node_modules", ".bin", "tsx")),
+    JSON.stringify(
+      path.join(projectRoot, "apps", "web", "scripts", "advance-project-branch-review.ts")
+    ),
+    "--project-directory",
+    JSON.stringify(projectDirectory(project.project_id)),
+    "--repository-local",
+    JSON.stringify(repository.local),
+    "--branch",
+    '"$(git branch --show-current)"',
+    "--event",
+    "code-complete"
   ].join(" ");
 
   const template = await readFile(implementationPromptPath, "utf8");
@@ -241,6 +267,8 @@ async function buildImplementationGoal(
     .replaceAll("<REPOSITORY_LOCAL>", JSON.stringify(repository.local))
     .replaceAll("<REPOSITORY_REMOTE>", repository.remote ? JSON.stringify(repository.remote) : "none")
     .replaceAll("<PARENT_BRANCH>", JSON.stringify(parentBranch))
+    .replaceAll("<AUTO_RESOLVE>", autoResolve ? "enabled" : "disabled")
     .replaceAll("<ADDITIONAL_INSTRUCTIONS>", JSON.stringify(instructions || "None provided."))
-    .replaceAll("<BRANCH_TRACKER_COMMAND>", branchTrackerCommand);
+    .replaceAll("<BRANCH_TRACKER_COMMAND>", branchTrackerCommand)
+    .replaceAll("<CODE_COMPLETE_COMMAND>", codeCompleteCommand);
 }
