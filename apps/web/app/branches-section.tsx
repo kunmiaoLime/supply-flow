@@ -14,6 +14,7 @@ import type { SessionRecord } from "@supply-flow/core/session";
 import {
   GitBranch,
   GitPullRequest,
+  ChevronDown,
   FileSearch,
   ListPlus,
   MessageSquare,
@@ -85,6 +86,7 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
   const [isLoadingReviewConfiguration, setIsLoadingReviewConfiguration] = useState(false);
   const [reviewConfigurationError, setReviewConfigurationError] = useState("");
   const [isUpdatingAutoResolve, setIsUpdatingAutoResolve] = useState(false);
+  const [isReviewConfigurationExpanded, setIsReviewConfigurationExpanded] = useState(false);
   const repositoryInput = useRef<HTMLSelectElement>(null);
   const hasRepositories = project.repos.length > 0;
 
@@ -401,6 +403,7 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
     setReviewConfiguration(null);
     setReviewConfigurationError("");
     setIsUpdatingAutoResolve(false);
+    setIsReviewConfigurationExpanded(false);
     setIsLoadingReview(true);
     setIsLoadingReviewConfiguration(true);
 
@@ -417,6 +420,7 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
       setReviewConfiguration(null);
       setReviewConfigurationError("");
       setIsUpdatingAutoResolve(false);
+      setIsReviewConfigurationExpanded(false);
     }
   }
 
@@ -752,42 +756,68 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
               )}
             </section>
 
-            <section aria-labelledby="auto-resolve-heading" className="review-auto-resolve">
-              <div>
-                <h3 id="auto-resolve-heading">Auto resolve</h3>
-                <p>Resolve blocking review findings, then request another review.</p>
-              </div>
+            <section
+              aria-labelledby="review-configuration-toggle"
+              className="review-configuration"
+            >
               <button
-                aria-checked={reviewDialogBranch.auto_resolve}
-                aria-label="Auto resolve"
-                className="ai-model-toggle"
-                disabled={Boolean(reviewingBranch) || isUpdatingAutoResolve}
-                onClick={() => void toggleAutoResolve()}
-                role="switch"
-                title={
-                  reviewDialogBranch.auto_resolve
-                    ? "Disable Auto resolve"
-                    : "Enable Auto resolve"
+                aria-controls="review-configuration-fields"
+                aria-expanded={isReviewConfigurationExpanded}
+                className="review-configuration-toggle"
+                id="review-configuration-toggle"
+                onClick={() =>
+                  setIsReviewConfigurationExpanded((isExpanded) => !isExpanded)
                 }
                 type="button"
               >
-                <span aria-hidden="true" />
+                <span>Review configuration</span>
+                <ChevronDown aria-hidden="true" />
               </button>
-            </section>
-
-            <section aria-labelledby="review-configuration-heading" className="review-configuration">
-              <h3 id="review-configuration-heading">Review configuration</h3>
-              <AiSessionConfigurationFields
-                configuration={reviewConfiguration}
-                disabled={
-                  Boolean(reviewSession) ||
-                  Boolean(reviewingBranch) ||
-                  isLoadingReviewConfiguration
-                }
-                idPrefix="review"
-                isLoading={isLoadingReviewConfiguration}
-                onChange={setReviewConfiguration}
-              />
+              {isReviewConfigurationExpanded ? (
+                <div
+                  aria-labelledby="review-configuration-toggle"
+                  className="review-configuration-fields"
+                  id="review-configuration-fields"
+                  role="region"
+                >
+                  <section
+                    aria-labelledby="auto-resolve-heading"
+                    className="review-auto-resolve"
+                  >
+                    <div>
+                      <h3 id="auto-resolve-heading">Auto resolve</h3>
+                      <p>Resolve blocking review findings, then request another review.</p>
+                    </div>
+                    <button
+                      aria-checked={reviewDialogBranch.auto_resolve}
+                      aria-label="Auto resolve"
+                      className="ai-model-toggle"
+                      disabled={Boolean(reviewingBranch) || isUpdatingAutoResolve}
+                      onClick={() => void toggleAutoResolve()}
+                      role="switch"
+                      title={
+                        reviewDialogBranch.auto_resolve
+                          ? "Disable Auto resolve"
+                          : "Enable Auto resolve"
+                      }
+                      type="button"
+                    >
+                      <span aria-hidden="true" />
+                    </button>
+                  </section>
+                  <AiSessionConfigurationFields
+                    configuration={reviewConfiguration}
+                    disabled={
+                      Boolean(reviewSession) ||
+                      Boolean(reviewingBranch) ||
+                      isLoadingReviewConfiguration
+                    }
+                    idPrefix="review"
+                    isLoading={isLoadingReviewConfiguration}
+                    onChange={setReviewConfiguration}
+                  />
+                </div>
+              ) : null}
             </section>
 
             {reviewConfigurationError || reviewDialogError ? (

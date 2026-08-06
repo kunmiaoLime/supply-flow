@@ -2089,8 +2089,11 @@ code {
 
 .review-dialog {
   width: min(920px, 100%);
+  height: min(760px, calc(100dvh - 48px));
   max-height: calc(100dvh - 48px);
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .review-dialog-heading,
@@ -2139,9 +2142,16 @@ code {
   border-top: 1px solid var(--line);
 }
 
+.review-results {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
 .review-results h3,
 .review-auto-resolve h3,
-.review-configuration h3 {
+.review-configuration-toggle {
   margin: 0;
   color: var(--ink);
   font-size: 14px;
@@ -2167,7 +2177,8 @@ code {
 }
 
 .review-results-content {
-  max-height: 360px;
+  min-height: 0;
+  flex: 1;
   overflow: auto;
   padding: 14px;
   border: 1px solid var(--line);
@@ -2187,8 +2198,46 @@ code {
   line-height: 1.45;
 }
 
-.review-configuration .session-configuration-fields {
+.review-configuration-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 750;
+  text-align: left;
+}
+
+.review-configuration-toggle svg {
+  width: 18px;
+  height: 18px;
+  color: var(--muted);
+  transition: transform 140ms ease;
+}
+
+.review-configuration-toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.review-configuration-toggle:focus-visible {
+  outline: 3px solid rgba(8, 124, 105, 0.18);
+  outline-offset: 3px;
+}
+
+.review-configuration-fields .session-configuration-fields {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.review-configuration-fields .review-auto-resolve {
   margin-top: 14px;
+  padding-top: 0;
+  border-top: 0;
 }
 
 .branch-review-state {
