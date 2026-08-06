@@ -1,13 +1,24 @@
 "use client";
 
+import {
+  resolveAiModelDefault,
+  type AiModelSettings,
+  type ResolvedAiSessionActionSettings
+} from "@supply-flow/core/ai-model-settings";
 import type { ProjectRecord } from "@supply-flow/core/project";
 import type { SessionRecord } from "@supply-flow/core/session";
 import { Code2, Play } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
+import { AiSessionConfigurationFields } from "./ai-session-configuration-fields";
 import { workspaceTabUrl } from "./workspace-url";
 
 const MAX_INSTRUCTIONS_LENGTH = 6_000;
+
+interface AiModelSettingsResponse {
+  settings?: AiModelSettings;
+  error?: string;
+}
 
 export function CodeImplementationSection({ project }: { project: ProjectRecord }) {
   const router = useRouter();
@@ -21,6 +32,12 @@ export function CodeImplementationSection({ project }: { project: ProjectRecord 
   const [availableBranches, setAvailableBranches] = useState<string[]>([]);
   const [isLoadingAvailableBranches, setIsLoadingAvailableBranches] = useState(false);
   const [branchError, setBranchError] = useState("");
+  const [implementationSessionConfiguration, setImplementationSessionConfiguration] =
+    useState<ResolvedAiSessionActionSettings | null>(null);
+  const [reviewSessionConfiguration, setReviewSessionConfiguration] =
+    useState<ResolvedAiSessionActionSettings | null>(null);
+  const [isLoadingSessionConfigurations, setIsLoadingSessionConfigurations] = useState(true);
+  const [sessionConfigurationError, setSessionConfigurationError] = useState("");
   const hasTasks = project.tasks.length > 0;
   const hasRepositories = project.repos.length > 0;
 
@@ -31,6 +48,52 @@ export function CodeImplementationSection({ project }: { project: ProjectRecord 
     setInstructions("");
     setAutoResolve(false);
     setError("");
+    setImplementationSessionConfiguration(null);
+    setReviewSessionConfiguration(null);
+    setSessionConfigurationError("");
+  }, [project.project_id]);
+
+  useEffect(() => {
+    let ignoreResult = false;
+
+    async function loadSessionConfigurations() {
+      setIsLoadingSessionConfigurations(true);
+      setSessionConfigurationError("");
+
+      try {
+        const response = await fetch("/api/settings/ai-models", { cache: "no-store" });
+        const data = (await response.json()) as AiModelSettingsResponse;
+        if (!response.ok || !data.settings) {
+          throw new Error(data.error ?? "Unable to load AI session defaults.");
+        }
+
+        if (!ignoreResult) {
+          setImplementationSessionConfiguration(
+            resolveAiModelDefault(data.settings, "implement-code")
+          );
+          setReviewSessionConfiguration(resolveAiModelDefault(data.settings, "review-code"));
+        }
+      } catch (loadError) {
+        if (!ignoreResult) {
+          setImplementationSessionConfiguration(null);
+          setReviewSessionConfiguration(null);
+          setSessionConfigurationError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Unable to load AI session defaults."
+          );
+        }
+      } finally {
+        if (!ignoreResult) {
+          setIsLoadingSessionConfigurations(false);
+        }
+      }
+    }
+
+    void loadSessionConfigurations();
+    return () => {
+      ignoreResult = true;
+    };
   }, [project.project_id]);
 
   useEffect(() => {
@@ -84,7 +147,14 @@ export function CodeImplementationSection({ project }: { project: ProjectRecord 
 
   async function startImplementation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!jiraTicket || !repositoryLocal || !parentBranch || isStarting) {
+    if (
+      !jiraTicket ||
+      !repositoryLocal ||
+      !parentBranch ||
+      !implementationSessionConfiguration ||
+      !reviewSessionConfiguration ||
+      isStarting
+    ) {
       setError("Select a task, repository, and parent branch.");
       return;
     }
@@ -99,6 +169,8 @@ export function CodeImplementationSection({ project }: { project: ProjectRecord 
           repositoryLocal,
           parentBranch,
           autoResolve,
+          implementationSessionConfiguration,
+          reviewSessionConfiguration,
           ...(instructions.trim() ? { instructions: instructions.trim() } : {})
         }),
         headers: { "Content-Type": "application/json" },
@@ -220,9 +292,35 @@ export function CodeImplementationSection({ project }: { project: ProjectRecord 
           />
         </label>
 
-        {branchError || error ? (
+        <div
+          aria-label="AI session configurations"
+          className="implementation-session-configurations"
+        >
+          <div className="implementation-session-config-row">
+            <strong>Code implementation AI</strong>
+            <AiSessionConfigurationFields
+              configuration={implementationSessionConfiguration}
+              disabled={isStarting || isLoadingSessionConfigurations}
+              idPrefix="implementation-ai"
+              isLoading={isLoadingSessionConfigurations}
+              onChange={setImplementationSessionConfiguration}
+            />
+          </div>
+          <div className="implementation-session-config-row">
+            <strong>Reviewer AI</strong>
+            <AiSessionConfigurationFields
+              configuration={reviewSessionConfiguration}
+              disabled={isStarting || isLoadingSessionConfigurations}
+              idPrefix="implementation-reviewer-ai"
+              isLoading={isLoadingSessionConfigurations}
+              onChange={setReviewSessionConfiguration}
+            />
+          </div>
+        </div>
+
+        {branchError || sessionConfigurationError || error ? (
           <p className="create-project-error" role="alert">
-            {branchError || error}
+            {branchError || sessionConfigurationError || error}
           </p>
         ) : null}
 
@@ -256,6 +354,10 @@ export function CodeImplementationSection({ project }: { project: ProjectRecord 
               isLoadingAvailableBranches ||
               availableBranches.length === 0 ||
               Boolean(branchError) ||
+              Boolean(sessionConfigurationError) ||
+              isLoadingSessionConfigurations ||
+              !implementationSessionConfiguration ||
+              !reviewSessionConfiguration ||
               isStarting
             }
             type="submit"

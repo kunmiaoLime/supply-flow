@@ -1,3 +1,7 @@
+import {
+  ProjectBranchReviewSessionConfigurationSchema,
+  type ProjectBranchReviewSessionConfiguration
+} from "@supply-flow/core/branch";
 import { FileBranchStore } from "@supply-flow/core/file-branch-store";
 
 interface Arguments {
@@ -7,6 +11,7 @@ interface Arguments {
   jiraTicket: string;
   sessionId: string;
   autoResolve: boolean;
+  reviewSessionConfiguration: ProjectBranchReviewSessionConfiguration;
 }
 
 async function main(): Promise<void> {
@@ -18,6 +23,7 @@ async function main(): Promise<void> {
     jira_ticket: arguments_.jiraTicket,
     implementation_session_id: arguments_.sessionId,
     review_session_id: null,
+    review_session_configuration: arguments_.reviewSessionConfiguration,
     last_session_id: arguments_.sessionId,
     review_result: null,
     review_state: "coding" as const,
@@ -40,6 +46,7 @@ async function main(): Promise<void> {
         jira_ticket: trackedBranch.jira_ticket,
         implementation_session_id: trackedBranch.implementation_session_id,
         review_session_id: null,
+        review_session_configuration: trackedBranch.review_session_configuration,
         last_session_id: trackedBranch.last_session_id,
         review_result: null,
         review_state: "coding" as const,
@@ -68,9 +75,9 @@ function parseArguments(values: string[]): Arguments {
   for (let index = 0; index < values.length; index += 2) {
     const flag = values[index];
     const value = values[index + 1];
-    if (!flag?.startsWith("--") || !value) {
+    if (!flag?.startsWith("--") || value === undefined) {
       throw new Error(
-        "Usage: track-project-branch --project-directory <path> --repository-local <path> --branch <name> --jira-ticket <url> --session-id <id> --auto-resolve <true|false>"
+        "Usage: track-project-branch --project-directory <path> --repository-local <path> --branch <name> --jira-ticket <url> --session-id <id> --auto-resolve <true|false> --review-provider-id <codex|claude-code> --review-model <model|empty> --review-reasoning-effort <effort|empty> --review-read-only <true|false> --review-yolo-mode <true|false>"
       );
     }
 
@@ -83,6 +90,11 @@ function parseArguments(values: string[]): Arguments {
   const jiraTicket = arguments_.get("--jira-ticket")?.trim();
   const sessionId = arguments_.get("--session-id")?.trim();
   const autoResolve = arguments_.get("--auto-resolve")?.trim();
+  const reviewProviderId = arguments_.get("--review-provider-id")?.trim();
+  const reviewModel = arguments_.get("--review-model");
+  const reviewReasoningEffort = arguments_.get("--review-reasoning-effort");
+  const reviewReadOnly = arguments_.get("--review-read-only")?.trim();
+  const reviewYoloMode = arguments_.get("--review-yolo-mode")?.trim();
   if (
     !projectDirectory ||
     !repositoryLocal ||
@@ -90,11 +102,28 @@ function parseArguments(values: string[]): Arguments {
     !jiraTicket ||
     !sessionId ||
     (autoResolve !== "true" && autoResolve !== "false") ||
-    arguments_.size !== 6
+    !reviewProviderId ||
+    reviewModel === undefined ||
+    reviewReasoningEffort === undefined ||
+    (reviewReadOnly !== "true" && reviewReadOnly !== "false") ||
+    (reviewYoloMode !== "true" && reviewYoloMode !== "false") ||
+    arguments_.size !== 11
   ) {
     throw new Error(
-      "Usage: track-project-branch --project-directory <path> --repository-local <path> --branch <name> --jira-ticket <url> --session-id <id> --auto-resolve <true|false>"
+      "Usage: track-project-branch --project-directory <path> --repository-local <path> --branch <name> --jira-ticket <url> --session-id <id> --auto-resolve <true|false> --review-provider-id <codex|claude-code> --review-model <model|empty> --review-reasoning-effort <effort|empty> --review-read-only <true|false> --review-yolo-mode <true|false>"
     );
+  }
+
+  const parsedReviewSessionConfiguration =
+    ProjectBranchReviewSessionConfigurationSchema.safeParse({
+      provider_id: reviewProviderId,
+      model: reviewModel.trim() || null,
+      reasoning_effort: reviewReasoningEffort.trim() || null,
+      read_only: reviewReadOnly === "true",
+      yolo_mode: reviewYoloMode === "true"
+    });
+  if (!parsedReviewSessionConfiguration.success) {
+    throw new Error("The reviewer AI session configuration is invalid.");
   }
 
   return {
@@ -103,7 +132,8 @@ function parseArguments(values: string[]): Arguments {
     branch,
     jiraTicket,
     sessionId,
-    autoResolve: autoResolve === "true"
+    autoResolve: autoResolve === "true",
+    reviewSessionConfiguration: parsedReviewSessionConfiguration.data
   };
 }
 

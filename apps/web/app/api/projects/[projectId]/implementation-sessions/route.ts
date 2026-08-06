@@ -1,5 +1,13 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import {
+  AiProviderIdSchema,
+  ReasoningEffortSchema,
+  resolveAiModelDefault,
+  supportsReasoningEffort,
+  type ResolvedAiSessionActionSettings
+} from "@supply-flow/core/ai-model-settings";
+import { FileAiModelSettingsStore } from "@supply-flow/core/file-ai-model-settings-store";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
 import type { ProjectRecord, ProjectRepository, ProjectTask } from "@supply-flow/core/project";
 import {
@@ -7,6 +15,7 @@ import {
   RepositoryBranchError
 } from "@supply-flow/core/repository-discovery";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import {
   createProjectSession,
   dataDirectory,
@@ -33,12 +42,32 @@ interface ImplementationSessionInput {
   parentBranch: string;
   autoResolve: boolean;
   instructions?: string;
+  implementationSessionConfiguration?: ResolvedAiSessionActionSettings;
+  reviewSessionConfiguration?: ResolvedAiSessionActionSettings;
 }
 
 interface JiraIssue {
   key: string;
   link: string;
 }
+
+const SessionConfigurationSchema = z
+  .object({
+    providerId: AiProviderIdSchema,
+    model: z.string().trim().min(1).max(120).nullable(),
+    reasoningEffort: ReasoningEffortSchema.nullable(),
+    readOnly: z.boolean(),
+    yoloMode: z.boolean()
+  })
+  .superRefine((configuration, context) => {
+    if (!supportsReasoningEffort(configuration.providerId, configuration.reasoningEffort)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "The reasoning effort is not supported by the selected AI provider.",
+        path: ["reasoningEffort"]
+      });
+    }
+  });
 
 export async function POST(request: Request, context: ProjectRouteContext) {
   const input = await parseImplementationSessionInput(request);
@@ -97,6 +126,12 @@ export async function POST(request: Request, context: ProjectRouteContext) {
       );
     }
 
+    const aiModelSettings = await new FileAiModelSettingsStore(dataDirectory).get();
+    const implementationSessionConfiguration =
+      input.implementationSessionConfiguration ??
+      resolveAiModelDefault(aiModelSettings, "implement-code");
+    const reviewSessionConfiguration =
+      input.reviewSessionConfiguration ?? resolveAiModelDefault(aiModelSettings, "review-code");
     const session = await createProjectSession(project, {
       action: "implement-code",
       title: implementationSessionTitle(task),
@@ -107,11 +142,13 @@ export async function POST(request: Request, context: ProjectRouteContext) {
         issue,
         input.parentBranch,
         input.autoResolve,
+        reviewSessionConfiguration,
         input.instructions
       ),
       workspacePath: repository.local,
       additionalWritableDirectories: [projectDirectory(project.project_id)],
-      loadProjectContext: true
+      loadProjectContext: true,
+      sessionConfiguration: implementationSessionConfiguration
     });
     return NextResponse.json({ session }, { status: 201 });
   } catch (error) {
@@ -163,6 +200,14 @@ async function parseImplementationSessionInput(
       "instructions" in body && typeof body.instructions === "string"
         ? body.instructions.trim()
         : "";
+    const implementationSessionConfiguration = parseOptionalSessionConfiguration(
+      body,
+      "implementationSessionConfiguration"
+    );
+    const reviewSessionConfiguration = parseOptionalSessionConfiguration(
+      body,
+      "reviewSessionConfiguration"
+    );
 
     if (
       !jiraTicket ||
@@ -171,7 +216,9 @@ async function parseImplementationSessionInput(
       repositoryLocal.length > 4_096 ||
       !parentBranch ||
       parentBranch.length > 255 ||
-      instructions.length > MAX_INSTRUCTIONS_LENGTH
+      instructions.length > MAX_INSTRUCTIONS_LENGTH ||
+      implementationSessionConfiguration === null ||
+      reviewSessionConfiguration === null
     ) {
       return null;
     }
@@ -181,11 +228,29 @@ async function parseImplementationSessionInput(
       repositoryLocal,
       parentBranch,
       autoResolve,
+      ...(implementationSessionConfiguration
+        ? { implementationSessionConfiguration }
+        : {}),
+      ...(reviewSessionConfiguration ? { reviewSessionConfiguration } : {}),
       ...(instructions ? { instructions } : {})
     };
   } catch {
     return null;
   }
+}
+
+function parseOptionalSessionConfiguration(
+  body: object,
+  field: "implementationSessionConfiguration" | "reviewSessionConfiguration"
+): ResolvedAiSessionActionSettings | null | undefined {
+  if (!(field in body)) {
+    return undefined;
+  }
+
+  const parsed = SessionConfigurationSchema.safeParse(
+    (body as Record<string, unknown>)[field]
+  );
+  return parsed.success ? parsed.data : null;
 }
 
 function parseJiraIssueLink(value: string): JiraIssue | null {
@@ -219,6 +284,7 @@ async function buildImplementationGoal(
   issue: JiraIssue,
   parentBranch: string,
   autoResolve: boolean,
+  reviewSessionConfiguration: ResolvedAiSessionActionSettings,
   instructions?: string
 ): Promise<string> {
   const contextPath = path.join(projectDirectory(project.project_id), "context.md");
@@ -236,7 +302,17 @@ async function buildImplementationGoal(
     "--session-id",
     JSON.stringify("<AI_SESSION_ID>"),
     "--auto-resolve",
-    String(autoResolve)
+    String(autoResolve),
+    "--review-provider-id",
+    JSON.stringify(reviewSessionConfiguration.providerId),
+    "--review-model",
+    JSON.stringify(reviewSessionConfiguration.model ?? ""),
+    "--review-reasoning-effort",
+    JSON.stringify(reviewSessionConfiguration.reasoningEffort ?? ""),
+    "--review-read-only",
+    String(reviewSessionConfiguration.readOnly),
+    "--review-yolo-mode",
+    String(reviewSessionConfiguration.yoloMode)
   ].join(" ");
   const codeCompleteCommand = [
     `SUPPLY_FLOW_ROOT=${JSON.stringify(projectRoot)}`,

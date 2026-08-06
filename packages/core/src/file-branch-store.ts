@@ -173,6 +173,7 @@ function hasMissingOrchestrationFields(value: unknown): boolean {
       (!("review_result" in branch) ||
         !("implementation_session_id" in branch) ||
         !("review_session_id" in branch) ||
+        !("review_session_configuration" in branch) ||
         !("review_state" in branch) ||
         !("auto_resolve" in branch))
   );

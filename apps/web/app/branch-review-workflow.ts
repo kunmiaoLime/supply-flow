@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type {
-  ProjectBranch
+  ProjectBranch,
+  ProjectBranchReviewSessionConfiguration
 } from "@supply-flow/core/branch";
 import { FileBranchStore } from "@supply-flow/core/file-branch-store";
 import { FileSessionStore } from "@supply-flow/core/file-session-store";
@@ -217,6 +218,7 @@ export async function requestReviewSession(
       loadProjectContext: true,
       sessionConfiguration:
         sessionConfiguration ??
+        reviewSessionConfigurationForBranch(context.branch) ??
         (await configurationForSession(
           context.project.project_id,
           context.branch.review_session_id
@@ -234,6 +236,26 @@ export async function requestReviewSession(
   });
 
   return { branch, session, reusedSession };
+}
+
+function reviewSessionConfigurationForBranch(
+  branch: ProjectBranch
+): ResolvedAiSessionActionSettings | undefined {
+  return branch.review_session_configuration
+    ? fromBranchSessionConfiguration(branch.review_session_configuration)
+    : undefined;
+}
+
+function fromBranchSessionConfiguration(
+  configuration: ProjectBranchReviewSessionConfiguration
+): ResolvedAiSessionActionSettings {
+  return {
+    providerId: configuration.provider_id,
+    model: configuration.model,
+    reasoningEffort: configuration.reasoning_effort,
+    readOnly: configuration.read_only,
+    yoloMode: configuration.yolo_mode
+  };
 }
 
 export async function findActiveSession(

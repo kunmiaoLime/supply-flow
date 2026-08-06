@@ -1420,6 +1420,31 @@ code {
   gap: 14px;
 }
 
+.implementation-session-configurations {
+  display: grid;
+  margin-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.implementation-session-config-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(0, 4fr);
+  align-items: end;
+  gap: 18px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.implementation-session-config-row > strong {
+  align-self: center;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.implementation-session-config-row .session-configuration-fields {
+  min-width: 0;
+}
+
 .implementation-selection-grid label,
 .implementation-instructions-field {
   display: grid;
@@ -2764,6 +2789,11 @@ code {
 
   .session-configuration-fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .implementation-session-config-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
 
   .session-mode-toggles {
