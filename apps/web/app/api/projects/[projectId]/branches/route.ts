@@ -108,6 +108,7 @@ export async function PATCH(request: Request, context: ProjectRouteContext) {
     const branch = await branchStore.update(currentBranch, {
       ...toProjectBranch(input.branch),
       implementation_session_id: currentBranch.implementation_session_id,
+      implementation_session_configuration: currentBranch.implementation_session_configuration,
       review_session_id: currentBranch.review_session_id,
       review_session_configuration: currentBranch.review_session_configuration,
       last_session_id: currentBranch.last_session_id,
@@ -248,6 +249,7 @@ function toProjectBranch(input: BranchMutationInput): ProjectBranch {
     repository_local: input.repositoryLocal,
     jira_ticket: input.jiraTicket,
     implementation_session_id: null,
+    implementation_session_configuration: null,
     review_session_id: null,
     review_session_configuration: null,
     last_session_id: null,

@@ -46,6 +46,8 @@ export const ProjectBranchSchema = z.object({
   repository_local: z.string().trim().min(1).max(4_096),
   jira_ticket: z.string().trim().url().max(2_048).nullable().default(null),
   implementation_session_id: z.string().trim().min(1).max(255).nullable().default(null),
+  implementation_session_configuration:
+    ProjectBranchReviewSessionConfigurationSchema.nullable().default(null),
   review_session_id: z.string().trim().min(1).max(255).nullable().default(null),
   review_session_configuration: ProjectBranchReviewSessionConfigurationSchema.nullable().default(
     null

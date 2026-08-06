@@ -2228,10 +2228,26 @@ code {
   outline-offset: 3px;
 }
 
-.review-configuration-fields .session-configuration-fields {
+.review-ai-configuration {
   margin-top: 18px;
   padding-top: 18px;
   border-top: 1px solid var(--line);
+}
+
+.review-ai-configuration-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.review-ai-configuration-heading > strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.review-ai-configuration .session-configuration-fields {
+  margin-top: 12px;
 }
 
 .review-configuration-fields .review-auto-resolve {

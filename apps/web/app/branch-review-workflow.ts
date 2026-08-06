@@ -246,6 +246,14 @@ function reviewSessionConfigurationForBranch(
     : undefined;
 }
 
+export function implementationSessionConfigurationForBranch(
+  branch: ProjectBranch
+): ResolvedAiSessionActionSettings | undefined {
+  return branch.implementation_session_configuration
+    ? fromBranchSessionConfiguration(branch.implementation_session_configuration)
+    : undefined;
+}
+
 function fromBranchSessionConfiguration(
   configuration: ProjectBranchReviewSessionConfiguration
 ): ResolvedAiSessionActionSettings {

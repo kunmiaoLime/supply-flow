@@ -142,6 +142,7 @@ export async function POST(request: Request, context: ProjectRouteContext) {
         issue,
         input.parentBranch,
         input.autoResolve,
+        implementationSessionConfiguration,
         reviewSessionConfiguration,
         input.instructions
       ),
@@ -284,6 +285,7 @@ async function buildImplementationGoal(
   issue: JiraIssue,
   parentBranch: string,
   autoResolve: boolean,
+  implementationSessionConfiguration: ResolvedAiSessionActionSettings,
   reviewSessionConfiguration: ResolvedAiSessionActionSettings,
   instructions?: string
 ): Promise<string> {
@@ -303,6 +305,16 @@ async function buildImplementationGoal(
     JSON.stringify("<AI_SESSION_ID>"),
     "--auto-resolve",
     String(autoResolve),
+    "--implementation-provider-id",
+    JSON.stringify(implementationSessionConfiguration.providerId),
+    "--implementation-model",
+    JSON.stringify(implementationSessionConfiguration.model ?? ""),
+    "--implementation-reasoning-effort",
+    JSON.stringify(implementationSessionConfiguration.reasoningEffort ?? ""),
+    "--implementation-read-only",
+    String(implementationSessionConfiguration.readOnly),
+    "--implementation-yolo-mode",
+    String(implementationSessionConfiguration.yoloMode),
     "--review-provider-id",
     JSON.stringify(reviewSessionConfiguration.providerId),
     "--review-model",

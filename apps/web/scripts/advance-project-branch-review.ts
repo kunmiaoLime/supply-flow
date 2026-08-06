@@ -9,6 +9,7 @@ import {
   buildResolveReviewGoal,
   configurationForSession,
   findActiveImplementationSession,
+  implementationSessionConfigurationForBranch,
   isReviewResultFilename,
   requestReviewSession
 } from "../app/branch-review-workflow";
@@ -89,10 +90,12 @@ async function main(): Promise<void> {
           workspacePath: context.repository.local,
           additionalWritableDirectories: [projectDirectory(projectId)],
           loadProjectContext: true,
-          sessionConfiguration: await configurationForSession(
-            projectId,
-            reviewedBranch.implementation_session_id ?? reviewedBranch.last_session_id
-          )
+          sessionConfiguration:
+            implementationSessionConfigurationForBranch(reviewedBranch) ??
+            (await configurationForSession(
+              projectId,
+              reviewedBranch.implementation_session_id ?? reviewedBranch.last_session_id
+            ))
         });
 
     if (activeImplementationSession) {

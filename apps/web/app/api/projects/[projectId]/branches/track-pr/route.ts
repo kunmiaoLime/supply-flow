@@ -212,6 +212,7 @@ function toProjectBranch(input: TrackPullRequestInput): ProjectBranch {
     repository_local: input.repositoryLocal,
     jira_ticket: null,
     implementation_session_id: null,
+    implementation_session_configuration: null,
     review_session_id: null,
     review_session_configuration: null,
     last_session_id: null,
