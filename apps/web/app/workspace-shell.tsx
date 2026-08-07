@@ -24,6 +24,7 @@ import type {
 import {
   CheckCircle2,
   Code2,
+  Download,
   ExternalLink,
   FileText,
   FolderKanban,
@@ -344,6 +345,16 @@ export function WorkspaceShell({
       setIsRemoveProjectDialogOpen(false);
       setRemoveProjectError("");
     }
+  }
+
+  function exportProject() {
+    if (!selectedProject) {
+      return;
+    }
+
+    window.location.assign(
+      `/api/projects/${encodeURIComponent(selectedProject.project_id)}/export`
+    );
   }
 
   function selectProject(projectId: string) {
@@ -766,6 +777,17 @@ export function WorkspaceShell({
           >
             <Plus aria-hidden="true" />
             <span>Create project</span>
+          </button>
+          <button
+            aria-label="Export current project"
+            className="export-project-button"
+            disabled={!selectedProject}
+            onClick={exportProject}
+            title="Export current project"
+            type="button"
+          >
+            <Download aria-hidden="true" />
+            <span>Export project</span>
           </button>
           <button
             aria-label="Remove current project"
