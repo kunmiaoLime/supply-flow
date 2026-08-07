@@ -1,8 +1,11 @@
+import { rm } from "node:fs/promises";
 import path from "node:path";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
 import { FileSessionStore } from "@supply-flow/core/file-session-store";
 import {
+  ProjectMarkdownPathSchema,
   ProjectUpdateSchema,
+  type ProjectRecord,
   type ProjectUpdate
 } from "@supply-flow/core/project";
 import {
@@ -75,9 +78,18 @@ export async function PATCH(request: Request, context: ProjectRouteContext) {
   }
 
   const { projectId } = await context.params;
+  const store = new FileProjectStore(dataDirectory);
 
   try {
-    const project = await new FileProjectStore(dataDirectory).update(projectId, update);
+    const currentProject = await store.get(projectId);
+    if (!currentProject) {
+      return NextResponse.json({ error: `Unknown project "${projectId}".` }, { status: 404 });
+    }
+
+    const project = await store.update(projectId, update);
+    if (update.documents) {
+      await removeUntrackedMarkdownFiles(currentProject, project);
+    }
     return NextResponse.json({ project });
   } catch (error) {
     return NextResponse.json(
@@ -183,4 +195,36 @@ async function parseProjectUpdate(request: Request): Promise<ProjectUpdate | nul
 
 function projectDirectory(projectId: string): string {
   return path.join(dataDirectory, "projects", projectId);
+}
+
+async function removeUntrackedMarkdownFiles(
+  previousProject: ProjectRecord,
+  updatedProject: ProjectRecord
+): Promise<void> {
+  const trackedMarkdowns = new Set(
+    updatedProject.documents
+      .filter((document) => document.type === "markdown")
+      .map((document) => document.link)
+  );
+  const obsoleteMarkdowns = new Set(
+    previousProject.documents
+      .filter(
+        (document) =>
+          document.type === "markdown" && !trackedMarkdowns.has(document.link)
+      )
+      .map((document) => document.link)
+  );
+
+  await Promise.all(
+    Array.from(obsoleteMarkdowns, async (relativePath) => {
+      try {
+        const validatedPath = ProjectMarkdownPathSchema.parse(relativePath);
+        await rm(path.join(projectDirectory(updatedProject.project_id), ...validatedPath.split("/")), {
+          force: true
+        });
+      } catch {
+        // The document metadata remains authoritative when stale upload cleanup fails.
+      }
+    })
+  );
 }

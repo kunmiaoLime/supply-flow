@@ -14,16 +14,42 @@ export const DocumentSourceTypeSchema = z.enum([
   "google-doc",
   "confluence",
   "figma",
-  "slack"
+  "slack",
+  "markdown"
 ]);
 
 export const DocumentTitleSchema = z.string().trim().min(1).max(240);
+export const ProjectMarkdownPathSchema = z
+  .string()
+  .trim()
+  .max(1_024)
+  .regex(
+    /^markdowns\/[^/\\\0]+\.md$/i,
+    "Markdown documents must be stored beneath the project markdowns directory."
+  );
+
+const ExternalDocumentLinkSchema = z.string().trim().url().max(2_048);
 
 export const DocumentSourceSchema = z
   .object({
     type: DocumentSourceTypeSchema,
-    link: z.string().trim().url().max(2_048),
+    link: z.string().trim().min(1).max(2_048),
     title: DocumentTitleSchema.nullable().optional()
+  })
+  .superRefine((document, context) => {
+    const linkSchema =
+      document.type === "markdown" ? ProjectMarkdownPathSchema : ExternalDocumentLinkSchema;
+    const result = linkSchema.safeParse(document.link);
+    if (!result.success) {
+      context.addIssue({
+        code: "custom",
+        message:
+          document.type === "markdown"
+            ? "Markdown documents must reference a project-local Markdown file."
+            : "Document links must be valid URLs.",
+        path: ["link"]
+      });
+    }
   })
   .transform(({ title, ...document }) => ({
     ...document,

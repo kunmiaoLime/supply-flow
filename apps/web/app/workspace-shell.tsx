@@ -102,7 +102,8 @@ const requirementSourceOptions: readonly {
   { type: "google-doc", label: "Google Doc" },
   { type: "confluence", label: "Confluence" },
   { type: "figma", label: "Figma" },
-  { type: "slack", label: "Slack" }
+  { type: "slack", label: "Slack" },
+  { type: "markdown", label: "Markdown" }
 ];
 
 const navigationTabs: readonly NavigationTab[] = [
@@ -197,6 +198,7 @@ export function WorkspaceShell({
     useState<RequirementDialogMode>(null);
   const [editingRequirementIndex, setEditingRequirementIndex] = useState<number | null>(null);
   const [requirementForm, setRequirementForm] = useState<RequirementForm>(emptyRequirementForm);
+  const [markdownFile, setMarkdownFile] = useState<File | null>(null);
   const [requirementError, setRequirementError] = useState("");
   const [requirementListError, setRequirementListError] = useState("");
   const [isSavingRequirement, setIsSavingRequirement] = useState(false);
@@ -205,6 +207,7 @@ export function WorkspaceShell({
   const removeProjectNameInput = useRef<HTMLInputElement>(null);
   const repositoryLocalPathInput = useRef<HTMLInputElement>(null);
   const requirementLinkInput = useRef<HTMLInputElement>(null);
+  const requirementMarkdownInput = useRef<HTMLInputElement>(null);
   const selectedProjectId = projectId ?? "";
   const heading = tabHeadings[tab];
   const selectedProject = projects.find((project) => project.project_id === selectedProjectId);
@@ -279,9 +282,13 @@ export function WorkspaceShell({
 
   useEffect(() => {
     if (requirementDialogMode) {
-      requirementLinkInput.current?.focus();
+      if (requirementForm.type === "markdown") {
+        requirementMarkdownInput.current?.focus();
+      } else {
+        requirementLinkInput.current?.focus();
+      }
     }
-  }, [requirementDialogMode]);
+  }, [requirementDialogMode, requirementForm.type]);
 
   useEffect(() => {
     if (!isCreateProjectDialogOpen) {
@@ -759,6 +766,7 @@ export function WorkspaceShell({
 
   function openAddRequirementDialog() {
     setRequirementForm(emptyRequirementForm);
+    setMarkdownFile(null);
     setEditingRequirementIndex(null);
     setRequirementError("");
     setRequirementDialogMode("add");
@@ -775,6 +783,7 @@ export function WorkspaceShell({
       link: document.link,
       title: document.title ?? ""
     });
+    setMarkdownFile(null);
     setEditingRequirementIndex(index);
     setRequirementError("");
     setRequirementDialogMode("edit");
@@ -783,7 +792,25 @@ export function WorkspaceShell({
   function closeRequirementDialog() {
     if (!isSavingRequirement) {
       setRequirementDialogMode(null);
+      setMarkdownFile(null);
       setRequirementError("");
+    }
+  }
+
+  function selectMarkdownFile(event: ChangeEvent<HTMLInputElement>) {
+    setMarkdownFile(event.target.files?.[0] ?? null);
+    setRequirementError("");
+  }
+
+  function updateRequirementSourceType(type: DocumentSourceType) {
+    setRequirementForm((current) => ({
+      ...current,
+      type,
+      link: type === current.type ? current.link : ""
+    }));
+    setMarkdownFile(null);
+    if (requirementMarkdownInput.current) {
+      requirementMarkdownInput.current.value = "";
     }
   }
 
@@ -817,23 +844,92 @@ export function WorkspaceShell({
     return updatedProject;
   }
 
+  async function uploadMarkdownDocument(
+    file: File,
+    documentIndex: number | null
+  ): Promise<ProjectRecord> {
+    if (!selectedProject) {
+      throw new Error("Select a project before managing documents.");
+    }
+
+    const formData = new FormData();
+    formData.set("file", file);
+    formData.set("title", requirementForm.title.trim());
+    if (documentIndex !== null) {
+      formData.set("documentIndex", String(documentIndex));
+    }
+
+    const response = await fetch(
+      `/api/projects/${encodeURIComponent(selectedProject.project_id)}/documents/markdown`,
+      {
+        body: formData,
+        method: "POST"
+      }
+    );
+    const data = (await response.json()) as { error?: string; project?: ProjectRecord };
+    if (!response.ok || !data.project) {
+      throw new Error(data.error ?? "Unable to upload the Markdown document.");
+    }
+
+    const updatedProject = data.project;
+    setProjects((currentProjects) =>
+      currentProjects.map((project) =>
+        project.project_id === updatedProject.project_id ? updatedProject : project
+      )
+    );
+    return updatedProject;
+  }
+
   async function saveRequirement(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedProject || !requirementDialogMode) {
       return;
     }
 
+    if (requirementDialogMode === "edit" && editingRequirementIndex === null) {
+      return;
+    }
+    const currentDocument =
+      editingRequirementIndex === null ? null : selectedProject.documents[editingRequirementIndex];
+
+    if (requirementForm.type === "markdown") {
+      if (markdownFile) {
+        setIsSavingRequirement(true);
+        setRequirementError("");
+        setRequirementListError("");
+
+        try {
+          await uploadMarkdownDocument(markdownFile, editingRequirementIndex);
+          setRequirementDialogMode(null);
+          setEditingRequirementIndex(null);
+          setRequirementForm(emptyRequirementForm);
+          setMarkdownFile(null);
+        } catch (error) {
+          setRequirementError(
+            error instanceof Error ? error.message : "Unable to upload the Markdown document."
+          );
+        } finally {
+          setIsSavingRequirement(false);
+        }
+        return;
+      }
+
+      if (requirementDialogMode === "add" || currentDocument?.type !== "markdown") {
+        setRequirementError("Choose a local Markdown file to upload.");
+        return;
+      }
+    }
+
     const document: DocumentSource = {
       type: requirementForm.type,
-      link: requirementForm.link.trim(),
+      link:
+        requirementForm.type === "markdown"
+          ? currentDocument?.link ?? ""
+          : requirementForm.link.trim(),
       title: requirementForm.title.trim() || null
     };
     if (!document.link) {
       setRequirementError("Enter a source link.");
-      return;
-    }
-
-    if (requirementDialogMode === "edit" && editingRequirementIndex === null) {
       return;
     }
 
@@ -852,6 +948,7 @@ export function WorkspaceShell({
       setRequirementDialogMode(null);
       setEditingRequirementIndex(null);
       setRequirementForm(emptyRequirementForm);
+      setMarkdownFile(null);
     } catch (error) {
       setRequirementError(
         error instanceof Error ? error.message : "Unable to update documents."
@@ -1441,10 +1538,7 @@ export function WorkspaceShell({
                   <select
                     id="requirement-type"
                     onChange={(event) =>
-                      setRequirementForm((current) => ({
-                        ...current,
-                        type: event.target.value as DocumentSourceType
-                      }))
+                      updateRequirementSourceType(event.target.value as DocumentSourceType)
                     }
                     value={requirementForm.type}
                   >
@@ -1455,24 +1549,48 @@ export function WorkspaceShell({
                     ))}
                   </select>
                 </label>
-                <label htmlFor="requirement-link">
-                  <span>Link</span>
-                  <input
-                    autoCapitalize="none"
-                    autoComplete="off"
-                    id="requirement-link"
-                    maxLength={2048}
-                    onChange={(event) =>
-                      setRequirementForm((current) => ({ ...current, link: event.target.value }))
-                    }
-                    placeholder="https://..."
-                    ref={requirementLinkInput}
-                    required
-                    spellCheck={false}
-                    type="url"
-                    value={requirementForm.link}
-                  />
-                </label>
+                {requirementForm.type === "markdown" ? (
+                  <label htmlFor="requirement-markdown">
+                    <span>Markdown file</span>
+                    <input
+                      accept=".md,text/markdown"
+                      id="requirement-markdown"
+                      onChange={selectMarkdownFile}
+                      ref={requirementMarkdownInput}
+                      required={requirementDialogMode === "add"}
+                      type="file"
+                    />
+                    {markdownFile ? (
+                      <span className="selected-markdown-file">{markdownFile.name}</span>
+                    ) : requirementDialogMode === "edit" ? (
+                      <span className="selected-markdown-file">
+                        Current file: {requirementForm.link}
+                      </span>
+                    ) : null}
+                  </label>
+                ) : (
+                  <label htmlFor="requirement-link">
+                    <span>Link</span>
+                    <input
+                      autoCapitalize="none"
+                      autoComplete="off"
+                      id="requirement-link"
+                      maxLength={2048}
+                      onChange={(event) =>
+                        setRequirementForm((current) => ({
+                          ...current,
+                          link: event.target.value
+                        }))
+                      }
+                      placeholder="https://..."
+                      ref={requirementLinkInput}
+                      required
+                      spellCheck={false}
+                      type="url"
+                      value={requirementForm.link}
+                    />
+                  </label>
+                )}
               </div>
               {requirementError ? (
                 <p className="create-project-error" role="alert">
@@ -1574,6 +1692,7 @@ function PanelContent({
             onAdd={onAddRequirement}
             onEdit={onEditRequirement}
             onRemove={onRemoveRequirement}
+            projectId={project.project_id}
             requirementListError={requirementListError}
             requirements={project.documents}
           />
@@ -1613,6 +1732,7 @@ function RequirementSection({
   onAdd,
   onEdit,
   onRemove,
+  projectId,
   requirementListError,
   requirements
 }: {
@@ -1620,6 +1740,7 @@ function RequirementSection({
   onAdd: () => void;
   onEdit: (index: number) => void;
   onRemove: (index: number) => void;
+  projectId: string;
   requirementListError: string;
   requirements: DocumentSource[];
 }) {
@@ -1671,7 +1792,17 @@ function RequirementSection({
                     <SourceIcon aria-hidden="true" />
                     <strong>{sourceLabel}</strong>
                   </div>
-                  <a href={requirement.link} rel="noreferrer" target="_blank">
+                  <a
+                    href={
+                      requirement.type === "markdown"
+                        ? `/api/projects/${encodeURIComponent(projectId)}/documents/markdown?path=${encodeURIComponent(
+                            requirement.link
+                          )}`
+                        : requirement.link
+                    }
+                    rel="noreferrer"
+                    target="_blank"
+                  >
                     <ExternalLink aria-hidden="true" />
                     <code>{requirement.link}</code>
                   </a>

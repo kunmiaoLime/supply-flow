@@ -192,6 +192,10 @@ function buildContextGoal(project: ProjectRecord, operation: ContextOperation): 
       ? project.documents
           .map(
             (document, index) => {
+              const sourceReference =
+                document.type === "markdown"
+                  ? path.join(projectDirectory(project.project_id), ...document.link.split("/"))
+                  : document.link;
               const titleAssignment =
                 document.title === null
                   ? `\n   After reading this source, infer a concise descriptive title and run exactly this command with the inferred title substituted for <inferred title>:\n   ${buildDocumentTitleAssignmentCommand(
@@ -203,7 +207,7 @@ function buildContextGoal(project: ProjectRecord, operation: ContextOperation): 
 
               return (
               `${index + 1}. ${document.type}\n` +
-              `   Link: ${JSON.stringify(document.link)}\n` +
+              `   ${document.type === "markdown" ? "Local file" : "Link"}: ${JSON.stringify(sourceReference)}\n` +
               `   Title: ${document.title === null ? "null" : JSON.stringify(document.title)}\n` +
               `   Reader instructions: ${sourcePromptPath(document.type)}` +
               titleAssignment
@@ -326,7 +330,8 @@ function sourcePromptPath(type: DocumentSourceType): string {
     "google-doc": "read_google_doc.md",
     confluence: "read_confluence_page.md",
     figma: "read_figma_design.md",
-    slack: "read_slack_channel.md"
+    slack: "read_slack_channel.md",
+    markdown: "read_local_markdown.md"
   };
 
   return path.join(projectRoot, "prompts", promptName[type]);

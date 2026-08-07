@@ -2504,6 +2504,20 @@ code {
   border-color: var(--teal);
 }
 
+.requirement-form-fields input[type="file"] {
+  padding: 7px 10px;
+}
+
+.requirement-form-fields .selected-markdown-file {
+  overflow: hidden;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .session-configuration-fields {
   display: grid;
   grid-template-columns:

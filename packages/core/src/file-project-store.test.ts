@@ -205,6 +205,42 @@ test("assigns only missing document titles", async () => {
   }
 });
 
+test("persists project-local Markdown document sources", async () => {
+  const rootDirectory = await mkdtemp(path.join(os.tmpdir(), "supply-flow-projects-"));
+  const store = new FileProjectStore(rootDirectory);
+  const markdownDocument = {
+    type: "markdown" as const,
+    link: "markdowns/validated-test-ride.md",
+    title: "Validated test ride notes"
+  };
+
+  try {
+    await store.create({
+      project_name: "Local Markdown",
+      project_id: "local-markdown",
+      repos: [],
+      documents: [markdownDocument],
+      tasks: []
+    });
+
+    assert.deepEqual((await store.get("local-markdown"))?.documents, [markdownDocument]);
+    await assert.rejects(
+      store.update("local-markdown", {
+        documents: [
+          {
+            type: "markdown",
+            link: "../validated-test-ride.md",
+            title: null
+          }
+        ]
+      }),
+      /Markdown documents must reference/
+    );
+  } finally {
+    await rm(rootDirectory, { recursive: true, force: true });
+  }
+});
+
 test("normalizes project names into collision-safe directory ids", () => {
   assert.equal(createProjectId("Customer ACME Sync", []), "customer-acme-sync");
   assert.equal(
