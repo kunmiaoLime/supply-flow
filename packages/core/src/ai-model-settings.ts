@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const aiSessionActionIds = [
   "new-session",
+  "import-project",
   "initialize-context",
   "update-context",
   "create-task",
@@ -20,6 +21,7 @@ export const aiSessionActions: readonly {
   label: string;
 }[] = [
   { id: "new-session", label: "New AI session" },
+  { id: "import-project", label: "Import project" },
   { id: "initialize-context", label: "Initialize context" },
   { id: "update-context", label: "Update context" },
   { id: "create-task", label: "Create Jira task" },
@@ -134,6 +136,7 @@ export interface AiModelSettings {
 
 const AiModelActionDefaultsSchema = z.object({
   "new-session": AiModelActionSettingsInputSchema,
+  "import-project": AiModelActionSettingsInputSchema.optional(),
   "initialize-context": AiModelActionSettingsInputSchema,
   "update-context": AiModelActionSettingsInputSchema,
   "create-task": AiModelActionSettingsInputSchema,
@@ -172,6 +175,11 @@ export const AiModelSettingsSchema = AiModelSettingsInputSchema.transform(
         "new-session": normalizeActionSettings(
           actions["new-session"],
           "new-session",
+          normalizedGlobalDefault
+        ),
+        "import-project": normalizeActionSettings(
+          actions["import-project"] ?? createDefaultActionSettings("import-project"),
+          "import-project",
           normalizedGlobalDefault
         ),
         "initialize-context": normalizeActionSettings(
@@ -221,6 +229,7 @@ export function createDefaultAiModelSettings(): AiModelSettings {
     authenticationCommands: createDefaultAuthenticationCommands(),
     actions: {
       "new-session": createDefaultActionSettings("new-session"),
+      "import-project": createDefaultActionSettings("import-project"),
       "initialize-context": createDefaultActionSettings("initialize-context"),
       "update-context": createDefaultActionSettings("update-context"),
       "create-task": createDefaultActionSettings("create-task"),

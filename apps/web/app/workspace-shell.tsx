@@ -27,6 +27,7 @@ import {
   Download,
   ExternalLink,
   FileText,
+  FileUp,
   FolderKanban,
   GitBranch,
   GitPullRequest,
@@ -38,7 +39,14 @@ import {
   Trash2,
   type LucideIcon
 } from "lucide-react";
-import { Suspense, useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent
+} from "react";
 
 type TabId =
   | "project"
@@ -49,6 +57,7 @@ type TabId =
   | "ai-sessions";
 type RepositoryDialogMode = "add" | "edit" | null;
 type RequirementDialogMode = "add" | "edit" | null;
+type ProjectImportMode = "separate" | "replace" | "merge";
 
 interface NavigationTab {
   id: TabId;
@@ -67,6 +76,11 @@ interface RequirementForm {
   type: DocumentSourceType;
   link: string;
   title: string;
+}
+
+interface ProjectImportConflict {
+  importedProjectName: string;
+  existingProjects: Array<Pick<ProjectRecord, "project_id" | "project_name">>;
 }
 
 const emptyRepositoryForm: RepositoryForm = {
@@ -159,6 +173,15 @@ export function WorkspaceShell({
   const [newProjectName, setNewProjectName] = useState("");
   const [creationError, setCreationError] = useState("");
   const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [isImportProjectDialogOpen, setIsImportProjectDialogOpen] = useState(false);
+  const [projectArchive, setProjectArchive] = useState<File | null>(null);
+  const [importProjectError, setImportProjectError] = useState("");
+  const [isImportingProject, setIsImportingProject] = useState(false);
+  const [projectImportConflict, setProjectImportConflict] =
+    useState<ProjectImportConflict | null>(null);
+  const [projectImportMode, setProjectImportMode] =
+    useState<ProjectImportMode>("separate");
+  const [importTargetProjectId, setImportTargetProjectId] = useState("");
   const [isRemoveProjectDialogOpen, setIsRemoveProjectDialogOpen] = useState(false);
   const [removeProjectConfirmation, setRemoveProjectConfirmation] = useState("");
   const [removeProjectError, setRemoveProjectError] = useState("");
@@ -178,6 +201,7 @@ export function WorkspaceShell({
   const [requirementListError, setRequirementListError] = useState("");
   const [isSavingRequirement, setIsSavingRequirement] = useState(false);
   const projectNameInput = useRef<HTMLInputElement>(null);
+  const projectArchiveInput = useRef<HTMLInputElement>(null);
   const removeProjectNameInput = useRef<HTMLInputElement>(null);
   const repositoryLocalPathInput = useRef<HTMLInputElement>(null);
   const requirementLinkInput = useRef<HTMLInputElement>(null);
@@ -236,6 +260,12 @@ export function WorkspaceShell({
   }, [isCreateProjectDialogOpen]);
 
   useEffect(() => {
+    if (isImportProjectDialogOpen) {
+      projectArchiveInput.current?.focus();
+    }
+  }, [isImportProjectDialogOpen]);
+
+  useEffect(() => {
     if (isRemoveProjectDialogOpen) {
       removeProjectNameInput.current?.focus();
     }
@@ -268,6 +298,21 @@ export function WorkspaceShell({
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [isCreateProjectDialogOpen, isCreatingProject]);
+
+  useEffect(() => {
+    if (!isImportProjectDialogOpen) {
+      return;
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && !isImportingProject) {
+        closeImportProjectDialog();
+      }
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [isImportProjectDialogOpen, isImportingProject]);
 
   useEffect(() => {
     if (!isRemoveProjectDialogOpen) {
@@ -328,6 +373,36 @@ export function WorkspaceShell({
       setIsCreateProjectDialogOpen(false);
       setCreationError("");
     }
+  }
+
+  function openImportProjectDialog() {
+    setProjectArchive(null);
+    setImportProjectError("");
+    setProjectImportConflict(null);
+    setProjectImportMode("separate");
+    setImportTargetProjectId("");
+    if (projectArchiveInput.current) {
+      projectArchiveInput.current.value = "";
+    }
+    setIsImportProjectDialogOpen(true);
+  }
+
+  function closeImportProjectDialog() {
+    if (!isImportingProject) {
+      setIsImportProjectDialogOpen(false);
+      setImportProjectError("");
+      setProjectImportConflict(null);
+      setProjectImportMode("separate");
+      setImportTargetProjectId("");
+    }
+  }
+
+  function selectProjectArchive(event: ChangeEvent<HTMLInputElement>) {
+    setProjectArchive(event.target.files?.[0] ?? null);
+    setImportProjectError("");
+    setProjectImportConflict(null);
+    setProjectImportMode("separate");
+    setImportTargetProjectId("");
   }
 
   function openRemoveProjectDialog() {
@@ -406,6 +481,81 @@ export function WorkspaceShell({
       setCreationError(error instanceof Error ? error.message : "Unable to create the project.");
     } finally {
       setIsCreatingProject(false);
+    }
+  }
+
+  async function importProject(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!projectArchive) {
+      setImportProjectError("Choose a ZIP archive to import.");
+      return;
+    }
+    if (
+      projectImportConflict &&
+      projectImportMode !== "separate" &&
+      !importTargetProjectId
+    ) {
+      setImportProjectError("Choose the existing project to update.");
+      return;
+    }
+
+    setIsImportingProject(true);
+    setImportProjectError("");
+
+    try {
+      const formData = new FormData();
+      formData.set("archive", projectArchive);
+      if (projectImportConflict) {
+        formData.set("mode", projectImportMode);
+        if (projectImportMode !== "separate") {
+          formData.set("targetProjectId", importTargetProjectId);
+        }
+      }
+      const response = await fetch("/api/projects/import", {
+        body: formData,
+        method: "POST"
+      });
+      const data = (await response.json()) as {
+        error?: string;
+        existingProjects?: Array<Pick<ProjectRecord, "project_id" | "project_name">>;
+        importedProjectName?: string;
+        project?: ProjectRecord;
+        requiresDecision?: boolean;
+        session?: { id: string };
+      };
+      if (data.requiresDecision) {
+        const existingProjects = data.existingProjects ?? [];
+        if (!data.importedProjectName || existingProjects.length === 0) {
+          throw new Error("Unable to identify the existing project for this import.");
+        }
+
+        setProjectImportConflict({
+          importedProjectName: data.importedProjectName,
+          existingProjects
+        });
+        setProjectImportMode("separate");
+        setImportTargetProjectId(existingProjects[0]?.project_id ?? "");
+        return;
+      }
+      if (!response.ok || !data.project || !data.session) {
+        throw new Error(data.error ?? "Unable to start the project import.");
+      }
+
+      setProjects((currentProjects) => [
+        data.project as ProjectRecord,
+        ...currentProjects.filter(
+          (currentProject) => currentProject.project_id !== data.project?.project_id
+        )
+      ]);
+      setIsImportProjectDialogOpen(false);
+      setProjectArchive(null);
+      router.push(workspaceTabUrl("/ai_sessions", data.project.project_id, data.session.id));
+    } catch (error) {
+      setImportProjectError(
+        error instanceof Error ? error.message : "Unable to start the project import."
+      );
+    } finally {
+      setIsImportingProject(false);
     }
   }
 
@@ -779,6 +929,15 @@ export function WorkspaceShell({
             <span>Create project</span>
           </button>
           <button
+            className="import-project-button"
+            disabled={isImportingProject}
+            onClick={openImportProjectDialog}
+            type="button"
+          >
+            <FileUp aria-hidden="true" />
+            <span>Import project</span>
+          </button>
+          <button
             aria-label="Export current project"
             className="export-project-button"
             disabled={!selectedProject}
@@ -941,6 +1100,124 @@ export function WorkspaceShell({
                 <button className="create-project-button" disabled={isCreatingProject} type="submit">
                   <Plus aria-hidden="true" />
                   <span>{isCreatingProject ? "Creating..." : "Create project"}</span>
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      ) : null}
+
+      {isImportProjectDialogOpen ? (
+        <div
+          className="dialog-backdrop"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) {
+              closeImportProjectDialog();
+            }
+          }}
+        >
+          <section
+            aria-labelledby="import-project-title"
+            aria-modal="true"
+            className="create-project-dialog import-project-dialog"
+            role="dialog"
+          >
+            <h2 id="import-project-title">Import project</h2>
+            <form onSubmit={importProject}>
+              <label className="project-archive-field" htmlFor="project-archive">
+                <span>Project archive</span>
+                <input
+                  accept=".zip,application/zip,application/x-zip-compressed"
+                  id="project-archive"
+                  onChange={selectProjectArchive}
+                  ref={projectArchiveInput}
+                  required
+                  type="file"
+                />
+              </label>
+              {projectArchive ? (
+                <p className="selected-project-archive">{projectArchive.name}</p>
+              ) : null}
+              {projectImportConflict ? (
+                <fieldset className="project-import-options">
+                  <legend>Existing project found</legend>
+                  <p>
+                    {projectImportConflict.importedProjectName} is already available locally.
+                  </p>
+                  <label className="project-import-option">
+                    <input
+                      checked={projectImportMode === "separate"}
+                      name="project-import-mode"
+                      onChange={() => setProjectImportMode("separate")}
+                      type="radio"
+                      value="separate"
+                    />
+                    <span>Create a separate project</span>
+                  </label>
+                  <label className="project-import-option">
+                    <input
+                      checked={projectImportMode === "replace"}
+                      name="project-import-mode"
+                      onChange={() => setProjectImportMode("replace")}
+                      type="radio"
+                      value="replace"
+                    />
+                    <span>Replace existing project</span>
+                  </label>
+                  <label className="project-import-option">
+                    <input
+                      checked={projectImportMode === "merge"}
+                      name="project-import-mode"
+                      onChange={() => setProjectImportMode("merge")}
+                      type="radio"
+                      value="merge"
+                    />
+                    <span>Merge with existing project</span>
+                  </label>
+                  {projectImportMode !== "separate" ? (
+                    <label className="project-import-target">
+                      <span>Project to update</span>
+                      <select
+                        onChange={(event) => setImportTargetProjectId(event.target.value)}
+                        value={importTargetProjectId}
+                      >
+                        {projectImportConflict.existingProjects.map((project) => (
+                          <option key={project.project_id} value={project.project_id}>
+                            {project.project_name} ({project.project_id})
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                </fieldset>
+              ) : null}
+              {importProjectError ? (
+                <p className="create-project-error" role="alert">
+                  {importProjectError}
+                </p>
+              ) : null}
+              <div className="dialog-actions">
+                <button
+                  className="dialog-cancel-button"
+                  disabled={isImportingProject}
+                  onClick={closeImportProjectDialog}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button
+                  className="import-project-button"
+                  disabled={isImportingProject || !projectArchive}
+                  type="submit"
+                >
+                  <FileUp aria-hidden="true" />
+                  <span>
+                    {isImportingProject
+                      ? "Starting..."
+                      : projectImportConflict
+                        ? "Start import"
+                        : "Continue"}
+                  </span>
                 </button>
               </div>
             </form>

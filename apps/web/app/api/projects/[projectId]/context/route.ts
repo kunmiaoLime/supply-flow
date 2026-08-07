@@ -5,6 +5,7 @@ import {
   CONTEXT_GAPS_FILE,
   FileContextAnalysisStore
 } from "@supply-flow/core/file-context-analysis-store";
+import { FileImportConflictStore } from "@supply-flow/core/file-import-conflict-store";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
 import type { DocumentSourceType, ProjectRecord } from "@supply-flow/core/project";
 import { NextResponse } from "next/server";
@@ -40,17 +41,29 @@ export async function GET(_request: Request, context: ProjectRouteContext) {
     const projectContext = await getContextStatus(project.project_id);
     let analysis = null;
     let analysisError: string | undefined;
+    let importConflicts = null;
+    let importConflictsError: string | undefined;
     try {
       analysis = await new FileContextAnalysisStore(projectDirectory(project.project_id)).get();
     } catch (error) {
       analysisError =
         error instanceof Error ? error.message : "Unable to load project context analysis.";
     }
+    try {
+      importConflicts = await new FileImportConflictStore(
+        projectDirectory(project.project_id)
+      ).get();
+    } catch (error) {
+      importConflictsError =
+        error instanceof Error ? error.message : "Unable to load project import conflicts.";
+    }
 
     return NextResponse.json({
       context: projectContext,
       analysis,
-      ...(analysisError ? { analysisError } : {})
+      ...(analysisError ? { analysisError } : {}),
+      ...(importConflicts ? { importConflicts } : {}),
+      ...(importConflictsError ? { importConflictsError } : {})
     });
   } catch (error) {
     return NextResponse.json(

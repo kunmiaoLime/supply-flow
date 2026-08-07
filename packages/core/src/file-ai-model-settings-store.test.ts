@@ -37,6 +37,13 @@ test("returns defaults and persists action-specific AI model settings", async ()
       readOnly: false,
       yoloMode: true
     });
+    assert.deepEqual(resolveAiModelDefault(defaults, "import-project"), {
+      providerId: "codex",
+      model: null,
+      reasoningEffort: null,
+      readOnly: false,
+      yoloMode: true
+    });
     const legacyActionDefaults = {
       ...legacyDefaults,
       actions: Object.fromEntries(
@@ -190,6 +197,13 @@ test("migrates legacy Codex defaults and action selections to provider-aware set
     yoloMode: true
   });
   assert.deepEqual(resolveAiModelDefault(parsed, "review-code"), {
+    providerId: "codex",
+    model: "gpt-5.3-codex",
+    reasoningEffort: "high",
+    readOnly: false,
+    yoloMode: true
+  });
+  assert.deepEqual(resolveAiModelDefault(parsed, "import-project"), {
     providerId: "codex",
     model: "gpt-5.3-codex",
     reasoningEffort: "high",

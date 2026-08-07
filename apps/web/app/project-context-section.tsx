@@ -6,6 +6,10 @@ import type {
   ContextGap,
   ContextIssueSource
 } from "@supply-flow/core/context-analysis";
+import type {
+  ImportConflict,
+  ImportConflictValue
+} from "@supply-flow/core/import-conflict";
 import type { ProjectRecord } from "@supply-flow/core/project";
 import type { SessionRecord } from "@supply-flow/core/session";
 import { CircleHelp, FileText, GitCompareArrows, RefreshCw } from "lucide-react";
@@ -22,6 +26,8 @@ interface ContextStatusResponse {
   context?: ContextStatus | null;
   analysis?: ContextAnalysis | null;
   analysisError?: string;
+  importConflicts?: ImportConflict[] | null;
+  importConflictsError?: string;
   error?: string;
 }
 
@@ -29,10 +35,12 @@ export function ProjectContextSection({ project }: { project: ProjectRecord }) {
   const router = useRouter();
   const [context, setContext] = useState<ContextStatus | null>(null);
   const [analysis, setAnalysis] = useState<ContextAnalysis | null>(null);
+  const [importConflicts, setImportConflicts] = useState<ImportConflict[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [statusError, setStatusError] = useState("");
   const [analysisError, setAnalysisError] = useState("");
+  const [importConflictsError, setImportConflictsError] = useState("");
   const [actionError, setActionError] = useState("");
   const hasRepository = project.repos.length > 0;
 
@@ -43,6 +51,7 @@ export function ProjectContextSection({ project }: { project: ProjectRecord }) {
       setIsLoading(true);
       setStatusError("");
       setAnalysisError("");
+      setImportConflictsError("");
       setActionError("");
 
       try {
@@ -56,12 +65,16 @@ export function ProjectContextSection({ project }: { project: ProjectRecord }) {
           setContext(data.context ?? null);
           setAnalysis(data.analysis ?? null);
           setAnalysisError(data.analysisError ?? "");
+          setImportConflicts(data.importConflicts ?? null);
+          setImportConflictsError(data.importConflictsError ?? "");
         }
       } catch (error) {
         if (!ignoreResult) {
           setContext(null);
           setAnalysis(null);
+          setImportConflicts(null);
           setAnalysisError("");
+          setImportConflictsError("");
           setStatusError(
             error instanceof Error ? error.message : "Unable to load project context."
           );
@@ -156,6 +169,9 @@ export function ProjectContextSection({ project }: { project: ProjectRecord }) {
 
       {context && !isLoading ? (
         <ContextAnalysisPanel analysis={analysis} analysisError={analysisError} />
+      ) : null}
+      {!isLoading && (importConflictsError || (importConflicts?.length ?? 0) > 0) ? (
+        <ImportConflictList conflicts={importConflicts ?? []} error={importConflictsError} />
       ) : null}
     </section>
   );
@@ -253,10 +269,53 @@ function ContextConflictList({ conflicts }: { conflicts: ContextConflict[] }) {
   );
 }
 
+function ImportConflictList({
+  conflicts,
+  error
+}: {
+  conflicts: ImportConflict[];
+  error: string;
+}) {
+  if (error) {
+    return (
+      <p className="context-analysis-warning" role="alert">
+        {error}
+      </p>
+    );
+  }
+
+  return (
+    <section
+      aria-labelledby="import-conflicts-heading"
+      className="context-analysis-group import-conflicts-panel"
+    >
+      <div className="context-analysis-group-header">
+        <div>
+          <GitCompareArrows aria-hidden="true" />
+          <h3 id="import-conflicts-heading">Import conflicts</h3>
+        </div>
+        <span>{conflicts.length}</span>
+      </div>
+      <ul className="context-analysis-list">
+        {conflicts.map((conflict) => (
+          <li key={conflict.id}>
+            <ContextIssueHeading issue={conflict} />
+            <p className="context-analysis-description">{conflict.description}</p>
+            <ContextIssueDetail label="Path" value={conflict.path} />
+            <ImportConflictValueDetail label="Current" value={conflict.existing} />
+            <ImportConflictValueDetail label="Imported" value={conflict.imported} />
+            <ContextIssueDetail label="Resolve" value={conflict.resolution_options.join(" ")} />
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function ContextIssueHeading({
   issue
 }: {
-  issue: Pick<ContextGap | ContextConflict, "severity" | "title">;
+  issue: Pick<ContextGap | ContextConflict | ImportConflict, "severity" | "title">;
 }) {
   return (
     <div className="context-analysis-item-heading">
@@ -273,6 +332,22 @@ function ContextIssueDetail({ label, value }: { label: string; value: string }) 
     <p className="context-analysis-detail">
       <span>{label}</span>
       {value}
+    </p>
+  );
+}
+
+function ImportConflictValueDetail({
+  label,
+  value
+}: {
+  label: string;
+  value: ImportConflictValue;
+}) {
+  return (
+    <p className="context-analysis-detail">
+      <span>{label}</span>
+      <ContextSourceReference reference={value.reference} />
+      <span>{value.detail}</span>
     </p>
   );
 }

@@ -9,6 +9,10 @@ import {
   ContextAnalysisError,
   FileContextAnalysisStore
 } from "./file-context-analysis-store.js";
+import {
+  FileImportConflictStore,
+  IMPORT_CONFLICTS_FILE
+} from "./file-import-conflict-store.js";
 
 test("loads structured project context gaps and conflicts", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "supply-flow-context-analysis-"));
@@ -136,6 +140,44 @@ test("rejects a partial context analysis", async () => {
       new FileContextAnalysisStore(directory).get(),
       ContextAnalysisError
     );
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+});
+
+test("loads structured project import conflicts", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "supply-flow-import-conflicts-"));
+
+  try {
+    await writeFile(
+      path.join(directory, IMPORT_CONFLICTS_FILE),
+      JSON.stringify({
+        schemaVersion: 1,
+        conflicts: [
+          {
+            id: "import-conflict-project-title",
+            title: "Project title differs",
+            severity: "medium",
+            path: "project.json",
+            description: "The imported title differs from the current project title.",
+            existing: {
+              reference: "project.json",
+              detail: "Existing title: Supply Flow"
+            },
+            imported: {
+              reference: "archive/project.json",
+              detail: "Imported title: Supply Flow Desktop"
+            },
+            resolution_options: ["Keep the current title", "Use the imported title"]
+          }
+        ]
+      }),
+      "utf8"
+    );
+
+    const conflicts = await new FileImportConflictStore(directory).get();
+    assert.equal(conflicts?.length, 1);
+    assert.equal(conflicts?.[0]?.id, "import-conflict-project-title");
   } finally {
     await rm(directory, { force: true, recursive: true });
   }
