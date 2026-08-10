@@ -16,12 +16,12 @@ interface SessionDetailResponse {
 }
 
 export function TmuxTerminal({
-  projectId,
+  sessionEndpoint,
   session,
   onSessionUpdated,
   onTerminalError
 }: {
-  projectId: string;
+  sessionEndpoint: string;
   session: SessionRecord;
   onSessionUpdated: (session: SessionRecord) => void;
   onTerminalError: (message: string) => void;
@@ -110,7 +110,7 @@ export function TmuxTerminal({
           return;
         }
 
-        void sendTerminalInput(projectId, session.id, data).catch((error: unknown) => {
+        void sendTerminalInput(sessionEndpoint, data).catch((error: unknown) => {
           onTerminalErrorRef.current(
             error instanceof Error ? error.message : "Unable to send terminal input."
           );
@@ -132,7 +132,7 @@ export function TmuxTerminal({
       fitAddonRef.current = null;
       setIsReady(false);
     };
-  }, [projectId, session.id]);
+  }, [session.id, sessionEndpoint]);
 
   useEffect(() => {
     if (!isReady || !wrapperRef.current) {
@@ -157,7 +157,7 @@ export function TmuxTerminal({
         window.clearTimeout(resizeTimer);
       }
       resizeTimer = window.setTimeout(() => {
-        void resizeTmuxTerminal(projectId, session.id, terminal.cols, terminal.rows);
+        void resizeTmuxTerminal(sessionEndpoint, terminal.cols, terminal.rows);
       }, 100);
     }
 
@@ -171,7 +171,7 @@ export function TmuxTerminal({
         window.clearTimeout(resizeTimer);
       }
     };
-  }, [isReady, projectId, session.id]);
+  }, [isReady, session.id, sessionEndpoint]);
 
   useEffect(() => {
     if (!isReady) {
@@ -190,7 +190,7 @@ export function TmuxTerminal({
 
       try {
         const response = await fetch(
-          `${sessionUrl(projectId, session.id)}?offset=${outputOffset}`,
+          `${sessionEndpoint}?offset=${outputOffset}`,
           { cache: "no-store" }
         );
         const data = (await response.json()) as SessionDetailResponse;
@@ -232,7 +232,7 @@ export function TmuxTerminal({
         window.clearTimeout(pollTimer);
       }
     };
-  }, [isReady, projectId, session.id]);
+  }, [isReady, session.id, sessionEndpoint]);
 
   return (
     <div className="tmux-terminal-viewport" onMouseDown={() => terminalRef.current?.focus()} ref={wrapperRef}>
@@ -245,8 +245,8 @@ function isInteractiveStatus(status: SessionRecord["status"]): boolean {
   return status === "starting" || status === "running";
 }
 
-async function sendTerminalInput(projectId: string, sessionId: string, input: string): Promise<void> {
-  const response = await fetch(`${sessionUrl(projectId, sessionId)}/stdin`, {
+async function sendTerminalInput(sessionEndpoint: string, input: string): Promise<void> {
+  const response = await fetch(`${sessionEndpoint}/stdin`, {
     body: JSON.stringify({ data: encodeBase64(input) }),
     headers: { "Content-Type": "application/json" },
     method: "POST"
@@ -258,20 +258,15 @@ async function sendTerminalInput(projectId: string, sessionId: string, input: st
 }
 
 async function resizeTmuxTerminal(
-  projectId: string,
-  sessionId: string,
+  sessionEndpoint: string,
   columns: number,
   rows: number
 ): Promise<void> {
-  await fetch(`${sessionUrl(projectId, sessionId)}/resize`, {
+  await fetch(`${sessionEndpoint}/resize`, {
     body: JSON.stringify({ columns, rows }),
     headers: { "Content-Type": "application/json" },
     method: "POST"
   });
-}
-
-function sessionUrl(projectId: string, sessionId: string): string {
-  return `/api/projects/${encodeURIComponent(projectId)}/sessions/${encodeURIComponent(sessionId)}`;
 }
 
 function encodeBase64(value: string): string {

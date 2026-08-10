@@ -1671,6 +1671,14 @@ function PanelContent({
     );
   }
 
+  if (tab === "ai-sessions") {
+    return (
+      <Suspense fallback={<div className="ai-sessions-loading">Loading AI sessions...</div>}>
+        <AiSessionsPanel project={project} />
+      </Suspense>
+    );
+  }
+
   if (!project) {
     return (
       <div className="empty-state project-selection-state">
@@ -1717,12 +1725,6 @@ function PanelContent({
           <PullRequestsSection project={project} />
           <BranchesSection project={project} />
         </>
-      );
-    case "ai-sessions":
-      return (
-        <Suspense fallback={<div className="ai-sessions-loading">Loading AI sessions...</div>}>
-          <AiSessionsPanel project={project} />
-        </Suspense>
       );
   }
 }

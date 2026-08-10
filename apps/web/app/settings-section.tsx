@@ -1,7 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { settingsTabUrl, type SettingsTab } from "./workspace-url";
+import { useRouter } from "next/navigation";
+import {
+  aiInterfaceSetupSessionUrl,
+  settingsTabUrl,
+  type SettingsTab
+} from "./workspace-url";
 import {
   aiSessionActions,
   aiModelOptions,
@@ -13,11 +18,22 @@ import {
   type AiSessionAction,
   type ReasoningEffort
 } from "@supply-flow/core/ai-model-settings";
+import {
+  aiInterfaceIds,
+  type AiInterfaceId,
+  type AiInterfaceStatusIndex
+} from "@supply-flow/core/ai-interface";
 import type { PullRequestTemplate } from "@supply-flow/core/file-pull-request-template-store";
-import { Bot, FileDown, FileText, Save } from "lucide-react";
+import { Bot, CheckCircle2, FileDown, FileText, Save, ShieldCheck, Wrench } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 const MAX_TEMPLATE_LENGTH = 100_000;
+const aiInterfaceOptions: readonly { id: AiInterfaceId; label: string }[] = [
+  { id: "slack", label: "Slack" },
+  { id: "google-doc", label: "Google Docs" },
+  { id: "confluence", label: "Confluence" },
+  { id: "figma", label: "Figma" }
+];
 
 export function SettingsSection({
   activeTab,
@@ -26,6 +42,7 @@ export function SettingsSection({
   activeTab: SettingsTab;
   projectId?: string;
 }) {
+  const router = useRouter();
   const [templates, setTemplates] = useState<PullRequestTemplate[]>([]);
   const [selectedRepository, setSelectedRepository] = useState("");
   const [editorContent, setEditorContent] = useState("");
@@ -42,7 +59,19 @@ export function SettingsSection({
   const [isLoadingAiModelSettings, setIsLoadingAiModelSettings] = useState(true);
   const [isSavingAiModelSettings, setIsSavingAiModelSettings] = useState(false);
   const [aiModelSettingsError, setAiModelSettingsError] = useState("");
+  const [aiInterfaceStatus, setAiInterfaceStatus] = useState<AiInterfaceStatusIndex | null>(
+    null
+  );
+  const [selectedAiInterfaces, setSelectedAiInterfaces] = useState<AiInterfaceId[]>([
+    ...aiInterfaceIds
+  ]);
+  const [isLoadingAiInterfaces, setIsLoadingAiInterfaces] = useState(true);
+  const [aiInterfaceError, setAiInterfaceError] = useState("");
+  const [aiInterfaceAction, setAiInterfaceAction] = useState<"verify" | "setup" | null>(
+    null
+  );
   const importInput = useRef<HTMLInputElement>(null);
+  const selectAllAiInterfacesInput = useRef<HTMLInputElement>(null);
 
   const selectedTemplate =
     templates.find((template) => template.repository === selectedRepository) ?? null;
@@ -54,6 +83,9 @@ export function SettingsSection({
   const hasInvalidAuthenticationCommand =
     aiModelSettings !== null &&
     Object.values(aiModelSettings.authenticationCommands).some((command) => !command.trim());
+  const allAiInterfacesSelected = selectedAiInterfaces.length === aiInterfaceIds.length;
+  const someAiInterfacesSelected =
+    selectedAiInterfaces.length > 0 && !allAiInterfacesSelected;
 
   useEffect(() => {
     let ignoreResult = false;
@@ -88,6 +120,52 @@ export function SettingsSection({
     }
 
     void loadTemplates();
+    return () => {
+      ignoreResult = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (selectAllAiInterfacesInput.current) {
+      selectAllAiInterfacesInput.current.indeterminate = someAiInterfacesSelected;
+    }
+  }, [someAiInterfacesSelected]);
+
+  useEffect(() => {
+    let ignoreResult = false;
+
+    async function loadAiInterfaceStatus() {
+      setIsLoadingAiInterfaces(true);
+      setAiInterfaceError("");
+
+      try {
+        const response = await fetch(aiInterfacesUrl(), { cache: "no-store" });
+        const data = (await response.json()) as {
+          status?: AiInterfaceStatusIndex;
+          error?: string;
+        };
+        if (!response.ok || !data.status) {
+          throw new Error(data.error ?? "Unable to load AI interface access status.");
+        }
+
+        if (!ignoreResult) {
+          setAiInterfaceStatus(data.status);
+        }
+      } catch (error) {
+        if (!ignoreResult) {
+          setAiInterfaceStatus(null);
+          setAiInterfaceError(
+            error instanceof Error ? error.message : "Unable to load AI interface access status."
+          );
+        }
+      } finally {
+        if (!ignoreResult) {
+          setIsLoadingAiInterfaces(false);
+        }
+      }
+    }
+
+    void loadAiInterfaceStatus();
     return () => {
       ignoreResult = true;
     };
@@ -506,20 +584,64 @@ export function SettingsSection({
     }
   }
 
+  function toggleAiInterface(interfaceId: AiInterfaceId) {
+    if (aiInterfaceAction) {
+      return;
+    }
+
+    setSelectedAiInterfaces((currentInterfaces) =>
+      currentInterfaces.includes(interfaceId)
+        ? currentInterfaces.filter((currentInterface) => currentInterface !== interfaceId)
+        : [...currentInterfaces, interfaceId]
+    );
+    setAiInterfaceError("");
+  }
+
+  function toggleAllAiInterfaces() {
+    if (aiInterfaceAction) {
+      return;
+    }
+
+    setSelectedAiInterfaces(allAiInterfacesSelected ? [] : [...aiInterfaceIds]);
+    setAiInterfaceError("");
+  }
+
+  async function startAiInterfaceAction(action: "verify" | "setup") {
+    if (aiInterfaceAction || selectedAiInterfaces.length === 0) {
+      return;
+    }
+
+    setAiInterfaceAction(action);
+    setAiInterfaceError("");
+
+    try {
+      const response = await fetch(aiInterfacesUrl(), {
+        body: JSON.stringify({ action, interfaces: selectedAiInterfaces }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      });
+      const data = (await response.json()) as {
+        error?: string;
+        session?: { id: string };
+      };
+      if (!response.ok || !data.session) {
+        throw new Error(data.error ?? "Unable to start the AI interface setup session.");
+      }
+
+      router.push(aiInterfaceSetupSessionUrl(data.session.id, projectId));
+    } catch (error) {
+      setAiInterfaceError(
+        error instanceof Error ? error.message : "Unable to start the AI interface setup session."
+      );
+    } finally {
+      setAiInterfaceAction(null);
+    }
+  }
+
   return (
     <>
       <section aria-label="Settings" className="settings-section">
         <div aria-label="Settings sections" className="settings-tab-list" role="tablist">
-          <Link
-            aria-controls="pr-template-panel"
-            aria-selected={activeTab === "pr-templates"}
-            className={`settings-tab${activeTab === "pr-templates" ? " is-active" : ""}`}
-            href={settingsTabUrl("pr-templates", projectId)}
-            id="pr-template-tab"
-            role="tab"
-          >
-            PR templates
-          </Link>
           <Link
             aria-controls="ai-model-panel"
             aria-selected={activeTab === "ai-model"}
@@ -529,6 +651,26 @@ export function SettingsSection({
             role="tab"
           >
             AI model
+          </Link>
+          <Link
+            aria-controls="setup-ai-interface-panel"
+            aria-selected={activeTab === "setup-ai-interface"}
+            className={`settings-tab${activeTab === "setup-ai-interface" ? " is-active" : ""}`}
+            href={settingsTabUrl("setup-ai-interface", projectId)}
+            id="setup-ai-interface-tab"
+            role="tab"
+          >
+            Setup AI interface
+          </Link>
+          <Link
+            aria-controls="pr-template-panel"
+            aria-selected={activeTab === "pr-templates"}
+            className={`settings-tab${activeTab === "pr-templates" ? " is-active" : ""}`}
+            href={settingsTabUrl("pr-templates", projectId)}
+            id="pr-template-tab"
+            role="tab"
+          >
+            PR templates
           </Link>
         </div>
 
@@ -816,6 +958,109 @@ export function SettingsSection({
             )}
           </div>
         ) : null}
+
+        {activeTab === "setup-ai-interface" ? (
+          <div
+            aria-labelledby="setup-ai-interface-tab"
+            className="settings-tab-panel"
+            id="setup-ai-interface-panel"
+            role="tabpanel"
+          >
+            <div className="ai-interface-setup">
+              <div className="ai-interface-toolbar">
+                <label className="ai-interface-select-all">
+                  <input
+                    checked={allAiInterfacesSelected}
+                    disabled={Boolean(aiInterfaceAction)}
+                    onChange={toggleAllAiInterfaces}
+                    ref={selectAllAiInterfacesInput}
+                    type="checkbox"
+                  />
+                  <span>All</span>
+                </label>
+                <div className="ai-interface-actions">
+                  <button
+                    className="ai-interface-verify-button"
+                    disabled={
+                      isLoadingAiInterfaces ||
+                      Boolean(aiInterfaceAction) ||
+                      selectedAiInterfaces.length === 0
+                    }
+                    onClick={() => void startAiInterfaceAction("verify")}
+                    type="button"
+                  >
+                    <ShieldCheck aria-hidden="true" />
+                    <span>
+                      {aiInterfaceAction === "verify" ? "Opening..." : "Verify access"}
+                    </span>
+                  </button>
+                  <button
+                    className="ai-interface-setup-button"
+                    disabled={
+                      isLoadingAiInterfaces ||
+                      Boolean(aiInterfaceAction) ||
+                      selectedAiInterfaces.length === 0
+                    }
+                    onClick={() => void startAiInterfaceAction("setup")}
+                    type="button"
+                  >
+                    <Wrench aria-hidden="true" />
+                    <span>
+                      {aiInterfaceAction === "setup" ? "Opening..." : "Setup access"}
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <div className="ai-interface-list" role="group" aria-label="AI interfaces">
+                {aiInterfaceOptions.map((option) => {
+                  const access = aiInterfaceStatus?.interfaces[option.id];
+                  const isSelected = selectedAiInterfaces.includes(option.id);
+                  return (
+                    <label
+                      className={`ai-interface-row${isSelected ? " is-selected" : ""}`}
+                      key={option.id}
+                    >
+                      <input
+                        checked={isSelected}
+                        disabled={Boolean(aiInterfaceAction)}
+                        onChange={() => toggleAiInterface(option.id)}
+                        type="checkbox"
+                      />
+                      <span className="ai-interface-row-name">{option.label}</span>
+                      <span
+                        className={`ai-interface-status${
+                          access ? ` is-${access.status.replaceAll("_", "-")}` : ""
+                        }`}
+                      >
+                        {access?.status === "accessible" ? <CheckCircle2 aria-hidden="true" /> : null}
+                        {access ? formatAiInterfaceStatus(access.status) : "Loading"}
+                      </span>
+                      <span className="ai-interface-detail">
+                        {access?.detail ??
+                          (access?.checkedAt
+                            ? `Checked ${formatCheckedAt(access.checkedAt)}`
+                            : "Not checked")}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+
+              {aiInterfaceError ? (
+                <p className="create-project-error" role="alert">
+                  {aiInterfaceError}
+                </p>
+              ) : null}
+
+              {isLoadingAiInterfaces ? (
+                <div className="ai-interface-loading">
+                  <Bot aria-hidden="true" />
+                  <span>Loading AI interface access status...</span>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
       </section>
 
       {isImportDialogOpen ? (
@@ -887,6 +1132,32 @@ function prTemplatesUrl(): string {
 
 function aiModelsUrl(): string {
   return "/api/settings/ai-models";
+}
+
+function aiInterfacesUrl(): string {
+  return "/api/settings/ai-interfaces";
+}
+
+function formatAiInterfaceStatus(
+  status: AiInterfaceStatusIndex["interfaces"][AiInterfaceId]["status"]
+): string {
+  switch (status) {
+    case "accessible":
+      return "Accessible";
+    case "needs_setup":
+      return "Needs setup";
+    case "needs_user_action":
+      return "Needs action";
+    case "error":
+      return "Error";
+    case "unknown":
+      return "Not checked";
+  }
+}
+
+function formatCheckedAt(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Not checked" : `Checked ${date.toLocaleString()}`;
 }
 
 function formatReasoningEffort(effort: ReasoningEffort): string {

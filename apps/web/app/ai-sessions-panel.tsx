@@ -21,7 +21,7 @@ import {
   X
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AiSessionConfigurationFields } from "./ai-session-configuration-fields";
 import { TmuxTerminal } from "./tmux-terminal";
 
@@ -35,11 +35,19 @@ interface AiModelSettingsResponse {
   error?: string;
 }
 
-export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
+type SessionScope = "global" | "project";
+
+interface ScopedSession {
+  scope: SessionScope;
+  session: SessionRecord;
+}
+
+export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
   const searchParams = useSearchParams();
   const requestedSessionId = searchParams.get("session");
-  const [sessions, setSessions] = useState<SessionRecord[]>([]);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [globalSessions, setGlobalSessions] = useState<SessionRecord[]>([]);
+  const [projectSessions, setProjectSessions] = useState<SessionRecord[]>([]);
+  const [activeSessionKey, setActiveSessionKey] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isNewSessionDialogOpen, setIsNewSessionDialogOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -53,28 +61,30 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
   const [creationError, setCreationError] = useState("");
   const [sessionError, setSessionError] = useState("");
   const [isCreating, setIsCreating] = useState(false);
-  const [stoppingSessionId, setStoppingSessionId] = useState<string | null>(null);
-  const [openingTerminalSessionId, setOpeningTerminalSessionId] = useState<string | null>(null);
-  const [authenticatingSessionId, setAuthenticatingSessionId] = useState<string | null>(null);
-  const [authenticatedSessionId, setAuthenticatedSessionId] = useState<string | null>(null);
-  const [savingProjectContextSessionId, setSavingProjectContextSessionId] = useState<string | null>(null);
-  const [savedProjectContextSessionId, setSavedProjectContextSessionId] = useState<string | null>(null);
-  const [togglingReadOnlySessionId, setTogglingReadOnlySessionId] = useState<string | null>(
+  const [stoppingSessionKey, setStoppingSessionKey] = useState<string | null>(null);
+  const [openingTerminalSessionKey, setOpeningTerminalSessionKey] = useState<string | null>(
+    null
+  );
+  const [authenticatingSessionKey, setAuthenticatingSessionKey] = useState<string | null>(
+    null
+  );
+  const [authenticatedSessionKey, setAuthenticatedSessionKey] = useState<string | null>(null);
+  const [savingProjectContextSessionKey, setSavingProjectContextSessionKey] = useState<
+    string | null
+  >(null);
+  const [savedProjectContextSessionKey, setSavedProjectContextSessionKey] = useState<
+    string | null
+  >(null);
+  const [togglingReadOnlySessionKey, setTogglingReadOnlySessionKey] = useState<string | null>(
     null
   );
   const titleInput = useRef<HTMLInputElement>(null);
   const contextSaveResetTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const authenticationResetTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const activeSession = sessions.find((session) => session.id === activeSessionId) ?? null;
-  const activeSessionIsReadOnly = activeSession?.readOnly !== false;
-  const updateSession = useCallback((updatedSession: SessionRecord) => {
-    setSessions((currentSessions) =>
-      currentSessions.map((session) =>
-        session.id === updatedSession.id ? updatedSession : session
-      )
-    );
-  }, []);
+  const sessions = combineSessions(globalSessions, projectSessions);
+  const activeSession = sessions.find((session) => sessionKey(session) === activeSessionKey) ?? null;
+  const activeSessionIsReadOnly = activeSession?.session.readOnly !== false;
 
   useEffect(() => {
     let ignoreResult = false;
@@ -123,46 +133,53 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
       setIsLoading(true);
       setSessionError("");
 
-      try {
-        const response = await fetch(sessionCollectionUrl(project.project_id), {
-          cache: "no-store"
-        });
-        const data = (await response.json()) as SessionListResponse;
-        if (!response.ok) {
-          throw new Error(data.error ?? "Unable to load AI sessions.");
-        }
-
-        if (!ignoreResult) {
-          const loadedSessions = data.sessions ?? [];
-          setSessions(loadedSessions);
-          setActiveSessionId((currentSessionId) =>
-            loadedSessions.some((session) => session.id === requestedSessionId)
-              ? requestedSessionId
-              : loadedSessions.some((session) => session.id === currentSessionId)
-              ? currentSessionId
-              : (loadedSessions[0]?.id ?? null)
-          );
-        }
-      } catch (error) {
-        if (!ignoreResult) {
-          setSessions([]);
-          setActiveSessionId(null);
-          setSessionError(
-            error instanceof Error ? error.message : "Unable to load AI sessions."
-          );
-        }
-      } finally {
-        if (!ignoreResult) {
-          setIsLoading(false);
-        }
+      const results = await Promise.allSettled([
+        loadSessionCollection(globalSessionCollectionUrl()),
+        project ? loadSessionCollection(projectSessionCollectionUrl(project.project_id)) : []
+      ]);
+      if (ignoreResult) {
+        return;
       }
+
+      const loadedGlobalSessions =
+        results[0].status === "fulfilled" ? results[0].value : [];
+      const loadedProjectSessions =
+        results[1].status === "fulfilled" ? results[1].value : [];
+      const loadedSessions = combineSessions(loadedGlobalSessions, loadedProjectSessions);
+      const requestedSession = loadedSessions.find(
+        (session) => session.session.id === requestedSessionId
+      );
+
+      setGlobalSessions(loadedGlobalSessions);
+      setProjectSessions(loadedProjectSessions);
+      setActiveSessionKey((currentSessionKey) =>
+        requestedSession
+          ? sessionKey(requestedSession)
+          : loadedSessions.some((session) => sessionKey(session) === currentSessionKey)
+            ? currentSessionKey
+            : (loadedSessions[0] ? sessionKey(loadedSessions[0]) : null)
+      );
+
+      if (results.some((result) => result.status === "rejected")) {
+        setSessionError("Some AI sessions could not be loaded.");
+      }
+      setIsLoading(false);
     }
 
-    void loadSessions();
+    void loadSessions().catch((error: unknown) => {
+      if (!ignoreResult) {
+        setGlobalSessions([]);
+        setProjectSessions([]);
+        setActiveSessionKey(null);
+        setSessionError(error instanceof Error ? error.message : "Unable to load AI sessions.");
+        setIsLoading(false);
+      }
+    });
+
     return () => {
       ignoreResult = true;
     };
-  }, [project.project_id, requestedSessionId]);
+  }, [project?.project_id, requestedSessionId]);
 
   useEffect(() => {
     if (isNewSessionDialogOpen) {
@@ -214,9 +231,13 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
 
   async function createSession(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!project) {
+      setCreationError("Select a project before creating an AI session.");
+      return;
+    }
+
     const normalizedTitle = title.trim();
     const normalizedGoal = goal.trim();
-
     if (!normalizedTitle || !normalizedGoal) {
       setCreationError("Enter a title and goal.");
       return;
@@ -232,7 +253,7 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
     setCreationError("");
 
     try {
-      const response = await fetch(sessionCollectionUrl(project.project_id), {
+      const response = await fetch(projectSessionCollectionUrl(project.project_id), {
         body: JSON.stringify({
           goal: normalizedGoal,
           model: newSessionConfiguration.model,
@@ -250,8 +271,9 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
         throw new Error(data.error ?? "Unable to create the AI session.");
       }
 
-      setSessions((currentSessions) => [data.session as SessionRecord, ...currentSessions]);
-      setActiveSessionId(data.session.id);
+      const createdSession: ScopedSession = { scope: "project", session: data.session };
+      setProjectSessions((currentSessions) => [createdSession.session, ...currentSessions]);
+      setActiveSessionKey(sessionKey(createdSession));
       setIsNewSessionDialogOpen(false);
       setTitle("");
       setGoal("");
@@ -264,50 +286,55 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
     }
   }
 
-  async function stopSession(session: SessionRecord) {
-    if (stoppingSessionId) {
+  async function stopSession(scopedSession: ScopedSession) {
+    const key = sessionKey(scopedSession);
+    if (stoppingSessionKey) {
       return;
     }
 
-    setStoppingSessionId(session.id);
+    setStoppingSessionKey(key);
     setSessionError("");
 
     try {
-      const response = await fetch(sessionUrl(project.project_id, session.id), {
-        method: "DELETE"
-      });
+      const response = await fetch(sessionUrl(scopedSession, project), { method: "DELETE" });
       const data = (await response.json()) as { deleted?: boolean; error?: string };
       if (!response.ok || !data.deleted) {
         throw new Error(data.error ?? "Unable to terminate the AI session.");
       }
 
-      setSessions((currentSessions) =>
-        currentSessions.filter((currentSession) => currentSession.id !== session.id)
-      );
-      setActiveSessionId((currentSessionId) =>
-        currentSessionId === session.id
-          ? (sessions.find((currentSession) => currentSession.id !== session.id)?.id ?? null)
-          : currentSessionId
+      if (scopedSession.scope === "global") {
+        setGlobalSessions((currentSessions) =>
+          currentSessions.filter((session) => session.id !== scopedSession.session.id)
+        );
+      } else {
+        setProjectSessions((currentSessions) =>
+          currentSessions.filter((session) => session.id !== scopedSession.session.id)
+        );
+      }
+      const nextSession = sessions.find((session) => sessionKey(session) !== key) ?? null;
+      setActiveSessionKey((currentSessionKey) =>
+        currentSessionKey === key ? (nextSession ? sessionKey(nextSession) : null) : currentSessionKey
       );
     } catch (error) {
       setSessionError(
         error instanceof Error ? error.message : "Unable to terminate the AI session."
       );
     } finally {
-      setStoppingSessionId(null);
+      setStoppingSessionKey(null);
     }
   }
 
-  async function openInNativeTerminal(session: SessionRecord) {
-    if (openingTerminalSessionId) {
+  async function openInNativeTerminal(scopedSession: ScopedSession) {
+    const key = sessionKey(scopedSession);
+    if (openingTerminalSessionKey) {
       return;
     }
 
-    setOpeningTerminalSessionId(session.id);
+    setOpeningTerminalSessionKey(key);
     setSessionError("");
 
     try {
-      const response = await fetch(`${sessionUrl(project.project_id, session.id)}/open-terminal`, {
+      const response = await fetch(`${sessionUrl(scopedSession, project)}/open-terminal`, {
         method: "POST"
       });
       const data = (await response.json()) as { opened?: boolean; error?: string };
@@ -319,20 +346,21 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
         error instanceof Error ? error.message : "Unable to open macOS Terminal."
       );
     } finally {
-      setOpeningTerminalSessionId(null);
+      setOpeningTerminalSessionKey(null);
     }
   }
 
-  async function authenticateSession(session: SessionRecord) {
-    if (authenticatingSessionId) {
+  async function authenticateSession(scopedSession: ScopedSession) {
+    const key = sessionKey(scopedSession);
+    if (authenticatingSessionKey) {
       return;
     }
 
-    setAuthenticatingSessionId(session.id);
+    setAuthenticatingSessionKey(key);
     setSessionError("");
 
     try {
-      const response = await fetch(`${sessionUrl(project.project_id, session.id)}/authenticate`, {
+      const response = await fetch(`${sessionUrl(scopedSession, project)}/authenticate`, {
         method: "POST"
       });
       const data = (await response.json()) as { authenticated?: boolean; error?: string };
@@ -340,12 +368,12 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
         throw new Error(data.error ?? "Unable to complete authentication.");
       }
 
-      setAuthenticatedSessionId(session.id);
+      setAuthenticatedSessionKey(key);
       if (authenticationResetTimeout.current) {
         clearTimeout(authenticationResetTimeout.current);
       }
       authenticationResetTimeout.current = setTimeout(() => {
-        setAuthenticatedSessionId(null);
+        setAuthenticatedSessionKey(null);
         authenticationResetTimeout.current = null;
       }, 2_000);
     } catch (error) {
@@ -353,34 +381,34 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
         error instanceof Error ? error.message : "Unable to complete authentication."
       );
     } finally {
-      setAuthenticatingSessionId(null);
+      setAuthenticatingSessionKey(null);
     }
   }
 
-  async function saveProjectContext(session: SessionRecord) {
-    if (savingProjectContextSessionId) {
+  async function saveProjectContext(scopedSession: ScopedSession) {
+    if (scopedSession.scope !== "project" || savingProjectContextSessionKey) {
       return;
     }
 
-    setSavingProjectContextSessionId(session.id);
+    const key = sessionKey(scopedSession);
+    setSavingProjectContextSessionKey(key);
     setSessionError("");
 
     try {
-      const response = await fetch(
-        `${sessionUrl(project.project_id, session.id)}/save-project-context`,
-        { method: "POST" }
-      );
+      const response = await fetch(`${sessionUrl(scopedSession, project)}/save-project-context`, {
+        method: "POST"
+      });
       const data = (await response.json()) as { sent?: boolean; error?: string };
       if (!response.ok || !data.sent) {
         throw new Error(data.error ?? "Unable to send the project-context prompt.");
       }
 
-      setSavedProjectContextSessionId(session.id);
+      setSavedProjectContextSessionKey(key);
       if (contextSaveResetTimeout.current) {
         clearTimeout(contextSaveResetTimeout.current);
       }
       contextSaveResetTimeout.current = setTimeout(() => {
-        setSavedProjectContextSessionId(null);
+        setSavedProjectContextSessionKey(null);
         contextSaveResetTimeout.current = null;
       }, 2_000);
     } catch (error) {
@@ -388,21 +416,22 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
         error instanceof Error ? error.message : "Unable to send the project-context prompt."
       );
     } finally {
-      setSavingProjectContextSessionId(null);
+      setSavingProjectContextSessionKey(null);
     }
   }
 
-  async function toggleReadOnly(session: SessionRecord) {
-    if (togglingReadOnlySessionId) {
+  async function toggleReadOnly(scopedSession: ScopedSession) {
+    const key = sessionKey(scopedSession);
+    if (togglingReadOnlySessionKey) {
       return;
     }
 
-    const readOnly = session.readOnly === false;
-    setTogglingReadOnlySessionId(session.id);
+    const readOnly = scopedSession.session.readOnly === false;
+    setTogglingReadOnlySessionKey(key);
     setSessionError("");
 
     try {
-      const response = await fetch(`${sessionUrl(project.project_id, session.id)}/read-only`, {
+      const response = await fetch(`${sessionUrl(scopedSession, project)}/read-only`, {
         body: JSON.stringify({ readOnly }),
         headers: { "Content-Type": "application/json" },
         method: "POST"
@@ -412,13 +441,24 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
         throw new Error(data.error ?? "Unable to update the read-only mode.");
       }
 
-      updateSession(data.session);
+      updateSession(scopedSession.scope, data.session);
     } catch (error) {
       setSessionError(
         error instanceof Error ? error.message : "Unable to update the read-only mode."
       );
     } finally {
-      setTogglingReadOnlySessionId(null);
+      setTogglingReadOnlySessionKey(null);
+    }
+  }
+
+  function updateSession(scope: SessionScope, updatedSession: SessionRecord) {
+    const update = (sessions_: SessionRecord[]) =>
+      sessions_.map((session) => (session.id === updatedSession.id ? updatedSession : session));
+
+    if (scope === "global") {
+      setGlobalSessions(update);
+    } else {
+      setProjectSessions(update);
     }
   }
 
@@ -428,35 +468,40 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
         <div className="ai-sessions-toolbar">
           {sessions.length > 0 ? (
             <div aria-label="AI session tabs" className="ai-session-tab-list" role="tablist">
-              {sessions.map((session) => {
-                const isActive = session.id === activeSessionId;
-                const isStopping = stoppingSessionId === session.id;
+              {sessions.map((scopedSession) => {
+                const key = sessionKey(scopedSession);
+                const isActive = key === activeSessionKey;
+                const isStopping = stoppingSessionKey === key;
 
                 return (
                   <div
                     className={`ai-session-tab${isActive ? " is-active" : ""}`}
-                    key={session.id}
+                    key={key}
                   >
                     <button
                       aria-controls="active-ai-session"
                       aria-selected={isActive}
                       className="ai-session-tab-select"
-                      onClick={() => setActiveSessionId(session.id)}
+                      onClick={() => setActiveSessionKey(key)}
                       role="tab"
-                      title={session.title}
+                      title={
+                        scopedSession.scope === "global"
+                          ? `Global: ${scopedSession.session.title}`
+                          : scopedSession.session.title
+                      }
                       type="button"
                     >
                       <Circle
                         aria-hidden="true"
-                        className={session.status === "running" ? "is-running" : ""}
+                        className={scopedSession.session.status === "running" ? "is-running" : ""}
                       />
-                      <span>{session.title}</span>
+                      <span>{scopedSession.session.title}</span>
                     </button>
                     <button
-                      aria-label={`Terminate ${session.title}`}
+                      aria-label={`Terminate ${scopedSession.session.title}`}
                       className="ai-session-tab-close"
                       disabled={isStopping}
-                      onClick={() => void stopSession(session)}
+                      onClick={() => void stopSession(scopedSession)}
                       title="Terminate session"
                       type="button"
                     >
@@ -467,10 +512,12 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
               })}
             </div>
           ) : null}
-          <button className="add-session-button" onClick={openNewSessionDialog} type="button">
-            <Plus aria-hidden="true" />
-            <span>New session</span>
-          </button>
+          {project ? (
+            <button className="add-session-button" onClick={openNewSessionDialog} type="button">
+              <Plus aria-hidden="true" />
+              <span>New session</span>
+            </button>
+          ) : null}
         </div>
 
         {sessionError ? (
@@ -486,130 +533,139 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
             <Bot aria-hidden="true" />
             <div>
               <strong>No AI sessions</strong>
-              <span>Create a Codex session to begin work on this project.</span>
+              <span>
+                {project
+                  ? "Create a session or start interface setup from Settings."
+                  : "Start interface setup from Settings."}
+              </span>
             </div>
           </div>
-        ) : (
-          activeSession ? (
-            <section
-              aria-label={activeSession.title}
-              className="ai-session-workspace"
-              id="active-ai-session"
-              role="tabpanel"
-            >
-              <div className="ai-session-terminal">
-                <div className="ai-session-terminal-header">
-                  <div>
-                    <span className={activeSession.status === "running" ? "is-running" : ""} />
-                    <strong>Terminal</strong>
-                  </div>
-                  <div className="ai-session-terminal-actions">
-                    {activeSession.status === "starting" || activeSession.status === "running" ? (
-                      <>
+        ) : activeSession ? (
+          <section
+            aria-label={activeSession.session.title}
+            className="ai-session-workspace"
+            id="active-ai-session"
+            role="tabpanel"
+          >
+            <div className="ai-session-terminal">
+              <div className="ai-session-terminal-header">
+                <div>
+                  <span
+                    className={activeSession.session.status === "running" ? "is-running" : ""}
+                  />
+                  <strong>Terminal</strong>
+                </div>
+                <div className="ai-session-terminal-actions">
+                  {activeSession.session.status === "starting" ||
+                  activeSession.session.status === "running" ? (
+                    <>
+                      {activeSession.scope === "project" ? (
                         <button
-                          aria-label={`Save ${activeSession.title} context to the project`}
+                          aria-label={`Save ${activeSession.session.title} context to the project`}
                           className="session-icon-button"
-                          disabled={savingProjectContextSessionId === activeSession.id}
+                          disabled={savingProjectContextSessionKey === sessionKey(activeSession)}
                           onClick={() => void saveProjectContext(activeSession)}
                           title={
-                            savedProjectContextSessionId === activeSession.id
+                            savedProjectContextSessionKey === sessionKey(activeSession)
                               ? "Project-context prompt sent"
                               : "Save session context to project"
                           }
                           type="button"
                         >
-                          {savedProjectContextSessionId === activeSession.id ? (
+                          {savedProjectContextSessionKey === sessionKey(activeSession) ? (
                             <Check aria-hidden="true" />
                           ) : (
                             <Save aria-hidden="true" />
                           )}
                         </button>
+                      ) : null}
+                      <button
+                        aria-label={
+                          activeSessionIsReadOnly
+                            ? `Disable read-only for ${activeSession.session.title}`
+                            : `Enable read-only for ${activeSession.session.title}`
+                        }
+                        aria-pressed={activeSessionIsReadOnly}
+                        className={`session-icon-button${
+                          activeSessionIsReadOnly ? " is-active" : ""
+                        }`}
+                        disabled={togglingReadOnlySessionKey === sessionKey(activeSession)}
+                        onClick={() => void toggleReadOnly(activeSession)}
+                        title={
+                          activeSessionIsReadOnly
+                            ? "Read-only is on. Disable read-only"
+                            : "Read-only is off. Enable read-only"
+                        }
+                        type="button"
+                      >
+                        {activeSessionIsReadOnly ? (
+                          <Lock aria-hidden="true" />
+                        ) : (
+                          <Unlock aria-hidden="true" />
+                        )}
+                      </button>
+                      {supportsAuthentication(activeSession.session) ? (
                         <button
-                          aria-label={
-                            activeSessionIsReadOnly
-                              ? `Disable read-only for ${activeSession.title}`
-                              : `Enable read-only for ${activeSession.title}`
-                          }
-                          aria-pressed={activeSessionIsReadOnly}
-                          className={`session-icon-button${
-                            activeSessionIsReadOnly ? " is-active" : ""
-                          }`}
-                          disabled={togglingReadOnlySessionId === activeSession.id}
-                          onClick={() => void toggleReadOnly(activeSession)}
+                          aria-label={`Authenticate ${providerDisplayName(activeSession.session.providerId)}`}
+                          className="session-icon-button"
+                          disabled={authenticatingSessionKey === sessionKey(activeSession)}
+                          onClick={() => void authenticateSession(activeSession)}
                           title={
-                            activeSessionIsReadOnly
-                              ? "Read-only is on. Disable read-only"
-                              : "Read-only is off. Enable read-only"
+                            authenticatedSessionKey === sessionKey(activeSession)
+                              ? "Authentication complete"
+                              : authenticationTitle(activeSession.session.providerId)
                           }
                           type="button"
                         >
-                          {activeSessionIsReadOnly ? (
-                            <Lock aria-hidden="true" />
+                          {authenticatedSessionKey === sessionKey(activeSession) ? (
+                            <Check aria-hidden="true" />
                           ) : (
-                            <Unlock aria-hidden="true" />
+                            <KeyRound aria-hidden="true" />
                           )}
                         </button>
-                        {supportsAuthentication(activeSession) ? (
-                          <button
-                            aria-label={`Authenticate ${providerDisplayName(activeSession.providerId)}`}
-                            className="session-icon-button"
-                            disabled={authenticatingSessionId === activeSession.id}
-                            onClick={() => void authenticateSession(activeSession)}
-                            title={
-                              authenticatedSessionId === activeSession.id
-                                ? "Authentication complete"
-                                : authenticationTitle(activeSession.providerId)
-                            }
-                            type="button"
-                          >
-                            {authenticatedSessionId === activeSession.id ? (
-                              <Check aria-hidden="true" />
-                            ) : (
-                              <KeyRound aria-hidden="true" />
-                            )}
-                          </button>
-                        ) : null}
-                        <button
-                          aria-label={`Open ${activeSession.title} in macOS Terminal`}
-                          className="session-icon-button"
-                          disabled={openingTerminalSessionId === activeSession.id}
-                          onClick={() => void openInNativeTerminal(activeSession)}
-                          title="Open in macOS Terminal"
-                          type="button"
-                        >
-                          <TerminalSquare aria-hidden="true" />
-                        </button>
-                        <button
-                          aria-label={`Stop ${activeSession.title}`}
-                          className="session-icon-button is-danger"
-                          disabled={stoppingSessionId === activeSession.id}
-                          onClick={() => void stopSession(activeSession)}
-                          title="Stop session"
-                          type="button"
-                        >
-                          <Square aria-hidden="true" />
-                        </button>
-                      </>
-                    ) : null}
-                  </div>
+                      ) : null}
+                      <button
+                        aria-label={`Open ${activeSession.session.title} in macOS Terminal`}
+                        className="session-icon-button"
+                        disabled={openingTerminalSessionKey === sessionKey(activeSession)}
+                        onClick={() => void openInNativeTerminal(activeSession)}
+                        title="Open in macOS Terminal"
+                        type="button"
+                      >
+                        <TerminalSquare aria-hidden="true" />
+                      </button>
+                      <button
+                        aria-label={`Stop ${activeSession.session.title}`}
+                        className="session-icon-button is-danger"
+                        disabled={stoppingSessionKey === sessionKey(activeSession)}
+                        onClick={() => void stopSession(activeSession)}
+                        title="Stop session"
+                        type="button"
+                      >
+                        <Square aria-hidden="true" />
+                      </button>
+                    </>
+                  ) : null}
                 </div>
-                <TmuxTerminal
-                  key={`${project.project_id}:${activeSession.id}`}
-                  onSessionUpdated={updateSession}
-                  onTerminalError={setSessionError}
-                  projectId={project.project_id}
-                  session={activeSession}
-                />
               </div>
+              <TmuxTerminal
+                key={sessionKey(activeSession)}
+                onSessionUpdated={(updatedSession) =>
+                  updateSession(activeSession.scope, updatedSession)
+                }
+                onTerminalError={setSessionError}
+                session={activeSession.session}
+                sessionEndpoint={sessionUrl(activeSession, project)}
+              />
+            </div>
 
-              {activeSession.lastError ? (
-                <p className="create-project-error" role="alert">
-                  {activeSession.lastError}
-                </p>
-              ) : null}
-            </section>
-          ) : null
-        )}
+            {activeSession.session.lastError ? (
+              <p className="create-project-error" role="alert">
+                {activeSession.session.lastError}
+              </p>
+            ) : null}
+          </section>
+        ) : null}
       </section>
 
       {isNewSessionDialogOpen ? (
@@ -696,12 +752,49 @@ export function AiSessionsPanel({ project }: { project: ProjectRecord }) {
   );
 }
 
-function sessionCollectionUrl(projectId: string): string {
+function combineSessions(
+  globalSessions: SessionRecord[],
+  projectSessions: SessionRecord[]
+): ScopedSession[] {
+  return [
+    ...globalSessions.map((session) => ({ scope: "global" as const, session })),
+    ...projectSessions.map((session) => ({ scope: "project" as const, session }))
+  ];
+}
+
+function sessionKey(scopedSession: ScopedSession): string {
+  return `${scopedSession.scope}:${scopedSession.session.id}`;
+}
+
+async function loadSessionCollection(url: string): Promise<SessionRecord[]> {
+  const response = await fetch(url, { cache: "no-store" });
+  const data = (await response.json()) as SessionListResponse;
+  if (!response.ok) {
+    throw new Error(data.error ?? "Unable to load AI sessions.");
+  }
+
+  return data.sessions ?? [];
+}
+
+function projectSessionCollectionUrl(projectId: string): string {
   return `/api/projects/${encodeURIComponent(projectId)}/sessions`;
 }
 
-function sessionUrl(projectId: string, sessionId: string): string {
-  return `${sessionCollectionUrl(projectId)}/${encodeURIComponent(sessionId)}`;
+function globalSessionCollectionUrl(): string {
+  return "/api/settings/ai-interfaces/sessions";
+}
+
+function sessionUrl(scopedSession: ScopedSession, project?: ProjectRecord): string {
+  if (scopedSession.scope === "global") {
+    return `${globalSessionCollectionUrl()}/${encodeURIComponent(scopedSession.session.id)}`;
+  }
+  if (!project) {
+    throw new Error("A project is required for this AI session.");
+  }
+
+  return `${projectSessionCollectionUrl(project.project_id)}/${encodeURIComponent(
+    scopedSession.session.id
+  )}`;
 }
 
 function providerDisplayName(providerId: string): string {
@@ -717,7 +810,5 @@ function supportsAuthentication(session: SessionRecord): boolean {
 }
 
 function authenticationTitle(providerId: string): string {
-  return providerId === "codex"
-    ? "Authenticate Codex"
-    : "Authenticate Claude";
+  return providerId === "codex" ? "Authenticate Codex" : "Authenticate Claude";
 }

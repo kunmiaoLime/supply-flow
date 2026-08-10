@@ -1,6 +1,6 @@
-export const defaultSettingsTab = "pr-templates";
+export const defaultSettingsTab = "ai-model";
 
-export const settingsTabs = ["pr-templates", "ai-model"] as const;
+export const settingsTabs = ["ai-model", "setup-ai-interface", "pr-templates"] as const;
 
 export type SettingsTab = (typeof settingsTabs)[number];
 
@@ -37,4 +37,8 @@ export function workspaceTabUrl(
 
 export function settingsTabUrl(tab: SettingsTab, projectId?: string): string {
   return workspaceTabUrl(`/settings/${tab}`, projectId);
+}
+
+export function aiInterfaceSetupSessionUrl(sessionId: string, projectId?: string): string {
+  return workspaceTabUrl("/ai_sessions", projectId, sessionId);
 }
