@@ -38,6 +38,36 @@ npm run dev
 
 The web app starts at <http://localhost:3000>.
 
+## Production web app
+
+Build the web app, then start it on the default port:
+
+```sh
+npm run build
+scripts/start-web.sh
+scripts/stop-web.sh
+```
+
+Both scripts default to port `3004`; pass `--port` to use another port. The
+stop script also accepts `--all` to stop every Supply Flow web listener in
+this checkout, including development servers.
+
+npm command wrappers accept the same arguments:
+
+```sh
+npm run start:web -- --port 3004
+npm run stop:web -- --port 3004
+```
+
+`scripts/stop-web.sh` verifies that the listener belongs to Supply Flow's
+`apps/web` directory before sending it `SIGTERM`. It only stops the web
+server; it does not terminate any tmux-backed AI sessions.
+
+When the web app starts, it reconciles every project and global AI session
+index against tmux. Sessions recorded as `starting` or `running` whose tmux
+session no longer exists are persisted as `stopped`; active tmux sessions are
+left untouched.
+
 ## Runner commands
 
 ```sh

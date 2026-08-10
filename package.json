@@ -17,6 +17,8 @@
     "dev:runner": "npm run dev --workspace=@supply-flow/runner",
     "runner": "npm run start --workspace=@supply-flow/runner --",
     "runner:doctor": "npm run doctor --workspace=@supply-flow/runner",
+    "start:web": "bash scripts/start-web.sh",
+    "stop:web": "bash scripts/stop-web.sh",
     "test": "npm run test --workspace=@supply-flow/core",
     "typecheck": "npm run typecheck --workspaces --if-present"
   },
