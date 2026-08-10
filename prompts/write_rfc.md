@@ -23,16 +23,23 @@ directory, source documents, and source-reader instructions.
    content where evidence exists. Do not invent decisions, metrics, designs,
    or commitments. Mark uncertainty as `TBD`, state the missing decision, and
    link it to the source or sources that leave it unresolved.
-5. Add every source that materially informed the draft to Related Product
+5. For every API endpoint relevant to the selected repository scope, complete
+   the template's API Integration Contracts entry. Describe its logic, request
+   format, and every possible response format. Enumerate success and error
+   variants separately with status codes, conditions, schemas, field semantics,
+   and caller behavior. Include representative request and response examples
+   whenever a concrete format is applicable. Mark unsupported or unknown
+   formats as `TBD`; do not replace them with a generic failure scenario.
+6. Add every source that materially informed the draft to Related Product
    Documents or Appendix. Include links and concise labels.
-6. Choose a descriptive kebab-case filename based on the RFC title. Create
+7. Choose a descriptive kebab-case filename based on the RFC title. Create
    the draft as `<DRAFT_DIRECTORY>/<filename>.md`. Do not overwrite an
    existing RFC draft; add a numeric suffix when needed.
-7. Run the exact draft-registration command supplied in the initial goal,
+8. Run the exact draft-registration command supplied in the initial goal,
    replacing `<RFC_DRAFT_LINK>` with the new project-relative path. This is
    the only allowed project-metadata change.
-8. Do not modify repository code, project context, source documents, or
+9. Do not modify repository code, project context, source documents, or
    existing RFC drafts. Do not create a Confluence page in this session.
-9. After writing the draft, verify the file exists, summarize the important
+10. After writing the draft, verify the file exists, summarize the important
    `TBD` items, and tell the user the exact draft path. The user reviews it
    locally and starts the separate Convert to RFC flow after approval.

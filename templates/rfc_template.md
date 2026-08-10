@@ -62,6 +62,51 @@ Scope: <Scope>
 <Describe the proposed design. Include diagrams, flows, API endpoints, data
 models, failure scenarios, and impacts as needed.>
 
+#### API Integration Contracts
+
+<Include this subsection whenever the proposal adds, changes, or depends on
+an API. For every endpoint, document all applicable items below. If no API
+contract is relevant, state why.>
+
+##### `<METHOD> <PATH>`
+
+**Purpose and logic**
+
+<Describe when the endpoint is called, its authorization and business logic,
+side effects, idempotency and retry behavior, and the caller behavior for each
+outcome.>
+
+**Request**
+
+<Document path parameters, query parameters, headers, authentication, and
+request body. Define field names, types, required or optional status, allowed
+values, defaults, and validation rules. Include a representative request
+example when applicable.>
+
+```http
+<METHOD> <PATH>
+Content-Type: application/json
+
+{ ... }
+```
+
+**Responses**
+
+<Define every possible response format, including each success variant and
+each error variant. For every variant, include the status code, conditions,
+response schema, field semantics, and caller behavior. Include a representative
+response example when applicable.>
+
+| Status | When returned | Format and caller behavior |
+| --- | --- | --- |
+| `2xx` | <Condition> | <Schema and behavior> |
+| `4xx` | <Condition> | <Error schema and behavior> |
+| `5xx` | <Condition> | <Error schema and behavior> |
+
+```json
+{ ... }
+```
+
 ### Alternative Options Considered
 
 <For complex designs, compare alternatives with their pros and cons, then
