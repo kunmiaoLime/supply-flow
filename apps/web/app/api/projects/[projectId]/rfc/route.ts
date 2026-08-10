@@ -1,6 +1,10 @@
 import path from "node:path";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
 import {
+  FileRfcTemplateStore,
+  RfcTemplateError
+} from "@supply-flow/core/file-rfc-template-store";
+import {
   isProjectLocalDocumentType,
   type DocumentSourceType,
   type ProjectRecord,
@@ -19,7 +23,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const rfcPromptPath = path.join(projectRoot, "prompts", "write_rfc.md");
-const rfcTemplatePath = path.join(projectRoot, "templates", "rfc_template.md");
+const defaultRfcTemplatePath = path.join(projectRoot, "templates", "rfc_template.md");
 const rfcDraftTrackerPath = path.join(
   projectRoot,
   "apps",
@@ -83,10 +87,14 @@ export async function POST(request: Request, context: ProjectRouteContext) {
     }
 
     const projectPath = projectDirectory(project.project_id);
+    const rfcTemplate = await new FileRfcTemplateStore(
+      dataDirectory,
+      defaultRfcTemplatePath
+    ).get();
     const session = await createProjectSession(project, {
       action: "write-rfc",
       title: "Write RFC draft",
-      goal: buildRfcGoal(project, selectedRepositories),
+      goal: buildRfcGoal(project, selectedRepositories, rfcTemplate.path),
       workspacePath: workspaceRepository.local,
       additionalWritableDirectories: [
         projectPath,
@@ -97,7 +105,7 @@ export async function POST(request: Request, context: ProjectRouteContext) {
 
     return NextResponse.json({ session }, { status: 201 });
   } catch (error) {
-    if (error instanceof ProjectSessionError) {
+    if (error instanceof ProjectSessionError || error instanceof RfcTemplateError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
 
@@ -141,7 +149,8 @@ async function parseRfcSessionInput(request: Request): Promise<RfcSessionInput |
 
 function buildRfcGoal(
   project: ProjectRecord,
-  selectedRepositories: readonly ProjectRepository[]
+  selectedRepositories: readonly ProjectRepository[],
+  rfcTemplatePath: string
 ): string {
   const projectPath = projectDirectory(project.project_id);
   const documents = project.documents

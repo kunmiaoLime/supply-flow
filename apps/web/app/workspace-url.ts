@@ -1,6 +1,11 @@
 export const defaultSettingsTab = "ai-model";
 
-export const settingsTabs = ["ai-model", "setup-ai-interface", "pr-templates"] as const;
+export const settingsTabs = [
+  "ai-model",
+  "setup-ai-interface",
+  "pr-templates",
+  "rfc-template"
+] as const;
 
 export type SettingsTab = (typeof settingsTabs)[number];
 

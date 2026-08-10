@@ -24,6 +24,7 @@ import {
   type AiInterfaceStatusIndex
 } from "@supply-flow/core/ai-interface";
 import type { PullRequestTemplate } from "@supply-flow/core/file-pull-request-template-store";
+import type { RfcTemplate } from "@supply-flow/core/file-rfc-template-store";
 import { Bot, CheckCircle2, FileDown, FileText, Save, ShieldCheck, Wrench } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
@@ -52,6 +53,11 @@ export function SettingsSection({
   const [pullRequestUrl, setPullRequestUrl] = useState("");
   const [listError, setListError] = useState("");
   const [dialogError, setDialogError] = useState("");
+  const [rfcTemplate, setRfcTemplate] = useState<RfcTemplate | null>(null);
+  const [rfcTemplateContent, setRfcTemplateContent] = useState("");
+  const [isLoadingRfcTemplate, setIsLoadingRfcTemplate] = useState(false);
+  const [isSavingRfcTemplate, setIsSavingRfcTemplate] = useState(false);
+  const [rfcTemplateError, setRfcTemplateError] = useState("");
   const [aiModelSettings, setAiModelSettings] = useState<AiModelSettings | null>(null);
   const [savedAiModelSettings, setSavedAiModelSettings] = useState<AiModelSettings | null>(
     null
@@ -76,6 +82,8 @@ export function SettingsSection({
   const selectedTemplate =
     templates.find((template) => template.repository === selectedRepository) ?? null;
   const isDirty = selectedTemplate !== null && editorContent !== selectedTemplate.content;
+  const isRfcTemplateDirty =
+    rfcTemplate !== null && rfcTemplateContent !== rfcTemplate.content;
   const isAiModelSettingsDirty =
     aiModelSettings !== null &&
     savedAiModelSettings !== null &&
@@ -124,6 +132,52 @@ export function SettingsSection({
       ignoreResult = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== "rfc-template") {
+      return;
+    }
+
+    let ignoreResult = false;
+
+    async function loadRfcTemplate() {
+      setIsLoadingRfcTemplate(true);
+      setRfcTemplateError("");
+
+      try {
+        const response = await fetch(rfcTemplateUrl(), { cache: "no-store" });
+        const data = (await response.json()) as {
+          template?: RfcTemplate;
+          error?: string;
+        };
+        if (!response.ok || !data.template) {
+          throw new Error(data.error ?? "Unable to load the RFC template.");
+        }
+
+        if (!ignoreResult) {
+          setRfcTemplate(data.template);
+          setRfcTemplateContent(data.template.content);
+        }
+      } catch (error) {
+        if (!ignoreResult) {
+          setRfcTemplate(null);
+          setRfcTemplateContent("");
+          setRfcTemplateError(
+            error instanceof Error ? error.message : "Unable to load the RFC template."
+          );
+        }
+      } finally {
+        if (!ignoreResult) {
+          setIsLoadingRfcTemplate(false);
+        }
+      }
+    }
+
+    void loadRfcTemplate();
+    return () => {
+      ignoreResult = true;
+    };
+  }, [activeTab]);
 
   useEffect(() => {
     if (selectAllAiInterfacesInput.current) {
@@ -362,6 +416,48 @@ export function SettingsSection({
       setListError(error instanceof Error ? error.message : "Unable to save the PR template.");
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function saveRfcTemplate() {
+    if (
+      !rfcTemplate ||
+      !isRfcTemplateDirty ||
+      isLoadingRfcTemplate ||
+      isSavingRfcTemplate
+    ) {
+      return;
+    }
+    if (!rfcTemplateContent.trim()) {
+      setRfcTemplateError("An RFC template cannot be empty.");
+      return;
+    }
+
+    setIsSavingRfcTemplate(true);
+    setRfcTemplateError("");
+
+    try {
+      const response = await fetch(rfcTemplateUrl(), {
+        body: JSON.stringify({ content: rfcTemplateContent }),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH"
+      });
+      const data = (await response.json()) as {
+        template?: RfcTemplate;
+        error?: string;
+      };
+      if (!response.ok || !data.template) {
+        throw new Error(data.error ?? "Unable to save the RFC template.");
+      }
+
+      setRfcTemplate(data.template);
+      setRfcTemplateContent(data.template.content);
+    } catch (error) {
+      setRfcTemplateError(
+        error instanceof Error ? error.message : "Unable to save the RFC template."
+      );
+    } finally {
+      setIsSavingRfcTemplate(false);
     }
   }
 
@@ -672,6 +768,16 @@ export function SettingsSection({
           >
             PR templates
           </Link>
+          <Link
+            aria-controls="rfc-template-panel"
+            aria-selected={activeTab === "rfc-template"}
+            className={`settings-tab${activeTab === "rfc-template" ? " is-active" : ""}`}
+            href={settingsTabUrl("rfc-template", projectId)}
+            id="rfc-template-tab"
+            role="tab"
+          >
+            RFC template
+          </Link>
         </div>
 
         {activeTab === "pr-templates" ? (
@@ -756,6 +862,63 @@ export function SettingsSection({
               <div className="pr-template-empty-state">
                 <FileText aria-hidden="true" />
                 <span>Select a repository template to edit it.</span>
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {activeTab === "rfc-template" ? (
+          <div
+            aria-labelledby="rfc-template-tab"
+            className="settings-tab-panel"
+            id="rfc-template-panel"
+            role="tabpanel"
+          >
+            {rfcTemplateError ? (
+              <p className="create-project-error" role="alert">
+                {rfcTemplateError}
+              </p>
+            ) : null}
+
+            {isLoadingRfcTemplate ? (
+              <div className="pr-template-empty-state">
+                <FileText aria-hidden="true" />
+                <span>Loading RFC template...</span>
+              </div>
+            ) : rfcTemplate ? (
+              <div className="pr-template-editor">
+                <div className="pr-template-editor-heading">
+                  <strong>RFC template</strong>
+                  <span>{rfcTemplateContent.length.toLocaleString()} characters</span>
+                </div>
+                <textarea
+                  aria-label="RFC template"
+                  disabled={isSavingRfcTemplate}
+                  maxLength={MAX_TEMPLATE_LENGTH}
+                  onChange={(event) => setRfcTemplateContent(event.target.value)}
+                  spellCheck={false}
+                  value={rfcTemplateContent}
+                />
+                <div className="pr-template-editor-actions">
+                  <button
+                    className="save-pr-template-button"
+                    disabled={
+                      isSavingRfcTemplate ||
+                      !isRfcTemplateDirty ||
+                      !rfcTemplateContent.trim()
+                    }
+                    onClick={() => void saveRfcTemplate()}
+                    type="button"
+                  >
+                    <Save aria-hidden="true" />
+                    <span>{isSavingRfcTemplate ? "Saving..." : "Save template"}</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="pr-template-empty-state">
+                <FileText aria-hidden="true" />
+                <span>RFC template is unavailable.</span>
               </div>
             )}
           </div>
@@ -1128,6 +1291,10 @@ export function SettingsSection({
 
 function prTemplatesUrl(): string {
   return "/api/settings/pr-templates";
+}
+
+function rfcTemplateUrl(): string {
+  return "/api/settings/rfc-template";
 }
 
 function aiModelsUrl(): string {
