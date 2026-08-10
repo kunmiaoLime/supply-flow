@@ -116,6 +116,22 @@ explain why the proposed solution is preferred.>
 
 <High-level rollout plan or experiment design.>
 
+### Implementation Plan
+
+<Break the approved design into implementation-ready work for the selected
+repository scopes. Cover all applicable modules, such as data migrations,
+feature flags and configuration, APIs, clients, background jobs, testing,
+observability, and rollout tooling. Each task must describe a concrete change,
+its dependencies or sequencing, and its acceptance criteria. Use `TBD` for an
+unknown estimate or dependency; do not invent either.>
+
+| Module | Task | Implementation details and acceptance criteria | Dependencies / sequence | Estimated effort (eng days) |
+| --- | --- | --- | --- | --- |
+| <Module> | <Concrete change> | <Implementation details and acceptance criteria> | <Dependencies or sequence> | <Estimate or TBD> |
+
+<Add rows until the plan covers every design change. Include a total estimate
+only when every applicable task has a supported estimate.>
+
 ### Experiment Exposure
 
 <Where the experiment assignment takes place and whether mobile changes are

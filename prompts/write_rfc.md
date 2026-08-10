@@ -30,16 +30,22 @@ directory, source documents, and source-reader instructions.
    and caller behavior. Include representative request and response examples
    whenever a concrete format is applicable. Mark unsupported or unknown
    formats as `TBD`; do not replace them with a generic failure scenario.
-6. Add every source that materially informed the draft to Related Product
+6. Complete the template's Implementation Plan with a module-by-module
+   breakdown of every change required by the RFC for the selected repository
+   scopes. Make every task concrete and implementation-ready, identify its
+   dependencies or sequence and acceptance criteria, and include an estimated
+   engineering effort when the sources support one. Use `TBD` for unknown
+   estimates or dependencies; do not invent them.
+7. Add every source that materially informed the draft to Related Product
    Documents or Appendix. Include links and concise labels.
-7. Choose a descriptive kebab-case filename based on the RFC title. Create
+8. Choose a descriptive kebab-case filename based on the RFC title. Create
    the draft as `<DRAFT_DIRECTORY>/<filename>.md`. Do not overwrite an
    existing RFC draft; add a numeric suffix when needed.
-8. Run the exact draft-registration command supplied in the initial goal,
+9. Run the exact draft-registration command supplied in the initial goal,
    replacing `<RFC_DRAFT_LINK>` with the new project-relative path. This is
    the only allowed project-metadata change.
-9. Do not modify repository code, project context, source documents, or
+10. Do not modify repository code, project context, source documents, or
    existing RFC drafts. Do not create a Confluence page in this session.
-10. After writing the draft, verify the file exists, summarize the important
+11. After writing the draft, verify the file exists, summarize the important
    `TBD` items, and tell the user the exact draft path. The user reviews it
    locally and starts the separate Convert to RFC flow after approval.
