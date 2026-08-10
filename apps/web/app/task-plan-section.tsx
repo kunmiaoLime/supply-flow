@@ -1,15 +1,26 @@
 "use client";
 
-import type { ProjectRecord, ProjectTask } from "@supply-flow/core/project";
+import type { DocumentSource, ProjectRecord, ProjectTask } from "@supply-flow/core/project";
 import type { SessionRecord } from "@supply-flow/core/session";
-import { Check, Copy, ExternalLink, ListPlus, ListTodo, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  Check,
+  Copy,
+  ExternalLink,
+  ListPlus,
+  ListTodo,
+  Pencil,
+  Plus,
+  Trash2,
+  WandSparkles
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { workspaceTabUrl } from "./workspace-url";
 
-type TaskDialogMode = "add" | "edit" | "track" | null;
+type TaskDialogMode = "add" | "edit" | "from-plan" | "track" | null;
 
 interface TaskForm {
+  document_index: string;
   title: string;
   jira_ticket: string;
   parent_ticket: string;
@@ -17,6 +28,7 @@ interface TaskForm {
 }
 
 const emptyTaskForm: TaskForm = {
+  document_index: "",
   title: "",
   jira_ticket: "",
   parent_ticket: "",
@@ -39,6 +51,7 @@ export function TaskPlanSection({
   const [listError, setListError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [copiedTicketUrl, setCopiedTicketUrl] = useState<string | null>(null);
+  const taskDocumentInput = useRef<HTMLSelectElement>(null);
   const taskTitleInput = useRef<HTMLInputElement>(null);
   const taskTicketInput = useRef<HTMLInputElement>(null);
   const copyResetTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -59,7 +72,13 @@ export function TaskPlanSection({
 
   useEffect(() => {
     if (dialogMode) {
-      (dialogMode === "track" ? taskTicketInput : taskTitleInput).current?.focus();
+      (
+        dialogMode === "track"
+          ? taskTicketInput
+          : dialogMode === "from-plan"
+            ? taskDocumentInput
+            : taskTitleInput
+      ).current?.focus();
     }
   }, [dialogMode]);
 
@@ -90,6 +109,16 @@ export function TaskPlanSection({
     setEditingTaskIndex(null);
     setDialogError("");
     setDialogMode("track");
+  }
+
+  function openCreateFromPlanDialog() {
+    setTaskForm({
+      ...emptyTaskForm,
+      document_index: project.documents.length > 0 ? "0" : ""
+    });
+    setEditingTaskIndex(null);
+    setDialogError("");
+    setDialogMode("from-plan");
   }
 
   function openEditDialog(index: number) {
@@ -138,6 +167,10 @@ export function TaskPlanSection({
     }
     if (dialogMode === "track") {
       await trackTask();
+      return;
+    }
+    if (dialogMode === "from-plan") {
+      await startTasksFromPlanSession();
       return;
     }
 
@@ -249,6 +282,46 @@ export function TaskPlanSection({
     }
   }
 
+  async function startTasksFromPlanSession() {
+    const documentIndex = Number.parseInt(taskForm.document_index, 10);
+    const document = project.documents[documentIndex];
+    const parentTicket = taskForm.parent_ticket.trim();
+    if (!document || !parentTicket) {
+      setDialogError("Select a document and enter a parent ticket link.");
+      return;
+    }
+
+    setIsSaving(true);
+    setDialogError("");
+    setListError("");
+
+    try {
+      const response = await fetch(taskFromPlanSessionUrl(project.project_id), {
+        body: JSON.stringify({
+          documentLink: document.link,
+          documentType: document.type,
+          parentTicket
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      });
+      const data = (await response.json()) as { session?: SessionRecord; error?: string };
+      if (!response.ok || !data.session) {
+        throw new Error(data.error ?? "Unable to start the implementation-plan task session.");
+      }
+
+      router.push(workspaceTabUrl("/ai_sessions", project.project_id, data.session.id));
+    } catch (error) {
+      setDialogError(
+        error instanceof Error
+          ? error.message
+          : "Unable to start the implementation-plan task session."
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   async function removeTask(index: number) {
     if (isSaving || !tasks[index]) {
       return;
@@ -301,6 +374,21 @@ export function TaskPlanSection({
             >
               <ListPlus aria-hidden="true" />
               <span>Import task</span>
+            </button>
+            <button
+              aria-label="Create Jira tasks from an implementation plan"
+              className="track-task-button"
+              disabled={isSaving || project.documents.length === 0}
+              onClick={openCreateFromPlanDialog}
+              title={
+                project.documents.length === 0
+                  ? "Add a document with an implementation plan first"
+                  : "Create Jira tasks from an implementation plan"
+              }
+              type="button"
+            >
+              <WandSparkles aria-hidden="true" />
+              <span>Create from plan</span>
             </button>
             <button
               className="add-task-button"
@@ -406,11 +494,13 @@ export function TaskPlanSection({
                 ? "New task"
                 : dialogMode === "track"
                   ? "Import task"
-                  : "Edit task"}
+                  : dialogMode === "from-plan"
+                    ? "Create tasks from plan"
+                    : "Edit task"}
             </h2>
             <form onSubmit={saveTask}>
               <div className="task-form-fields">
-                {dialogMode !== "track" ? (
+                {dialogMode === "add" || dialogMode === "edit" ? (
                   <label htmlFor="task-title">
                     <span>Task title</span>
                     <input
@@ -464,6 +554,53 @@ export function TaskPlanSection({
                       />
                     </label>
                   </>
+                ) : dialogMode === "from-plan" ? (
+                  <>
+                    <label htmlFor="task-plan-document">
+                      <span>Document with implementation plan</span>
+                      <select
+                        id="task-plan-document"
+                        onChange={(event) =>
+                          setTaskForm((current) => ({
+                            ...current,
+                            document_index: event.target.value
+                          }))
+                        }
+                        ref={taskDocumentInput}
+                        required
+                        value={taskForm.document_index}
+                      >
+                        {project.documents.map((document, index) => (
+                          <option
+                            key={`${document.type}-${document.link}-${index}`}
+                            value={String(index)}
+                          >
+                            {documentLabel(document)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label htmlFor="task-plan-parent-ticket">
+                      <span>Parent ticket link</span>
+                      <input
+                        autoCapitalize="none"
+                        autoComplete="off"
+                        id="task-plan-parent-ticket"
+                        maxLength={2_048}
+                        onChange={(event) =>
+                          setTaskForm((current) => ({
+                            ...current,
+                            parent_ticket: event.target.value
+                          }))
+                        }
+                        placeholder="https://.../browse/PROJECT-123"
+                        required
+                        spellCheck={false}
+                        type="url"
+                        value={taskForm.parent_ticket}
+                      />
+                    </label>
+                  </>
                 ) : (
                   <label htmlFor="task-jira-ticket">
                     <span>Jira ticket link</span>
@@ -510,12 +647,16 @@ export function TaskPlanSection({
                         ? "Starting..."
                         : dialogMode === "track"
                           ? "Importing..."
-                        : "Saving..."
+                          : dialogMode === "from-plan"
+                            ? "Starting..."
+                          : "Saving..."
                       : dialogMode === "add"
                         ? "Start session"
                         : dialogMode === "track"
                           ? "Import task"
-                        : "Save task"}
+                          : dialogMode === "from-plan"
+                            ? "Start session"
+                          : "Save task"}
                   </span>
                 </button>
               </div>
@@ -533,4 +674,25 @@ function taskSessionUrl(projectId: string): string {
 
 function trackTaskUrl(projectId: string): string {
   return `/api/projects/${encodeURIComponent(projectId)}/tasks/track`;
+}
+
+function taskFromPlanSessionUrl(projectId: string): string {
+  return `/api/projects/${encodeURIComponent(projectId)}/tasks/from-plan`;
+}
+
+function documentLabel(document: DocumentSource): string {
+  return `${documentTypeLabel(document.type)}: ${document.title ?? document.link}`;
+}
+
+function documentTypeLabel(type: DocumentSource["type"]): string {
+  const labels: Record<DocumentSource["type"], string> = {
+    "google-doc": "Google Doc",
+    confluence: "Confluence",
+    figma: "Figma",
+    slack: "Slack",
+    markdown: "Markdown",
+    "rfc-draft": "RFC draft"
+  };
+
+  return labels[type];
 }

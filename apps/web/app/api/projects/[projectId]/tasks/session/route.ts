@@ -1,5 +1,7 @@
 import path from "node:path";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
+import { sendAiSessionPrompt } from "@supply-flow/core/session-prompt";
+import { TmuxAdapter } from "@supply-flow/core/tmux";
 import type { ProjectRecord } from "@supply-flow/core/project";
 import { NextResponse } from "next/server";
 import {
@@ -8,11 +10,13 @@ import {
   projectDirectory,
   ProjectSessionError
 } from "../../sessions/session-service";
+import { findOpenTaskCreationSession } from "../task-creation-session";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const MAX_TASK_GOAL_LENGTH = 12_000;
+const tmux = new TmuxAdapter();
 
 interface ProjectRouteContext {
   params: Promise<{ projectId: string }>;
@@ -44,13 +48,24 @@ export async function POST(request: Request, context: ProjectRouteContext) {
       return NextResponse.json({ error: `Unknown project "${projectId}".` }, { status: 404 });
     }
 
+    const goal = buildTaskCreationGoal(project, input);
+    const existingSession = await findOpenTaskCreationSession(project.project_id, tmux);
+    if (existingSession) {
+      await sendAiSessionPrompt(
+        tmux,
+        existingSession.tmuxSessionName,
+        `Start this additional Jira task-creation request now.\n\n${goal}`
+      );
+      return NextResponse.json({ reusedSession: true, session: existingSession }, { status: 202 });
+    }
+
     const session = await createProjectSession(project, {
       action: "create-task",
       title: input.title,
-      goal: buildTaskCreationGoal(project, input),
+      goal,
       additionalWritableDirectories: [projectDirectory(project.project_id)]
     });
-    return NextResponse.json({ session }, { status: 201 });
+    return NextResponse.json({ reusedSession: false, session }, { status: 201 });
   } catch (error) {
     if (error instanceof ProjectSessionError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
