@@ -210,3 +210,36 @@ privacy reviewers when applicable.>
 ## Review Notes
 
 <Review discussion, decisions, and action items.>
+
+### Gaps
+
+<List every current entry from the project's structured context-gap analysis.
+For each gap, preserve its ID, severity, title, description, impact, open
+questions, and source references. State `No open gaps.` only when the
+structured analysis exists and its gaps array is empty. State that the analysis
+is unavailable when it cannot be read; do not invent gaps.>
+
+#### `<gap-id>: <gap title>`
+
+- **Severity:** <blocking, high, medium, or low>
+- **Description:** <What is missing or ambiguous>
+- **Impact:** <Why it blocks or risks implementation>
+- **Open questions:** <Questions requiring clarification>
+- **Sources:** <Source reference and supporting detail for each source>
+
+### Conflicts
+
+<List every current entry from the project's structured context-conflict
+analysis. For each conflict, preserve its ID, severity, title, description,
+impact, source references, and resolution options. State `No open conflicts.`
+only when the structured analysis exists and its conflicts array is empty.
+State that the analysis is unavailable when it cannot be read; do not invent
+conflicts.>
+
+#### `<conflict-id>: <conflict title>`
+
+- **Severity:** <blocking, high, medium, or low>
+- **Description:** <The incompatible requirements or evidence>
+- **Impact:** <Why the conflict matters>
+- **Sources:** <Source reference and supporting detail for each source>
+- **Resolution options:** <Concrete decisions or changes needed>

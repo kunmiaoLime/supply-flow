@@ -262,6 +262,9 @@ function buildUpdateRfcGoal(
 
 Read and follow the update workflow at ${updateRfcPromptPath}.
 RFC draft: ${JSON.stringify(draftPath)}
+Project context analysis:
+- Gaps: ${path.join(projectPath, "context_gap.json")}
+- Conflicts: ${path.join(projectPath, "context_conflicts.json")}
 
 Selected repository scopes:
 ${repositoryScopes}

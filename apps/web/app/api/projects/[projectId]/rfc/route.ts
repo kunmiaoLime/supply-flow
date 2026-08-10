@@ -182,6 +182,13 @@ function buildRfcGoal(
 Read and follow the RFC workflow at ${rfcPromptPath} before beginning.
 Use the Markdown template at ${rfcTemplatePath}.
 Create the local draft under ${path.join(projectPath, "rfcs")}.
+Project context analysis:
+- Gaps: ${path.join(projectPath, "context_gap.json")}
+- Conflicts: ${path.join(projectPath, "context_conflicts.json")}
+
+Read both structured analysis files when present. They are reference material
+and the source of truth for Review Notes; do not modify them.
+
 After writing the draft, run this exact command with <RFC_DRAFT_LINK> replaced by its project-relative path, for example "rfcs/validated-test-ride.md":
 ${buildRfcDraftRegistrationCommand(projectPath, selectedRepositories)}
 
