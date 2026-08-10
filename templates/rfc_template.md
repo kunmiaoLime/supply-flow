@@ -116,6 +116,16 @@ explain why the proposed solution is preferred.>
 
 <High-level rollout plan or experiment design.>
 
+### Feature Flags
+
+<List every feature flag or runtime configuration used to stage, target,
+measure, or roll back this rollout. State `Not required` and explain why when
+the change does not need a feature flag.>
+
+| Level | Flag name / configuration | Default state | Targeting and rollout | Rollback |
+| --- | --- | --- | --- | --- |
+| <Bootstrap, global, region, user, client version, or other level> | <Name> | <Enabled or disabled> | <Who is enabled and in what sequence> | <How to disable or revert> |
+
 ### Implementation Plan
 
 <Break the approved design into implementation-ready work for the selected
