@@ -15,10 +15,17 @@ export const DocumentSourceTypeSchema = z.enum([
   "confluence",
   "figma",
   "slack",
-  "markdown"
+  "markdown",
+  "rfc-draft"
 ]);
 
 export const DocumentTitleSchema = z.string().trim().min(1).max(240);
+const ProjectSessionIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(255)
+  .regex(/^[A-Za-z0-9_-]+$/, "RFC draft session ids must be safe path segments.");
 export const ProjectMarkdownPathSchema = z
   .string()
   .trim()
@@ -27,6 +34,18 @@ export const ProjectMarkdownPathSchema = z
     /^markdowns\/[^/\\\0]+\.md$/i,
     "Markdown documents must be stored beneath the project markdowns directory."
   );
+export const ProjectRfcDraftPathSchema = z
+  .string()
+  .trim()
+  .max(1_024)
+  .regex(
+    /^rfcs\/[^/\\\0]+\.md$/i,
+    "RFC drafts must be stored beneath the project rfcs directory."
+  );
+export const ProjectLocalDocumentPathSchema = z.union([
+  ProjectMarkdownPathSchema,
+  ProjectRfcDraftPathSchema
+]);
 
 const ExternalDocumentLinkSchema = z.string().trim().url().max(2_048);
 
@@ -34,11 +53,17 @@ export const DocumentSourceSchema = z
   .object({
     type: DocumentSourceTypeSchema,
     link: z.string().trim().min(1).max(2_048),
-    title: DocumentTitleSchema.nullable().optional()
+    title: DocumentTitleSchema.nullable().optional(),
+    rfc_session_id: ProjectSessionIdSchema.optional(),
+    repository_locals: z.array(ProjectRepositorySchema.shape.local).min(1).max(64).optional()
   })
   .superRefine((document, context) => {
     const linkSchema =
-      document.type === "markdown" ? ProjectMarkdownPathSchema : ExternalDocumentLinkSchema;
+      document.type === "markdown"
+        ? ProjectMarkdownPathSchema
+        : document.type === "rfc-draft"
+          ? ProjectRfcDraftPathSchema
+          : ExternalDocumentLinkSchema;
     const result = linkSchema.safeParse(document.link);
     if (!result.success) {
       context.addIssue({
@@ -46,8 +71,31 @@ export const DocumentSourceSchema = z
         message:
           document.type === "markdown"
             ? "Markdown documents must reference a project-local Markdown file."
-            : "Document links must be valid URLs.",
+            : document.type === "rfc-draft"
+              ? "RFC drafts must reference a project-local RFC draft file."
+              : "Document links must be valid URLs.",
         path: ["link"]
+      });
+    }
+
+    const hasRfcMetadata =
+      document.rfc_session_id !== undefined || document.repository_locals !== undefined;
+    if (document.type !== "rfc-draft" && hasRfcMetadata) {
+      context.addIssue({
+        code: "custom",
+        message: "RFC draft session metadata is only supported for RFC drafts.",
+        path: ["rfc_session_id"]
+      });
+    }
+    if (
+      document.type === "rfc-draft" &&
+      document.repository_locals !== undefined &&
+      new Set(document.repository_locals).size !== document.repository_locals.length
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "RFC draft repository scopes must be unique.",
+        path: ["repository_locals"]
       });
     }
   })
@@ -99,6 +147,10 @@ export const ProjectUpdateSchema = z
   );
 
 export type ProjectUpdate = z.infer<typeof ProjectUpdateSchema>;
+
+export function isProjectLocalDocumentType(type: DocumentSourceType): boolean {
+  return type === "markdown" || type === "rfc-draft";
+}
 
 export interface ProjectStore {
   create(record: ProjectRecord): Promise<ProjectRecord>;

@@ -7,7 +7,11 @@ import {
 } from "@supply-flow/core/file-context-analysis-store";
 import { FileImportConflictStore } from "@supply-flow/core/file-import-conflict-store";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
-import type { DocumentSourceType, ProjectRecord } from "@supply-flow/core/project";
+import {
+  isProjectLocalDocumentType,
+  type DocumentSourceType,
+  type ProjectRecord
+} from "@supply-flow/core/project";
 import { NextResponse } from "next/server";
 import {
   createProjectSession,
@@ -193,7 +197,7 @@ function buildContextGoal(project: ProjectRecord, operation: ContextOperation): 
           .map(
             (document, index) => {
               const sourceReference =
-                document.type === "markdown"
+                isProjectLocalDocumentType(document.type)
                   ? path.join(projectDirectory(project.project_id), ...document.link.split("/"))
                   : document.link;
               const titleAssignment =
@@ -207,7 +211,7 @@ function buildContextGoal(project: ProjectRecord, operation: ContextOperation): 
 
               return (
               `${index + 1}. ${document.type}\n` +
-              `   ${document.type === "markdown" ? "Local file" : "Link"}: ${JSON.stringify(sourceReference)}\n` +
+              `   ${isProjectLocalDocumentType(document.type) ? "Local file" : "Link"}: ${JSON.stringify(sourceReference)}\n` +
               `   Title: ${document.title === null ? "null" : JSON.stringify(document.title)}\n` +
               `   Reader instructions: ${sourcePromptPath(document.type)}` +
               titleAssignment
@@ -331,7 +335,8 @@ function sourcePromptPath(type: DocumentSourceType): string {
     confluence: "read_confluence_page.md",
     figma: "read_figma_design.md",
     slack: "read_slack_channel.md",
-    markdown: "read_local_markdown.md"
+    markdown: "read_local_markdown.md",
+    "rfc-draft": "read_rfc_draft.md"
   };
 
   return path.join(projectRoot, "prompts", promptName[type]);

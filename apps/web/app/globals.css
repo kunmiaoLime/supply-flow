@@ -1652,8 +1652,17 @@ code {
   line-height: 1.2;
 }
 
+.document-section-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .add-repository-button,
 .add-requirement-button,
+.write-rfc-button,
 .import-branch-button,
 .context-session-button,
 .add-task-button,
@@ -1677,6 +1686,7 @@ code {
 
 .add-repository-button:hover:not(:disabled),
 .add-requirement-button:hover:not(:disabled),
+.write-rfc-button:hover:not(:disabled),
 .import-branch-button:hover:not(:disabled),
 .context-session-button:hover:not(:disabled),
 .add-task-button:hover:not(:disabled),
@@ -1687,6 +1697,7 @@ code {
 
 .add-repository-button:disabled,
 .add-requirement-button:disabled,
+.write-rfc-button:disabled,
 .import-branch-button:disabled,
 .context-session-button:disabled,
 .add-task-button:disabled,
@@ -2412,6 +2423,79 @@ code {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.45;
+}
+
+.rfc-repository-dialog {
+  width: min(560px, 100%);
+}
+
+.rfc-repository-options {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.rfc-repository-options legend {
+  padding: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.rfc-repository-options > p {
+  margin: 7px 0 14px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.rfc-repository-options > div {
+  display: grid;
+  gap: 8px;
+}
+
+.rfc-repository-options label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface-soft);
+  cursor: pointer;
+}
+
+.rfc-repository-options input {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  margin: 2px 0 0;
+  accent-color: var(--teal);
+}
+
+.rfc-repository-options label > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.rfc-repository-options strong {
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.rfc-repository-options code {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.rfc-repository-options label:has(input:focus-visible) {
+  outline: 3px solid rgba(8, 124, 105, 0.18);
+  outline-offset: 1px;
 }
 
 .new-session-dialog {

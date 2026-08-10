@@ -6,6 +6,8 @@ export const aiSessionActionIds = [
   "setup-ai-interface",
   "initialize-context",
   "update-context",
+  "write-rfc",
+  "convert-rfc",
   "create-task",
   "implement-code",
   "create-pull-request",
@@ -26,6 +28,8 @@ export const aiSessionActions: readonly {
   { id: "setup-ai-interface", label: "Set up AI interface" },
   { id: "initialize-context", label: "Initialize context" },
   { id: "update-context", label: "Update context" },
+  { id: "write-rfc", label: "Write RFC" },
+  { id: "convert-rfc", label: "Convert RFC" },
   { id: "create-task", label: "Create Jira task" },
   { id: "implement-code", label: "Implement code" },
   { id: "create-pull-request", label: "Create pull request" },
@@ -142,6 +146,8 @@ const AiModelActionDefaultsSchema = z.object({
   "setup-ai-interface": AiModelActionSettingsInputSchema.optional(),
   "initialize-context": AiModelActionSettingsInputSchema,
   "update-context": AiModelActionSettingsInputSchema,
+  "write-rfc": AiModelActionSettingsInputSchema.optional(),
+  "convert-rfc": AiModelActionSettingsInputSchema.optional(),
   "create-task": AiModelActionSettingsInputSchema,
   "implement-code": AiModelActionSettingsInputSchema,
   "create-pull-request": AiModelActionSettingsInputSchema,
@@ -200,6 +206,16 @@ export const AiModelSettingsSchema = AiModelSettingsInputSchema.transform(
           "update-context",
           normalizedGlobalDefault
         ),
+        "write-rfc": normalizeActionSettings(
+          actions["write-rfc"] ?? createDefaultActionSettings("write-rfc"),
+          "write-rfc",
+          normalizedGlobalDefault
+        ),
+        "convert-rfc": normalizeActionSettings(
+          actions["convert-rfc"] ?? createDefaultActionSettings("convert-rfc"),
+          "convert-rfc",
+          normalizedGlobalDefault
+        ),
         "create-task": normalizeActionSettings(
           actions["create-task"],
           "create-task",
@@ -241,6 +257,8 @@ export function createDefaultAiModelSettings(): AiModelSettings {
       "setup-ai-interface": createDefaultActionSettings("setup-ai-interface"),
       "initialize-context": createDefaultActionSettings("initialize-context"),
       "update-context": createDefaultActionSettings("update-context"),
+      "write-rfc": createDefaultActionSettings("write-rfc"),
+      "convert-rfc": createDefaultActionSettings("convert-rfc"),
       "create-task": createDefaultActionSettings("create-task"),
       "implement-code": createDefaultActionSettings("implement-code"),
       "create-pull-request": createDefaultActionSettings("create-pull-request"),

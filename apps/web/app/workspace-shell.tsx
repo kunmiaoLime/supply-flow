@@ -25,7 +25,9 @@ import {
   CheckCircle2,
   Code2,
   Download,
+  Eye,
   ExternalLink,
+  FilePenLine,
   FileText,
   FileUp,
   FolderKanban,
@@ -35,6 +37,7 @@ import {
   MessageSquare,
   Pencil,
   Plus,
+  RefreshCw,
   Settings2,
   Trash2,
   type LucideIcon
@@ -202,12 +205,26 @@ export function WorkspaceShell({
   const [requirementError, setRequirementError] = useState("");
   const [requirementListError, setRequirementListError] = useState("");
   const [isSavingRequirement, setIsSavingRequirement] = useState(false);
+  const [isStartingRfc, setIsStartingRfc] = useState(false);
+  const [rfcError, setRfcError] = useState("");
+  const [isRfcRepositoryDialogOpen, setIsRfcRepositoryDialogOpen] = useState(false);
+  const [selectedRfcRepositoryLocals, setSelectedRfcRepositoryLocals] = useState<string[]>([]);
+  const [rfcRepositoryError, setRfcRepositoryError] = useState("");
+  const [openingRfcDraftLink, setOpeningRfcDraftLink] = useState<string | null>(null);
+  const [updatingRfcDraftLink, setUpdatingRfcDraftLink] = useState<string | null>(null);
+  const [isRfcConversionDialogOpen, setIsRfcConversionDialogOpen] = useState(false);
+  const [rfcDraftToConvert, setRfcDraftToConvert] = useState<DocumentSource | null>(null);
+  const [rfcConfluenceDestination, setRfcConfluenceDestination] = useState("");
+  const [rfcConversionError, setRfcConversionError] = useState("");
+  const [isConvertingRfc, setIsConvertingRfc] = useState(false);
   const projectNameInput = useRef<HTMLInputElement>(null);
   const projectArchiveInput = useRef<HTMLInputElement>(null);
   const removeProjectNameInput = useRef<HTMLInputElement>(null);
   const repositoryLocalPathInput = useRef<HTMLInputElement>(null);
   const requirementLinkInput = useRef<HTMLInputElement>(null);
   const requirementMarkdownInput = useRef<HTMLInputElement>(null);
+  const rfcRepositorySelectionInput = useRef<HTMLInputElement>(null);
+  const rfcConfluenceDestinationInput = useRef<HTMLInputElement>(null);
   const selectedProjectId = projectId ?? "";
   const heading = tabHeadings[tab];
   const selectedProject = projects.find((project) => project.project_id === selectedProjectId);
@@ -291,6 +308,18 @@ export function WorkspaceShell({
   }, [requirementDialogMode, requirementForm.type]);
 
   useEffect(() => {
+    if (isRfcRepositoryDialogOpen) {
+      rfcRepositorySelectionInput.current?.focus();
+    }
+  }, [isRfcRepositoryDialogOpen]);
+
+  useEffect(() => {
+    if (isRfcConversionDialogOpen) {
+      rfcConfluenceDestinationInput.current?.focus();
+    }
+  }, [isRfcConversionDialogOpen]);
+
+  useEffect(() => {
     if (!isCreateProjectDialogOpen) {
       return;
     }
@@ -368,6 +397,36 @@ export function WorkspaceShell({
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [isSavingRequirement, requirementDialogMode]);
+
+  useEffect(() => {
+    if (!isRfcRepositoryDialogOpen) {
+      return;
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && !isStartingRfc) {
+        closeRfcRepositoryDialog();
+      }
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [isRfcRepositoryDialogOpen, isStartingRfc]);
+
+  useEffect(() => {
+    if (!isRfcConversionDialogOpen) {
+      return;
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && !isConvertingRfc) {
+        closeRfcConversionDialog();
+      }
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [isConvertingRfc, isRfcConversionDialogOpen]);
 
   function openCreateProjectDialog() {
     setNewProjectName("");
@@ -981,6 +1040,246 @@ export function WorkspaceShell({
     }
   }
 
+  function openRfcRepositoryDialog() {
+    if (
+      !selectedProject ||
+      selectedProject.documents.length === 0 ||
+      selectedProject.repos.length === 0 ||
+      isSavingRequirement ||
+      isStartingRfc
+    ) {
+      return;
+    }
+
+    setSelectedRfcRepositoryLocals([]);
+    setRfcRepositoryError("");
+    setIsRfcRepositoryDialogOpen(true);
+  }
+
+  function closeRfcRepositoryDialog() {
+    if (!isStartingRfc) {
+      setIsRfcRepositoryDialogOpen(false);
+      setSelectedRfcRepositoryLocals([]);
+      setRfcRepositoryError("");
+    }
+  }
+
+  function toggleRfcRepository(local: string) {
+    setSelectedRfcRepositoryLocals((current) =>
+      current.includes(local)
+        ? current.filter((selectedLocal) => selectedLocal !== local)
+        : [...current, local]
+    );
+    setRfcRepositoryError("");
+  }
+
+  async function startRfcSession(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (
+      !selectedProject ||
+      selectedProject.documents.length === 0 ||
+      selectedProject.repos.length === 0 ||
+      isSavingRequirement ||
+      isStartingRfc
+    ) {
+      return;
+    }
+
+    if (selectedRfcRepositoryLocals.length === 0) {
+      setRfcRepositoryError("Select at least one repository for this RFC.");
+      return;
+    }
+
+    setIsStartingRfc(true);
+    setRfcError("");
+    setRfcRepositoryError("");
+
+    try {
+      const response = await fetch(
+        `/api/projects/${encodeURIComponent(selectedProject.project_id)}/rfc`,
+        {
+          body: JSON.stringify({ repositoryLocals: selectedRfcRepositoryLocals }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST"
+        }
+      );
+      const data = (await response.json()) as {
+        error?: string;
+        session?: { id: string };
+      };
+      if (!response.ok || !data.session) {
+        throw new Error(data.error ?? "Unable to start the RFC session.");
+      }
+
+      setIsRfcRepositoryDialogOpen(false);
+      setSelectedRfcRepositoryLocals([]);
+      router.push(workspaceTabUrl("/ai_sessions", selectedProject.project_id, data.session.id));
+    } catch (error) {
+      setRfcRepositoryError(
+        error instanceof Error ? error.message : "Unable to start the RFC session."
+      );
+    } finally {
+      setIsStartingRfc(false);
+    }
+  }
+
+  async function reviewRfcDraft(index: number) {
+    const draft = selectedProject?.documents[index];
+    if (
+      !selectedProject ||
+      draft?.type !== "rfc-draft" ||
+      isSavingRequirement ||
+      isStartingRfc ||
+      isConvertingRfc ||
+      openingRfcDraftLink
+    ) {
+      return;
+    }
+
+    setOpeningRfcDraftLink(draft.link);
+    setRfcError("");
+
+    try {
+      const response = await fetch(
+        `/api/projects/${encodeURIComponent(selectedProject.project_id)}/rfc-drafts/open`,
+        {
+          body: JSON.stringify({ draftLink: draft.link }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST"
+        }
+      );
+      const data = (await response.json()) as { error?: string; opened?: boolean };
+      if (!response.ok || !data.opened) {
+        throw new Error(data.error ?? "Unable to open the RFC draft locally.");
+      }
+    } catch (error) {
+      setRfcError(
+        error instanceof Error ? error.message : "Unable to open the RFC draft locally."
+      );
+    } finally {
+      setOpeningRfcDraftLink(null);
+    }
+  }
+
+  async function updateRfcDraft(index: number) {
+    const draft = selectedProject?.documents[index];
+    if (
+      !selectedProject ||
+      draft?.type !== "rfc-draft" ||
+      isSavingRequirement ||
+      isStartingRfc ||
+      isConvertingRfc ||
+      openingRfcDraftLink ||
+      updatingRfcDraftLink
+    ) {
+      return;
+    }
+
+    setUpdatingRfcDraftLink(draft.link);
+    setRfcError("");
+
+    try {
+      const response = await fetch(
+        `/api/projects/${encodeURIComponent(selectedProject.project_id)}/rfc-drafts/update`,
+        {
+          body: JSON.stringify({ draftLink: draft.link }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST"
+        }
+      );
+      const data = (await response.json()) as {
+        error?: string;
+        session?: { id: string };
+      };
+      if (!response.ok || !data.session) {
+        throw new Error(data.error ?? "Unable to open an RFC update session.");
+      }
+
+      router.push(workspaceTabUrl("/ai_sessions", selectedProject.project_id, data.session.id));
+    } catch (error) {
+      setRfcError(
+        error instanceof Error ? error.message : "Unable to open an RFC update session."
+      );
+    } finally {
+      setUpdatingRfcDraftLink(null);
+    }
+  }
+
+  function openRfcConversionDialog(index: number) {
+    const draft = selectedProject?.documents[index];
+    if (
+      draft?.type !== "rfc-draft" ||
+      isSavingRequirement ||
+      isStartingRfc ||
+      isConvertingRfc ||
+      openingRfcDraftLink
+    ) {
+      return;
+    }
+
+    setRfcDraftToConvert(draft);
+    setRfcConfluenceDestination("");
+    setRfcConversionError("");
+    setIsRfcConversionDialogOpen(true);
+  }
+
+  function closeRfcConversionDialog() {
+    if (!isConvertingRfc) {
+      setIsRfcConversionDialogOpen(false);
+      setRfcDraftToConvert(null);
+      setRfcConfluenceDestination("");
+      setRfcConversionError("");
+    }
+  }
+
+  async function convertRfcDraft(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !rfcDraftToConvert) {
+      return;
+    }
+
+    const destination = rfcConfluenceDestination.trim();
+    if (!destination) {
+      setRfcConversionError("Enter a Confluence parent page or space destination.");
+      return;
+    }
+
+    setIsConvertingRfc(true);
+    setRfcConversionError("");
+
+    try {
+      const response = await fetch(
+        `/api/projects/${encodeURIComponent(selectedProject.project_id)}/rfc-drafts/convert`,
+        {
+          body: JSON.stringify({
+            destination,
+            draftLink: rfcDraftToConvert.link
+          }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST"
+        }
+      );
+      const data = (await response.json()) as {
+        error?: string;
+        session?: { id: string };
+      };
+      if (!response.ok || !data.session) {
+        throw new Error(data.error ?? "Unable to start the RFC conversion session.");
+      }
+
+      setIsRfcConversionDialogOpen(false);
+      setRfcDraftToConvert(null);
+      setRfcConfluenceDestination("");
+      router.push(workspaceTabUrl("/ai_sessions", selectedProject.project_id, data.session.id));
+    } catch (error) {
+      setRfcConversionError(
+        error instanceof Error ? error.message : "Unable to start the RFC conversion session."
+      );
+    } finally {
+      setIsConvertingRfc(false);
+    }
+  }
+
   return (
     <div className="workspace-shell">
       <header className="workspace-topbar">
@@ -1132,6 +1431,8 @@ export function WorkspaceShell({
           <PanelContent
             isSavingRepositories={isSavingRepository}
             isSavingRequirements={isSavingRequirement}
+            isConvertingRfc={isConvertingRfc}
+            isStartingRfc={isStartingRfc}
             onAddRepository={openAddRepositoryDialog}
             onAddRequirement={openAddRequirementDialog}
             onEditRepository={openEditRepositoryDialog}
@@ -1139,12 +1440,19 @@ export function WorkspaceShell({
             onRemoveRepository={removeRepository}
             onRemoveRequirement={removeRequirement}
             onProjectUpdated={replaceProject}
+            onConvertRfcDraft={openRfcConversionDialog}
+            onReviewRfcDraft={reviewRfcDraft}
+            onUpdateRfcDraft={updateRfcDraft}
+            onWriteRfc={openRfcRepositoryDialog}
+            openingRfcDraftLink={openingRfcDraftLink}
             project={selectedProject}
             repositoryListError={repositoryListError}
             requirementListError={requirementListError}
+            rfcError={rfcError}
             selectedProjectId={selectedProjectId}
             settingsTab={settingsTab}
             tab={tab}
+            updatingRfcDraftLink={updatingRfcDraftLink}
           />
         </section>
       </main>
@@ -1625,6 +1933,126 @@ export function WorkspaceShell({
           </section>
         </div>
       ) : null}
+
+      {isRfcConversionDialogOpen && rfcDraftToConvert ? (
+        <div
+          className="dialog-backdrop"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) {
+              closeRfcConversionDialog();
+            }
+          }}
+        >
+          <section
+            aria-labelledby="rfc-conversion-dialog-title"
+            aria-modal="true"
+            className="create-project-dialog rfc-conversion-dialog"
+            role="dialog"
+          >
+            <h2 id="rfc-conversion-dialog-title">Convert RFC</h2>
+            <form onSubmit={convertRfcDraft}>
+              <div className="requirement-form-fields">
+                <label htmlFor="rfc-confluence-destination">
+                  <span>Confluence parent page or space</span>
+                  <input
+                    autoCapitalize="none"
+                    autoComplete="off"
+                    id="rfc-confluence-destination"
+                    maxLength={2048}
+                    onChange={(event) => setRfcConfluenceDestination(event.target.value)}
+                    placeholder="https://limebike.atlassian.net/wiki/spaces/DOC"
+                    ref={rfcConfluenceDestinationInput}
+                    required
+                    spellCheck={false}
+                    type="text"
+                    value={rfcConfluenceDestination}
+                  />
+                </label>
+              </div>
+              {rfcConversionError ? (
+                <p className="create-project-error" role="alert">
+                  {rfcConversionError}
+                </p>
+              ) : null}
+              <div className="dialog-actions">
+                <button
+                  className="dialog-cancel-button"
+                  disabled={isConvertingRfc}
+                  onClick={closeRfcConversionDialog}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button className="dialog-primary-button" disabled={isConvertingRfc} type="submit">
+                  <FileUp aria-hidden="true" />
+                  <span>{isConvertingRfc ? "Starting..." : "Convert to RFC"}</span>
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      ) : null}
+
+      {isRfcRepositoryDialogOpen && selectedProject ? (
+        <div
+          className="dialog-backdrop"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) {
+              closeRfcRepositoryDialog();
+            }
+          }}
+        >
+          <section
+            aria-labelledby="rfc-repository-dialog-title"
+            aria-modal="true"
+            className="create-project-dialog rfc-repository-dialog"
+            role="dialog"
+          >
+            <h2 id="rfc-repository-dialog-title">Write RFC</h2>
+            <form onSubmit={startRfcSession}>
+              <fieldset className="rfc-repository-options">
+                <legend>Related repositories</legend>
+                <p>Choose the codebases this RFC should cover.</p>
+                <div>
+                  {selectedProject.repos.map((repository, index) => (
+                    <label key={repository.local}>
+                      <input
+                        checked={selectedRfcRepositoryLocals.includes(repository.local)}
+                        onChange={() => toggleRfcRepository(repository.local)}
+                        ref={index === 0 ? rfcRepositorySelectionInput : undefined}
+                        type="checkbox"
+                      />
+                      <span>
+                        <strong>{repository.name}</strong>
+                        <code>{repository.local}</code>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              {rfcRepositoryError ? (
+                <p className="create-project-error" role="alert">
+                  {rfcRepositoryError}
+                </p>
+              ) : null}
+              <div className="dialog-actions">
+                <button
+                  className="dialog-cancel-button"
+                  disabled={isStartingRfc}
+                  onClick={closeRfcRepositoryDialog}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button className="dialog-primary-button" disabled={isStartingRfc} type="submit">
+                  <FilePenLine aria-hidden="true" />
+                  <span>{isStartingRfc ? "Starting..." : "Write RFC"}</span>
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1632,6 +2060,8 @@ export function WorkspaceShell({
 function PanelContent({
   isSavingRepositories,
   isSavingRequirements,
+  isConvertingRfc,
+  isStartingRfc,
   onAddRepository,
   onAddRequirement,
   onEditRepository,
@@ -1639,15 +2069,24 @@ function PanelContent({
   onRemoveRepository,
   onRemoveRequirement,
   onProjectUpdated,
+  onConvertRfcDraft,
+  onReviewRfcDraft,
+  onUpdateRfcDraft,
+  onWriteRfc,
+  openingRfcDraftLink,
   project,
   repositoryListError,
   requirementListError,
+  rfcError,
   selectedProjectId,
   settingsTab,
-  tab
+  tab,
+  updatingRfcDraftLink
 }: {
   isSavingRepositories: boolean;
   isSavingRequirements: boolean;
+  isConvertingRfc: boolean;
+  isStartingRfc: boolean;
   onAddRepository: () => void;
   onAddRequirement: () => void;
   onEditRepository: (index: number) => void;
@@ -1655,12 +2094,19 @@ function PanelContent({
   onRemoveRepository: (index: number) => void;
   onRemoveRequirement: (index: number) => void;
   onProjectUpdated: (project: ProjectRecord) => void;
+  onConvertRfcDraft: (index: number) => void;
+  onReviewRfcDraft: (index: number) => void;
+  onUpdateRfcDraft: (index: number) => void;
+  onWriteRfc: () => void;
+  openingRfcDraftLink: string | null;
   project: ProjectRecord | undefined;
   repositoryListError: string;
   requirementListError: string;
+  rfcError: string;
   selectedProjectId: string;
   settingsTab?: SettingsTab;
   tab: TabId;
+  updatingRfcDraftLink: string | null;
 }) {
   if (tab === "settings") {
     return (
@@ -1696,13 +2142,23 @@ function PanelContent({
       return (
         <>
           <RequirementSection
+            hasRepositories={project.repos.length > 0}
             isSaving={isSavingRequirements}
+            isConvertingRfc={isConvertingRfc}
+            isStartingRfc={isStartingRfc}
             onAdd={onAddRequirement}
             onEdit={onEditRequirement}
             onRemove={onRemoveRequirement}
+            onConvertRfcDraft={onConvertRfcDraft}
+            onReviewRfcDraft={onReviewRfcDraft}
+            onUpdateRfcDraft={onUpdateRfcDraft}
+            onWriteRfc={onWriteRfc}
+            openingRfcDraftLink={openingRfcDraftLink}
             projectId={project.project_id}
             requirementListError={requirementListError}
             requirements={project.documents}
+            rfcError={rfcError}
+            updatingRfcDraftLink={updatingRfcDraftLink}
           />
           <RepositorySection
             isSaving={isSavingRepositories}
@@ -1730,21 +2186,41 @@ function PanelContent({
 }
 
 function RequirementSection({
+  hasRepositories,
   isSaving,
+  isConvertingRfc,
+  isStartingRfc,
   onAdd,
+  onConvertRfcDraft,
   onEdit,
   onRemove,
+  onReviewRfcDraft,
+  onUpdateRfcDraft,
+  onWriteRfc,
+  openingRfcDraftLink,
   projectId,
   requirementListError,
-  requirements
+  requirements,
+  rfcError,
+  updatingRfcDraftLink
 }: {
+  hasRepositories: boolean;
   isSaving: boolean;
+  isConvertingRfc: boolean;
+  isStartingRfc: boolean;
   onAdd: () => void;
+  onConvertRfcDraft: (index: number) => void;
   onEdit: (index: number) => void;
   onRemove: (index: number) => void;
+  onReviewRfcDraft: (index: number) => void;
+  onUpdateRfcDraft: (index: number) => void;
+  onWriteRfc: () => void;
+  openingRfcDraftLink: string | null;
   projectId: string;
   requirementListError: string;
   requirements: DocumentSource[];
+  rfcError: string;
+  updatingRfcDraftLink: string | null;
 }) {
   return (
     <section aria-labelledby="requirements-heading" className="requirements-section">
@@ -1753,20 +2229,42 @@ function RequirementSection({
           <p>Product inputs</p>
           <h2 id="requirements-heading">Documents</h2>
         </div>
-        <button
-          className="add-requirement-button"
-          disabled={isSaving}
-          onClick={onAdd}
-          type="button"
-        >
-          <Plus aria-hidden="true" />
-          <span>Add document</span>
-        </button>
+        <div className="document-section-actions">
+          <button
+            className="write-rfc-button"
+            disabled={
+              isSaving ||
+              isStartingRfc ||
+              updatingRfcDraftLink !== null ||
+              requirements.length === 0 ||
+              !hasRepositories
+            }
+            onClick={onWriteRfc}
+            type="button"
+          >
+            <FilePenLine aria-hidden="true" />
+            <span>{isStartingRfc ? "Starting..." : "Write RFC"}</span>
+          </button>
+          <button
+            className="add-requirement-button"
+            disabled={isSaving || isStartingRfc || updatingRfcDraftLink !== null}
+            onClick={onAdd}
+            type="button"
+          >
+            <Plus aria-hidden="true" />
+            <span>Add document</span>
+          </button>
+        </div>
       </div>
 
       {requirementListError ? (
         <p className="create-project-error" role="alert">
           {requirementListError}
+        </p>
+      ) : null}
+      {rfcError ? (
+        <p className="create-project-error" role="alert">
+          {rfcError}
         </p>
       ) : null}
 
@@ -1782,7 +2280,15 @@ function RequirementSection({
         <ul className="requirement-list">
           {requirements.map((requirement, index) => {
             const sourceLabel = requirementSourceLabel(requirement.type);
-            const SourceIcon = requirement.type === "slack" ? MessageSquare : FileText;
+            const isRfcDraft = requirement.type === "rfc-draft";
+            const isLocalDocument =
+              requirement.type === "markdown" || requirement.type === "rfc-draft";
+            const SourceIcon =
+              requirement.type === "slack"
+                ? MessageSquare
+                : isRfcDraft
+                  ? FilePenLine
+                  : FileText;
 
             return (
               <li key={`${requirement.type}-${requirement.link}-${index}`}>
@@ -1796,7 +2302,7 @@ function RequirementSection({
                   </div>
                   <a
                     href={
-                      requirement.type === "markdown"
+                      isLocalDocument
                         ? `/api/projects/${encodeURIComponent(projectId)}/documents/markdown?path=${encodeURIComponent(
                             requirement.link
                           )}`
@@ -1810,20 +2316,83 @@ function RequirementSection({
                   </a>
                 </div>
                 <div className="repository-actions">
-                  <button
-                    aria-label={`Edit ${sourceLabel} document`}
-                    className="repository-icon-button"
-                    disabled={isSaving}
-                    onClick={() => onEdit(index)}
-                    title={`Edit ${sourceLabel} document`}
-                    type="button"
-                  >
-                    <Pencil aria-hidden="true" />
-                  </button>
+                  {isRfcDraft ? (
+                    <>
+                      <button
+                        aria-label={`Update ${sourceLabel}`}
+                        className="repository-icon-button"
+                        disabled={
+                          isSaving ||
+                          isStartingRfc ||
+                          isConvertingRfc ||
+                          openingRfcDraftLink !== null ||
+                          updatingRfcDraftLink !== null
+                        }
+                        onClick={() => void onUpdateRfcDraft(index)}
+                        title="Open RFC draft update session"
+                        type="button"
+                      >
+                        <RefreshCw aria-hidden="true" />
+                      </button>
+                      <button
+                        aria-label={`Review ${sourceLabel}`}
+                        className="repository-icon-button"
+                        disabled={
+                          isSaving ||
+                          isStartingRfc ||
+                          isConvertingRfc ||
+                          openingRfcDraftLink !== null ||
+                          updatingRfcDraftLink !== null
+                        }
+                        onClick={() => void onReviewRfcDraft(index)}
+                        title="Review RFC draft locally"
+                        type="button"
+                      >
+                        <Eye aria-hidden="true" />
+                      </button>
+                      <button
+                        aria-label={`Convert ${sourceLabel} to Confluence`}
+                        className="repository-icon-button"
+                        disabled={
+                          isSaving ||
+                          isStartingRfc ||
+                          isConvertingRfc ||
+                          openingRfcDraftLink !== null ||
+                          updatingRfcDraftLink !== null
+                        }
+                        onClick={() => onConvertRfcDraft(index)}
+                        title="Convert RFC draft to Confluence"
+                        type="button"
+                      >
+                        <FileUp aria-hidden="true" />
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      aria-label={`Edit ${sourceLabel} document`}
+                      className="repository-icon-button"
+                      disabled={
+                        isSaving ||
+                        isStartingRfc ||
+                        isConvertingRfc ||
+                        updatingRfcDraftLink !== null
+                      }
+                      onClick={() => onEdit(index)}
+                      title={`Edit ${sourceLabel} document`}
+                      type="button"
+                    >
+                      <Pencil aria-hidden="true" />
+                    </button>
+                  )}
                   <button
                     aria-label={`Remove ${sourceLabel} document`}
                     className="repository-icon-button is-danger"
-                    disabled={isSaving}
+                    disabled={
+                      isSaving ||
+                      isStartingRfc ||
+                      isConvertingRfc ||
+                      updatingRfcDraftLink !== null
+                    }
                     onClick={() => onRemove(index)}
                     title={`Remove ${sourceLabel} document`}
                     type="button"
@@ -1943,5 +2512,9 @@ function RepositorySection({
 }
 
 function requirementSourceLabel(type: DocumentSourceType): string {
+  if (type === "rfc-draft") {
+    return "RFC draft";
+  }
+
   return requirementSourceOptions.find((source) => source.type === type)?.label ?? type;
 }

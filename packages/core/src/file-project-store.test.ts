@@ -4,7 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { FileProjectStore } from "./file-project-store.js";
-import { createProjectId } from "./project.js";
+import {
+  createProjectId,
+  ProjectRfcDraftPathSchema
+} from "./project.js";
 
 test("stores project records beneath the local projects directory", async () => {
   const rootDirectory = await mkdtemp(path.join(os.tmpdir(), "supply-flow-projects-"));
@@ -235,6 +238,62 @@ test("persists project-local Markdown document sources", async () => {
         ]
       }),
       /Markdown documents must reference/
+    );
+  } finally {
+    await rm(rootDirectory, { recursive: true, force: true });
+  }
+});
+
+test("persists project-local RFC drafts", async () => {
+  const rootDirectory = await mkdtemp(path.join(os.tmpdir(), "supply-flow-projects-"));
+  const store = new FileProjectStore(rootDirectory);
+  const rfcDraft = {
+    type: "rfc-draft" as const,
+    link: "rfcs/validated-test-ride.md",
+    title: "Validated Test Ride",
+    rfc_session_id: "session_writer",
+    repository_locals: ["/tmp/supply-api", "/tmp/supply-web"]
+  };
+
+  try {
+    await store.create({
+      project_name: "RFC drafts",
+      project_id: "rfc-drafts",
+      repos: [],
+      documents: [rfcDraft],
+      tasks: []
+    });
+
+    assert.deepEqual((await store.get("rfc-drafts"))?.documents, [rfcDraft]);
+    assert.equal(
+      ProjectRfcDraftPathSchema.parse("rfcs/validated-test-ride.md"),
+      "rfcs/validated-test-ride.md"
+    );
+    await assert.rejects(
+      store.update("rfc-drafts", {
+        documents: [
+          {
+            type: "rfc-draft",
+            link: "markdowns/validated-test-ride.md",
+            title: "Validated Test Ride"
+          }
+        ]
+      }),
+      /RFC drafts must reference/
+    );
+    await assert.rejects(
+      store.update("rfc-drafts", {
+        documents: [
+          {
+            type: "rfc-draft",
+            link: "rfcs/validated-test-ride.md",
+            title: "Validated Test Ride",
+            rfc_session_id: "session_writer",
+            repository_locals: ["/tmp/supply-api", "/tmp/supply-api"]
+          }
+        ]
+      }),
+      /repository scopes must be unique/
     );
   } finally {
     await rm(rootDirectory, { recursive: true, force: true });

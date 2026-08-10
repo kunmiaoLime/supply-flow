@@ -3,6 +3,8 @@ import path from "node:path";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
 import {
   DocumentTitleSchema,
+  isProjectLocalDocumentType,
+  ProjectLocalDocumentPathSchema,
   ProjectMarkdownPathSchema,
   type DocumentSource,
   type ProjectRecord
@@ -38,9 +40,9 @@ class MarkdownDocumentError extends Error {
 export async function GET(request: Request, context: ProjectRouteContext) {
   const { projectId } = await context.params;
   const relativePath = new URL(request.url).searchParams.get("path");
-  const parsedPath = ProjectMarkdownPathSchema.safeParse(relativePath);
+  const parsedPath = ProjectLocalDocumentPathSchema.safeParse(relativePath);
   if (!parsedPath.success) {
-    return NextResponse.json({ error: "Choose a valid project Markdown document." }, { status: 400 });
+    return NextResponse.json({ error: "Choose a valid project-local document." }, { status: 400 });
   }
 
   try {
@@ -50,13 +52,14 @@ export async function GET(request: Request, context: ProjectRouteContext) {
     }
     if (
       !project.documents.some(
-        (document) => document.type === "markdown" && document.link === parsedPath.data
+        (document) =>
+          isProjectLocalDocumentType(document.type) && document.link === parsedPath.data
       )
     ) {
-      return NextResponse.json({ error: "Unknown project Markdown document." }, { status: 404 });
+      return NextResponse.json({ error: "Unknown project-local document." }, { status: 404 });
     }
 
-    const content = await readFile(markdownFilePath(project.project_id, parsedPath.data), "utf8");
+    const content = await readFile(localDocumentFilePath(project.project_id, parsedPath.data), "utf8");
     return new Response(content, {
       headers: {
         "Cache-Control": "no-store",
@@ -66,11 +69,11 @@ export async function GET(request: Request, context: ProjectRouteContext) {
     });
   } catch (error) {
     if (isMissingFileError(error)) {
-      return NextResponse.json({ error: "The uploaded Markdown file is unavailable." }, { status: 404 });
+      return NextResponse.json({ error: "The local document file is unavailable." }, { status: 404 });
     }
 
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to read the Markdown document." },
+      { error: error instanceof Error ? error.message : "Unable to read the local document." },
       { status: 500 }
     );
   }
@@ -272,6 +275,11 @@ async function removeUntrackedMarkdownFile(
 
 function markdownFilePath(projectId: string, relativePath: string): string {
   const parsedPath = ProjectMarkdownPathSchema.parse(relativePath);
+  return path.join(projectDirectory(projectId), ...parsedPath.split("/"));
+}
+
+function localDocumentFilePath(projectId: string, relativePath: string): string {
+  const parsedPath = ProjectLocalDocumentPathSchema.parse(relativePath);
   return path.join(projectDirectory(projectId), ...parsedPath.split("/"));
 }
 
