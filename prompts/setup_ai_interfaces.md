@@ -95,6 +95,20 @@ or templates beneath `~/.codex` or `$CODEX_HOME`.
 - If setup requires an interactive browser authorization, record
   `needs_user_action` with the exact non-sensitive action the user must take.
 
+### CircleCI (`circleci`)
+
+- Confirm that the official `circleci` CLI is installed, then run an
+  authenticated, read-only command such as `circleci info`. Do not mark access
+  `accessible` from `circleci version`, `circleci diagnostic`, or a local
+  configuration file alone.
+- In setup mode, use the official `circleci setup` flow. Do not print tokens,
+  pass them in a command that will be logged, or copy them into Supply Flow
+  files.
+- If the user must create a personal API token, sign in through a browser, or
+  otherwise provide a secret, record `needs_user_action` with the exact
+  non-sensitive action needed. After the user completes it, verify access with
+  a real authenticated CircleCI request.
+
 ## Completion
 
 After all selected interfaces have a recorded status, report a concise table

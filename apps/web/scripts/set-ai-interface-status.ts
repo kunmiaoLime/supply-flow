@@ -14,7 +14,7 @@ interface Arguments {
 }
 
 const usage =
-  "Usage: set-ai-interface-status --data-directory <path> --interface <slack|google-doc|confluence|figma> --status <unknown|accessible|needs_setup|needs_user_action|error> --detail <message>";
+  "Usage: set-ai-interface-status --data-directory <path> --interface <slack|google-doc|confluence|figma|circleci> --status <unknown|accessible|needs_setup|needs_user_action|error> --detail <message>";
 
 async function main(): Promise<void> {
   const arguments_ = parseArguments(process.argv.slice(2));

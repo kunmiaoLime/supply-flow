@@ -33,7 +33,8 @@ const aiInterfaceOptions: readonly { id: AiInterfaceId; label: string }[] = [
   { id: "slack", label: "Slack" },
   { id: "google-doc", label: "Google Docs" },
   { id: "confluence", label: "Confluence" },
-  { id: "figma", label: "Figma" }
+  { id: "figma", label: "Figma" },
+  { id: "circleci", label: "CircleCI" }
 ];
 
 export function SettingsSection({

@@ -27,6 +27,7 @@ const SETUP_SESSION_DIRECTORY = "ai-interface-sessions";
 const SETUP_PROMPT_PATH = path.join(projectRoot, "prompts", "setup_ai_interfaces.md");
 const READ_ONLY_PROMPT_PATH = path.join(projectRoot, "prompts", "read_only.md");
 const TERMINAL_OUTPUT_LIMIT = 64 * 1_024;
+const TERMINAL_SNAPSHOT_LINES = 200;
 const MAX_SESSION_GOAL_LENGTH = 16_000;
 const AUTHENTICATION_TIMEOUT_MS = 10 * 60 * 1_000;
 
@@ -266,7 +267,27 @@ export async function readAiInterfaceTerminalOutput(
   outputSize: number;
   outputTruncated: boolean;
 }> {
-  return readTerminalOutput(terminalLogPath(sessionId), requestedOffset);
+  const output = await readTerminalOutput(terminalLogPath(sessionId), requestedOffset);
+  if (!output.outputTruncated) {
+    return output;
+  }
+
+  const session = await getAiInterfaceSession(sessionId);
+  if (!session) {
+    return output;
+  }
+
+  try {
+    return {
+      ...output,
+      output: toTerminalLines(
+        await new TmuxAdapter().captureOutput(session.tmuxSessionName, TERMINAL_SNAPSHOT_LINES)
+      )
+    };
+  } catch {
+    // The session can exit between the metadata lookup and terminal capture.
+    return output;
+  }
 }
 
 export function outputOffsetFromRequest(request: Request): number | undefined {
@@ -399,7 +420,7 @@ function buildStatusUpdaterCommand(): string {
     "--data-directory",
     JSON.stringify(dataDirectory),
     "--interface",
-    "<slack|google-doc|confluence|figma>",
+    "<slack|google-doc|confluence|figma|circleci>",
     "--status",
     "<unknown|accessible|needs_setup|needs_user_action|error>",
     "--detail",
@@ -526,6 +547,10 @@ async function readTerminalOutput(
   } finally {
     await handle?.close();
   }
+}
+
+function toTerminalLines(value: string): string {
+  return value.replace(/\r?\n/g, "\r\n");
 }
 
 function isMissingFileError(error: unknown): error is NodeJS.ErrnoException {

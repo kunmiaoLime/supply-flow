@@ -16,6 +16,7 @@ test("returns and persists AI interface access state", async () => {
     const defaults = await store.get();
     assert.equal(defaults.interfaces.slack.status, "unknown");
     assert.equal(defaults.interfaces.figma.checkedAt, null);
+    assert.equal(defaults.interfaces.circleci.status, "unknown");
 
     const initialized = await store.initialize();
     assert.deepEqual(initialized, defaults);
@@ -37,6 +38,46 @@ test("returns and persists AI interface access state", async () => {
         await readFile(path.join(dataDirectory, "settings", "ai_interfaces.json"), "utf8")
       ),
       updated
+    );
+  } finally {
+    await rm(dataDirectory, { force: true, recursive: true });
+  }
+});
+
+test("adds CircleCI access state when reading a legacy status file", async () => {
+  const dataDirectory = await mkdtemp(path.join(os.tmpdir(), "supply-flow-ai-interfaces-"));
+
+  try {
+    await mkdir(path.join(dataDirectory, "settings"), { recursive: true });
+    await writeFile(
+      path.join(dataDirectory, "settings", "ai_interfaces.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        interfaces: {
+          slack: { status: "accessible", checkedAt: null, detail: "Slack is available." },
+          "google-doc": { status: "unknown", checkedAt: null, detail: null },
+          confluence: { status: "unknown", checkedAt: null, detail: null },
+          figma: { status: "unknown", checkedAt: null, detail: null }
+        }
+      }),
+      "utf8"
+    );
+
+    const store = new FileAiInterfaceStore(dataDirectory);
+    assert.equal((await store.get()).interfaces.circleci.status, "unknown");
+
+    const updated = await store.updateInterface(
+      "circleci",
+      "needs_setup",
+      "CircleCI CLI authentication is not configured."
+    );
+    assert.equal(updated.interfaces.slack.status, "accessible");
+    assert.equal(updated.interfaces.circleci.status, "needs_setup");
+    assert.equal(
+      JSON.parse(
+        await readFile(path.join(dataDirectory, "settings", "ai_interfaces.json"), "utf8")
+      ).interfaces.circleci.status,
+      "needs_setup"
     );
   } finally {
     await rm(dataDirectory, { force: true, recursive: true });

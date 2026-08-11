@@ -14,7 +14,7 @@ export const runtime = "nodejs";
 const SetupRequestSchema = z
   .object({
     action: z.enum(["verify", "setup"]),
-    interfaces: z.array(AiInterfaceIdSchema).min(1).max(4)
+    interfaces: z.array(AiInterfaceIdSchema).min(1).max(5)
   })
   .refine(
     (input) => new Set(input.interfaces).size === input.interfaces.length,

@@ -13,6 +13,7 @@ const projectRoot = path.resolve(process.cwd(), "../..");
 const dataDirectory = process.env.SUPPLY_FLOW_DATA_DIR ?? path.join(projectRoot, ".supply-flow");
 const tmux = new TmuxAdapter();
 const TERMINAL_OUTPUT_LIMIT = 64 * 1_024;
+const TERMINAL_SNAPSHOT_LINES = 200;
 
 interface SessionRouteContext {
   params: Promise<{ projectId: string; sessionId: string }>;
@@ -38,7 +39,10 @@ export async function GET(request: Request, context: SessionRouteContext) {
       terminalLogPath(project.project_id, session.id),
       outputOffsetFromRequest(request)
     );
-    return NextResponse.json({ ...output, session });
+    return NextResponse.json({
+      ...(await replaceTruncatedOutputWithSnapshot(output, session.tmuxSessionName)),
+      session
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unable to load the AI session." },
@@ -150,6 +154,29 @@ async function readTerminalOutput(
   } finally {
     await handle?.close();
   }
+}
+
+async function replaceTruncatedOutputWithSnapshot(
+  output: Awaited<ReturnType<typeof readTerminalOutput>>,
+  tmuxSessionName: string
+): Promise<Awaited<ReturnType<typeof readTerminalOutput>>> {
+  if (!output.outputTruncated) {
+    return output;
+  }
+
+  try {
+    return {
+      ...output,
+      output: toTerminalLines(await tmux.captureOutput(tmuxSessionName, TERMINAL_SNAPSHOT_LINES))
+    };
+  } catch {
+    // The session can exit after it is reconciled. The recent raw terminal log remains a fallback.
+    return output;
+  }
+}
+
+function toTerminalLines(value: string): string {
+  return value.replace(/\r?\n/g, "\r\n");
 }
 
 function outputOffsetFromRequest(request: Request): number | undefined {

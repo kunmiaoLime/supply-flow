@@ -1,6 +1,12 @@
 import { z } from "zod";
 
-export const aiInterfaceIds = ["slack", "google-doc", "confluence", "figma"] as const;
+export const aiInterfaceIds = [
+  "slack",
+  "google-doc",
+  "confluence",
+  "figma",
+  "circleci"
+] as const;
 
 export const AiInterfaceIdSchema = z.enum(aiInterfaceIds);
 export type AiInterfaceId = z.infer<typeof AiInterfaceIdSchema>;
@@ -30,7 +36,8 @@ export const AiInterfaceStatusIndexSchema = z.object({
     slack: AiInterfaceAccessSchema,
     "google-doc": AiInterfaceAccessSchema,
     confluence: AiInterfaceAccessSchema,
-    figma: AiInterfaceAccessSchema
+    figma: AiInterfaceAccessSchema,
+    circleci: AiInterfaceAccessSchema.default(createDefaultAccess)
   })
 });
 
@@ -43,7 +50,8 @@ export function createDefaultAiInterfaceStatus(): AiInterfaceStatusIndex {
       slack: createDefaultAccess(),
       "google-doc": createDefaultAccess(),
       confluence: createDefaultAccess(),
-      figma: createDefaultAccess()
+      figma: createDefaultAccess(),
+      circleci: createDefaultAccess()
     }
   };
 }
