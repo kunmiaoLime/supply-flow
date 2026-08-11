@@ -226,7 +226,8 @@ button:focus-visible {
 }
 
 .project-controls,
-.local-status {
+.local-status,
+.topbar-meta {
   display: flex;
   align-items: center;
 }
@@ -502,6 +503,42 @@ button:focus-visible {
   height: 8px;
   border-radius: 50%;
   background: #3fbd96;
+}
+
+.topbar-meta {
+  gap: 14px;
+  margin-left: auto;
+}
+
+.topbar-meta .local-status {
+  margin-left: 0;
+}
+
+.topbar-info-button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.topbar-info-button:hover {
+  border-color: var(--teal);
+  background: var(--teal-soft);
+  color: #066a5a;
+}
+
+.topbar-info-button svg {
+  width: 15px;
+  height: 15px;
 }
 
 .workspace-panel {
@@ -2418,6 +2455,153 @@ code {
   line-height: 1.2;
 }
 
+.readme-dialog {
+  display: flex;
+  width: min(880px, 100%);
+  max-height: calc(100dvh - 48px);
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.readme-dialog-header {
+  display: flex;
+  min-height: 66px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 20px 0 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.readme-dialog-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.readme-dialog-close-button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.readme-dialog-close-button:hover {
+  border-color: var(--line);
+  background: var(--surface-soft);
+  color: var(--ink);
+}
+
+.readme-dialog-close-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.readme-dialog-content {
+  overflow: auto;
+  padding: 24px;
+  color: #34423a;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.readme-dialog-content > :first-child {
+  margin-top: 0;
+}
+
+.readme-dialog-content > :last-child {
+  margin-bottom: 0;
+}
+
+.readme-dialog-content h1,
+.readme-dialog-content h2,
+.readme-dialog-content h3,
+.readme-dialog-content h4 {
+  margin: 28px 0 12px;
+  color: var(--ink);
+  line-height: 1.25;
+}
+
+.readme-dialog-content h1 {
+  font-size: 26px;
+}
+
+.readme-dialog-content h2 {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  font-size: 20px;
+}
+
+.readme-dialog-content h3 {
+  font-size: 16px;
+}
+
+.readme-dialog-content p,
+.readme-dialog-content ul,
+.readme-dialog-content ol,
+.readme-dialog-content pre,
+.readme-dialog-content blockquote {
+  margin: 0 0 16px;
+}
+
+.readme-dialog-content ul,
+.readme-dialog-content ol {
+  padding-left: 24px;
+}
+
+.readme-dialog-content li + li {
+  margin-top: 4px;
+}
+
+.readme-dialog-content a {
+  color: var(--teal);
+  font-weight: 700;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.readme-dialog-content code {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: #edf2ef;
+  color: #1c493d;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.readme-dialog-content pre {
+  overflow: auto;
+  padding: 14px 16px;
+  border: 1px solid #d7e0da;
+  border-radius: 5px;
+  background: #f2f6f3;
+}
+
+.readme-dialog-content pre code {
+  padding: 0;
+  background: transparent;
+  color: #263b31;
+  font-size: 12px;
+}
+
+.readme-dialog-content blockquote {
+  padding-left: 14px;
+  border-left: 3px solid #9fd8c4;
+  color: var(--muted);
+}
+
+.readme-dialog-status {
+  margin: 0;
+  color: var(--muted);
+}
+
 .remove-project-warning {
   margin: -8px 0 20px;
   color: var(--muted);
@@ -3466,6 +3650,12 @@ code {
   }
 }
 
+@media (max-width: 1360px) {
+  .topbar-meta .local-status {
+    display: none;
+  }
+}
+
 @media (max-width: 540px) {
   .workspace-topbar {
     flex-wrap: wrap;
@@ -3501,12 +3691,44 @@ code {
     margin-left: auto;
   }
 
+  .topbar-meta {
+    order: 2;
+    margin-left: auto;
+  }
+
+  .topbar-meta .local-status {
+    margin-left: 0;
+  }
+
   .dialog-backdrop {
     padding: 16px;
   }
 
   .create-project-dialog {
     padding: 20px;
+  }
+
+  .readme-dialog {
+    max-height: calc(100dvh - 32px);
+    padding: 0;
+  }
+
+  .readme-dialog-header {
+    min-height: 58px;
+    padding: 0 16px 0 20px;
+  }
+
+  .readme-dialog-content {
+    padding: 20px;
+    font-size: 13px;
+  }
+
+  .readme-dialog-content h1 {
+    font-size: 23px;
+  }
+
+  .readme-dialog-content h2 {
+    font-size: 18px;
   }
 
   .repository-section-header,

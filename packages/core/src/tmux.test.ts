@@ -85,6 +85,36 @@ test("waits longer for larger action prompts before submitting", async () => {
   assert.deepEqual(waits, [2_100]);
 });
 
+test("unsets requested environment variables before launching a provider", async () => {
+  const commands: string[][] = [];
+  const adapter = new TmuxAdapter(async (arguments_) => {
+    commands.push(arguments_);
+    return emptyResult();
+  });
+
+  await adapter.createSession({
+    sessionName: "sf_session_01",
+    workspacePath: "/tmp/worktree",
+    launch: {
+      executable: "claude",
+      unsetEnvironment: ["CLAUDE_CODE_MAX_OUTPUT_TOKENS"],
+      arguments: ["--model", "sonnet"]
+    }
+  });
+
+  assert.deepEqual(commands, [
+    [
+      "new-session",
+      "-d",
+      "-s",
+      "sf_session_01",
+      "-c",
+      "/tmp/worktree",
+      "'env' '-u' 'CLAUDE_CODE_MAX_OUTPUT_TOKENS' 'claude' '--model' 'sonnet'"
+    ]
+  ]);
+});
+
 function emptyResult(): TmuxCommandResult {
   return {
     stdout: "",

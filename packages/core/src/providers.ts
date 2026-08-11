@@ -5,6 +5,7 @@ export type ProviderId = "codex" | "claude-code" | "gemini-cli";
 export interface ProviderLaunchSpec {
   executable: string;
   arguments: string[];
+  unsetEnvironment?: readonly string[];
 }
 
 export interface ProviderLaunchOptions {
@@ -39,6 +40,9 @@ class CliProviderAdapter implements ProviderAdapter {
 
     return {
       executable: this.executable,
+      ...(this.id === "claude-code"
+        ? { unsetEnvironment: ["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] }
+        : {}),
       arguments: [
         ...(this.id === "codex" ? ["--no-alt-screen"] : []),
         ...(model ? ["--model", model] : []),
@@ -68,11 +72,21 @@ class CliProviderAdapter implements ProviderAdapter {
         ...(this.id === "claude-code" && options?.bypassApprovalsAndSandbox
           ? ["--dangerously-skip-permissions"]
           : []),
+        ...(this.id === "claude-code"
+          ? ["--append-system-prompt", claudeOutputManagementPolicy]
+          : []),
         ...(initialPrompt ? [initialPrompt] : [])
       ]
     };
   }
 }
+
+const claudeOutputManagementPolicy = [
+  "Keep output bounded. For large command or API results, use pagination, filtering, or range limits.",
+  "Write substantial artifacts incrementally to files and report paths and counts instead of dumping content.",
+  "Before emitting a response that could be large, divide it into small, self-contained chunks.",
+  "Complete one bounded chunk at a time and explicitly continue with the next chunk when needed."
+].join(" ");
 
 export const defaultProviders: readonly ProviderAdapter[] = [
   new CliProviderAdapter("codex", "Codex", "codex"),

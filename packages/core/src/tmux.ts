@@ -152,7 +152,23 @@ function promptSettleDelay(input: string): number {
 }
 
 function toShellCommand(launch: ProviderLaunchSpec): string {
-  return [launch.executable, ...launch.arguments].map(quoteForShell).join(" ");
+  const unsetEnvironment = launch.unsetEnvironment ?? [];
+
+  for (const name of unsetEnvironment) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+      throw new Error(`Invalid environment variable name: "${name}".`);
+    }
+  }
+
+  return [
+    ...(unsetEnvironment.length > 0
+      ? ["env", ...unsetEnvironment.flatMap((name) => ["-u", name])]
+      : []),
+    launch.executable,
+    ...launch.arguments
+  ]
+    .map(quoteForShell)
+    .join(" ");
 }
 
 function quoteForShell(value: string): string {

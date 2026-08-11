@@ -26,7 +26,7 @@ const execFile = promisify(execFileCallback);
 const SETUP_SESSION_DIRECTORY = "ai-interface-sessions";
 const SETUP_PROMPT_PATH = path.join(projectRoot, "prompts", "setup_ai_interfaces.md");
 const READ_ONLY_PROMPT_PATH = path.join(projectRoot, "prompts", "read_only.md");
-const TERMINAL_OUTPUT_LIMIT = 200_000;
+const TERMINAL_OUTPUT_LIMIT = 64 * 1_024;
 const MAX_SESSION_GOAL_LENGTH = 16_000;
 const AUTHENTICATION_TIMEOUT_MS = 10 * 60 * 1_000;
 

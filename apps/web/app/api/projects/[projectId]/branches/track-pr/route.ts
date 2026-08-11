@@ -9,13 +9,11 @@ import {
   PullRequestTemplateError,
   type PullRequestTemplate
 } from "@supply-flow/core/file-pull-request-template-store";
-import { FileSessionStore } from "@supply-flow/core/file-session-store";
 import {
   findGitHubPullRequestForBranch,
   GitHubPullRequestError
 } from "@supply-flow/core/github-pull-request";
 import type { ProjectRecord, ProjectRepository, ProjectTask } from "@supply-flow/core/project";
-import type { SessionRecord } from "@supply-flow/core/session";
 import { sendAiSessionPrompt } from "@supply-flow/core/session-prompt";
 import { TmuxAdapter } from "@supply-flow/core/tmux";
 import { NextResponse } from "next/server";
@@ -25,6 +23,7 @@ import {
   projectDirectory,
   ProjectSessionError
 } from "../../sessions/session-service";
+import { findActiveImplementationSession } from "../../../../../branch-review-workflow";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -137,9 +136,7 @@ export async function POST(request: Request, context: ProjectRouteContext) {
       issue,
       pullRequestTemplate
     );
-    const existingSession =
-      (await findOpenBranchSession(project.project_id, repository.local, branch)) ??
-      (await findOpenImplementationSession(project.project_id, repository.local, issue));
+    const existingSession = await findActiveImplementationSession(project.project_id, branch);
     if (existingSession) {
       await rememberLastSession(branchStore, branch, existingSession.id);
       await sendAiSessionPrompt(tmux, existingSession.tmuxSessionName, prompt);
@@ -286,55 +283,6 @@ async function requireProjectContext(projectId: string): Promise<void> {
     }
 
     throw error;
-  }
-}
-
-async function findOpenImplementationSession(
-  projectId: string,
-  repositoryLocal: string,
-  issue: JiraIssue
-): Promise<SessionRecord | null> {
-  const store = new FileSessionStore(projectDirectory(projectId));
-  const activeTmuxSessions = await getActiveTmuxSessions();
-  return (
-    (await store.list()).find(
-      (session) =>
-        (session.status === "starting" || session.status === "running") &&
-        activeTmuxSessions.has(session.tmuxSessionName) &&
-        session.workspacePath === repositoryLocal &&
-        session.goal.includes("Implement the selected Jira ticket") &&
-        session.goal.includes(issue.key)
-    ) ?? null
-  );
-}
-
-async function findOpenBranchSession(
-  projectId: string,
-  repositoryLocal: string,
-  branch: ProjectBranch
-): Promise<SessionRecord | null> {
-  if (!branch.last_session_id) {
-    return null;
-  }
-
-  const store = new FileSessionStore(projectDirectory(projectId));
-  const session = await store.get(branch.last_session_id);
-  if (
-    !session ||
-    (session.status !== "starting" && session.status !== "running") ||
-    session.workspacePath !== repositoryLocal
-  ) {
-    return null;
-  }
-
-  return (await getActiveTmuxSessions()).has(session.tmuxSessionName) ? session : null;
-}
-
-async function getActiveTmuxSessions(): Promise<Set<string>> {
-  try {
-    return new Set(await tmux.listSessions());
-  } catch {
-    return new Set();
   }
 }
 

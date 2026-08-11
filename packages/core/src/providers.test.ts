@@ -64,6 +64,7 @@ test("configures Claude model, effort, directories, and YOLO mode", () => {
     }),
     {
       executable: "claude",
+      unsetEnvironment: ["CLAUDE_CODE_MAX_OUTPUT_TOKENS"],
       arguments: [
         "--model",
         "sonnet",
@@ -72,6 +73,8 @@ test("configures Claude model, effort, directories, and YOLO mode", () => {
         "--add-dir",
         "/tmp/project-context",
         "--dangerously-skip-permissions",
+        "--append-system-prompt",
+        "Keep output bounded. For large command or API results, use pagination, filtering, or range limits. Write substantial artifacts incrementally to files and report paths and counts instead of dumping content. Before emitting a response that could be large, divide it into small, self-contained chunks. Complete one bounded chunk at a time and explicitly continue with the next chunk when needed.",
         "Implement the ticket."
       ]
     }
@@ -117,6 +120,7 @@ test("configures Claude read-only sessions in plan mode when YOLO is off", () =>
     }),
     {
       executable: "claude",
+      unsetEnvironment: ["CLAUDE_CODE_MAX_OUTPUT_TOKENS"],
       arguments: [
         "--model",
         "opus",
@@ -124,6 +128,8 @@ test("configures Claude read-only sessions in plan mode when YOLO is off", () =>
         "high",
         "--permission-mode",
         "plan",
+        "--append-system-prompt",
+        "Keep output bounded. For large command or API results, use pagination, filtering, or range limits. Write substantial artifacts incrementally to files and report paths and counts instead of dumping content. Before emitting a response that could be large, divide it into small, self-contained chunks. Complete one bounded chunk at a time and explicitly continue with the next chunk when needed.",
         "Review the project."
       ]
     }
@@ -143,12 +149,15 @@ test("configures Claude YOLO sessions with the local read-only policy", () => {
     }),
     {
       executable: "claude",
+      unsetEnvironment: ["CLAUDE_CODE_MAX_OUTPUT_TOKENS"],
       arguments: [
         "--model",
         "opus",
         "--effort",
         "high",
         "--dangerously-skip-permissions",
+        "--append-system-prompt",
+        "Keep output bounded. For large command or API results, use pagination, filtering, or range limits. Write substantial artifacts incrementally to files and report paths and counts instead of dumping content. Before emitting a response that could be large, divide it into small, self-contained chunks. Complete one bounded chunk at a time and explicitly continue with the next chunk when needed.",
         "Inspect the project."
       ]
     }

@@ -15,6 +15,9 @@ interface SessionDetailResponse {
   error?: string;
 }
 
+const OUTPUT_POLL_INTERVAL_MS = 750;
+const OUTPUT_RETRY_INTERVAL_MS = 1_500;
+
 export function TmuxTerminal({
   sessionEndpoint,
   session,
@@ -182,6 +185,14 @@ export function TmuxTerminal({
     let pollTimer: number | undefined;
     let outputOffset = 0;
 
+    function schedulePoll(delay: number) {
+      if (!cancelled) {
+        pollTimer = window.setTimeout(() => {
+          void pollTerminal();
+        }, delay);
+      }
+    }
+
     async function pollTerminal() {
       const terminal = terminalRef.current;
       if (!terminal || cancelled) {
@@ -206,21 +217,25 @@ export function TmuxTerminal({
           terminal.reset();
         }
         if (data.output) {
-          terminal.write(data.output);
+          await writeTerminalOutput(terminal, data.output);
+        }
+        if (cancelled) {
+          return;
         }
         outputOffset = data.outputSize ?? outputOffset;
         onSessionUpdatedRef.current(data.session);
 
         if (isInteractiveStatus(data.session.status)) {
-          pollTimer = window.setTimeout(() => {
-            void pollTerminal();
-          }, 750);
+          schedulePoll(OUTPUT_POLL_INTERVAL_MS);
         }
       } catch (error) {
         if (!cancelled) {
           onTerminalErrorRef.current(
             error instanceof Error ? error.message : "Unable to read terminal output."
           );
+          if (isInteractiveStatus(sessionStatusRef.current)) {
+            schedulePoll(OUTPUT_RETRY_INTERVAL_MS);
+          }
         }
       }
     }
@@ -243,6 +258,12 @@ export function TmuxTerminal({
 
 function isInteractiveStatus(status: SessionRecord["status"]): boolean {
   return status === "starting" || status === "running";
+}
+
+function writeTerminalOutput(terminal: Terminal, output: string): Promise<void> {
+  return new Promise((resolve) => {
+    terminal.write(output, resolve);
+  });
 }
 
 async function sendTerminalInput(sessionEndpoint: string, input: string): Promise<void> {

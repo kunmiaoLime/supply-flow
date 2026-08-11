@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
 import { AiSessionsPanel } from "./ai-sessions-panel";
 import { BranchesSection } from "./branches-section";
 import { CodeImplementationSection } from "./code-implementation-section";
@@ -33,6 +34,7 @@ import {
   FolderKanban,
   GitBranch,
   GitPullRequest,
+  Info,
   ListTodo,
   MessageSquare,
   Pencil,
@@ -40,6 +42,7 @@ import {
   RefreshCw,
   Settings2,
   Trash2,
+  X,
   type LucideIcon
 } from "lucide-react";
 import {
@@ -217,6 +220,10 @@ export function WorkspaceShell({
   const [rfcConfluenceDestination, setRfcConfluenceDestination] = useState("");
   const [rfcConversionError, setRfcConversionError] = useState("");
   const [isConvertingRfc, setIsConvertingRfc] = useState(false);
+  const [isReadmeDialogOpen, setIsReadmeDialogOpen] = useState(false);
+  const [readmeMarkdown, setReadmeMarkdown] = useState<string | null>(null);
+  const [readmeError, setReadmeError] = useState("");
+  const [isLoadingReadme, setIsLoadingReadme] = useState(false);
   const projectNameInput = useRef<HTMLInputElement>(null);
   const projectArchiveInput = useRef<HTMLInputElement>(null);
   const removeProjectNameInput = useRef<HTMLInputElement>(null);
@@ -225,6 +232,7 @@ export function WorkspaceShell({
   const requirementMarkdownInput = useRef<HTMLInputElement>(null);
   const rfcRepositorySelectionInput = useRef<HTMLInputElement>(null);
   const rfcConfluenceDestinationInput = useRef<HTMLInputElement>(null);
+  const readmeCloseButton = useRef<HTMLButtonElement>(null);
   const selectedProjectId = projectId ?? "";
   const heading = tabHeadings[tab];
   const selectedProject = projects.find((project) => project.project_id === selectedProjectId);
@@ -318,6 +326,12 @@ export function WorkspaceShell({
       rfcConfluenceDestinationInput.current?.focus();
     }
   }, [isRfcConversionDialogOpen]);
+
+  useEffect(() => {
+    if (isReadmeDialogOpen) {
+      readmeCloseButton.current?.focus();
+    }
+  }, [isReadmeDialogOpen]);
 
   useEffect(() => {
     if (!isCreateProjectDialogOpen) {
@@ -427,6 +441,21 @@ export function WorkspaceShell({
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [isConvertingRfc, isRfcConversionDialogOpen]);
+
+  useEffect(() => {
+    if (!isReadmeDialogOpen) {
+      return;
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        closeReadmeDialog();
+      }
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [isReadmeDialogOpen]);
 
   function openCreateProjectDialog() {
     setNewProjectName("");
@@ -1280,6 +1309,35 @@ export function WorkspaceShell({
     }
   }
 
+  async function openReadmeDialog() {
+    setIsReadmeDialogOpen(true);
+    setReadmeMarkdown(null);
+    setReadmeError("");
+    setIsLoadingReadme(true);
+
+    try {
+      const response = await fetch("/api/readme", { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error("Unable to load the README.");
+      }
+
+      const markdown = await response.text();
+      if (!markdown.trim()) {
+        throw new Error("The README is empty.");
+      }
+
+      setReadmeMarkdown(markdown);
+    } catch (error) {
+      setReadmeError(error instanceof Error ? error.message : "Unable to load the README.");
+    } finally {
+      setIsLoadingReadme(false);
+    }
+  }
+
+  function closeReadmeDialog() {
+    setIsReadmeDialogOpen(false);
+  }
+
   return (
     <div className="workspace-shell">
       <header className="workspace-topbar">
@@ -1356,10 +1414,22 @@ export function WorkspaceShell({
             <span>Remove project</span>
           </button>
         </div>
-        <span className="local-status">
-          <span />
-          Local
-        </span>
+        <div className="topbar-meta">
+          <span className="local-status">
+            <span />
+            Local
+          </span>
+          <button
+            aria-haspopup="dialog"
+            className="topbar-info-button"
+            onClick={() => void openReadmeDialog()}
+            title="View README"
+            type="button"
+          >
+            <Info aria-hidden="true" />
+            <span>Info</span>
+          </button>
+        </div>
       </header>
 
       <aside className="workspace-sidebar" aria-label="Workspace navigation">
@@ -1456,6 +1526,51 @@ export function WorkspaceShell({
           />
         </section>
       </main>
+
+      {isReadmeDialogOpen ? (
+        <div
+          className="dialog-backdrop"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) {
+              closeReadmeDialog();
+            }
+          }}
+        >
+          <section
+            aria-labelledby="readme-dialog-title"
+            aria-modal="true"
+            className="create-project-dialog readme-dialog"
+            role="dialog"
+          >
+            <div className="readme-dialog-header">
+              <h2 id="readme-dialog-title">README</h2>
+              <button
+                aria-label="Close README"
+                className="readme-dialog-close-button"
+                onClick={closeReadmeDialog}
+                ref={readmeCloseButton}
+                title="Close README"
+                type="button"
+              >
+                <X aria-hidden="true" />
+              </button>
+            </div>
+            <div aria-busy={isLoadingReadme} className="readme-dialog-content">
+              {isLoadingReadme ? (
+                <p className="readme-dialog-status" role="status">
+                  Loading README...
+                </p>
+              ) : null}
+              {readmeError ? (
+                <p className="create-project-error" role="alert">
+                  {readmeError}
+                </p>
+              ) : null}
+              {readmeMarkdown ? <ReactMarkdown>{readmeMarkdown}</ReactMarkdown> : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       {isCreateProjectDialogOpen ? (
         <div

@@ -12,7 +12,7 @@ export const runtime = "nodejs";
 const projectRoot = path.resolve(process.cwd(), "../..");
 const dataDirectory = process.env.SUPPLY_FLOW_DATA_DIR ?? path.join(projectRoot, ".supply-flow");
 const tmux = new TmuxAdapter();
-const TERMINAL_OUTPUT_LIMIT = 200_000;
+const TERMINAL_OUTPUT_LIMIT = 64 * 1_024;
 
 interface SessionRouteContext {
   params: Promise<{ projectId: string; sessionId: string }>;
