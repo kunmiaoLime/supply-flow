@@ -15,11 +15,14 @@ test("tracks project pull requests in prs.json", async () => {
     branch: "kun/SUP-123-ride-eligibility",
     repository_local: "/Users/example/code/ios/Apps/Supply",
     monitoring_enabled: false,
+    retry_ci_enabled: false,
     status: "unknown" as const,
     unresolved_comment_count: 0,
     unreplied_comment_count: 0,
     ci_status: "unknown" as const,
     last_scanned_at: null,
+    last_ci_retry_at: null,
+    last_ci_retry_error: null,
     last_session_id: null
   };
   const secondPullRequest = {
@@ -29,11 +32,14 @@ test("tracks project pull requests in prs.json", async () => {
     branch: "kun/SUP-124-ride-receipt",
     repository_local: firstPullRequest.repository_local,
     monitoring_enabled: true,
+    retry_ci_enabled: true,
     status: "open" as const,
     unresolved_comment_count: 2,
     unreplied_comment_count: 1,
     ci_status: "failure" as const,
     last_scanned_at: "2026-08-04T19:30:00.000Z",
+    last_ci_retry_at: "2026-08-04T19:30:30.000Z",
+    last_ci_retry_error: "CircleCI did not accept the retry request.",
     last_session_id: "session_pr_review"
   };
 
@@ -56,7 +62,9 @@ test("tracks project pull requests in prs.json", async () => {
       unresolved_comment_count: 0,
       unreplied_comment_count: 0,
       ci_status: "success" as const,
-      last_scanned_at: "2026-08-04T19:31:00.000Z"
+      last_scanned_at: "2026-08-04T19:31:00.000Z",
+      last_ci_retry_at: null,
+      last_ci_retry_error: null
     };
     assert.deepEqual(
       await store.update(secondPullRequest, updatedSecondPullRequest),

@@ -226,6 +226,22 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
     pullRequest: ProjectPullRequest,
     monitoringEnabled: boolean
   ) {
+    await updatePullRequestSettings(
+      pullRequest,
+      monitoringEnabled,
+      monitoringEnabled ? pullRequest.retry_ci_enabled : false
+    );
+  }
+
+  async function updateRetryCi(pullRequest: ProjectPullRequest, retryCiEnabled: boolean) {
+    await updatePullRequestSettings(pullRequest, pullRequest.monitoring_enabled, retryCiEnabled);
+  }
+
+  async function updatePullRequestSettings(
+    pullRequest: ProjectPullRequest,
+    monitoringEnabled: boolean,
+    retryCiEnabled: boolean
+  ) {
     if (removingPullRequest || updatingMonitoringUrl || addressingPullRequestUrl) {
       return;
     }
@@ -235,7 +251,7 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
 
     try {
       const response = await fetch(pullRequestsUrl(project.project_id), {
-        body: JSON.stringify({ url: pullRequest.url, monitoringEnabled }),
+        body: JSON.stringify({ url: pullRequest.url, monitoringEnabled, retryCiEnabled }),
         headers: { "Content-Type": "application/json" },
         method: "PATCH"
       });
@@ -394,6 +410,20 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
                       <span className="pull-request-scan-time">
                         {formatLastScannedAt(pullRequest.last_scanned_at)}
                       </span>
+                      {pullRequest.retry_ci_enabled && pullRequest.last_ci_retry_at ? (
+                        <span
+                          className={
+                            pullRequest.last_ci_retry_error
+                              ? "pull-request-ci-retry is-error"
+                              : "pull-request-ci-retry"
+                          }
+                          title={pullRequest.last_ci_retry_error ?? undefined}
+                        >
+                          {pullRequest.last_ci_retry_error
+                            ? "CI retry failed"
+                            : `CI retried ${formatTime(pullRequest.last_ci_retry_at)}`}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                   <div className="repository-actions">
@@ -414,6 +444,30 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
                         type="checkbox"
                       />
                       <span>Monitor</span>
+                    </label>
+                    <label
+                      className="pull-request-monitor-control"
+                      title={
+                        pullRequest.monitoring_enabled
+                          ? "Rerun failing CircleCI and GitHub Actions checks every minute"
+                          : "Enable monitoring before retrying CI"
+                      }
+                    >
+                      <input
+                        checked={pullRequest.retry_ci_enabled}
+                        disabled={
+                          isClosed ||
+                          !pullRequest.monitoring_enabled ||
+                          Boolean(removingPullRequest) ||
+                          Boolean(updatingMonitoringUrl) ||
+                          Boolean(addressingPullRequestUrl)
+                        }
+                        onChange={(event) =>
+                          void updateRetryCi(pullRequest, event.target.checked)
+                        }
+                        type="checkbox"
+                      />
+                      <span>Retry CI</span>
                     </label>
                     <button
                       className="pull-request-address-button"
@@ -552,6 +606,11 @@ function formatLastScannedAt(value: string | null): string {
 
   const date = new Date(value);
   return Number.isNaN(date.valueOf()) ? "Not scanned" : `Scanned ${date.toLocaleTimeString()}`;
+}
+
+function formatTime(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf()) ? "recently" : date.toLocaleTimeString();
 }
 
 function sortPullRequests(pullRequests: ProjectPullRequest[]): ProjectPullRequest[] {

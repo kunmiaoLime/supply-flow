@@ -4,6 +4,7 @@ import {
   classifyGitHubPullRequestCiStatus,
   classifyGitHubPullRequestStatus,
   countUnrepliedGitHubReviewThreads,
+  getGitHubCiRetryTargets,
   githubRepositoryFromRemote,
   parseGitHubPullRequestUrl
 } from "./github-pull-request.js";
@@ -66,7 +67,38 @@ test("summarizes GitHub CI checks", () => {
     classifyGitHubPullRequestCiStatus([{ conclusion: "FAILURE", status: "COMPLETED" }]),
     "failure"
   );
+  assert.equal(
+    classifyGitHubPullRequestCiStatus([
+      { conclusion: "FAILURE", status: "COMPLETED" },
+      { conclusion: null, status: "IN_PROGRESS" }
+    ]),
+    "pending"
+  );
   assert.equal(classifyGitHubPullRequestCiStatus(null), "unknown");
+});
+
+test("finds retryable CircleCI workflows and GitHub Actions runs", () => {
+  assert.deepEqual(
+    getGitHubCiRetryTargets([
+      {
+        conclusion: "FAILURE",
+        detailsUrl:
+          "https://app.circleci.com/pipelines/gh/limebike/admintool/26602/workflows/0795e769-bbc5-4dc8-8bbe-894c58def65c/jobs/9ebe291e-9927-4993-be05-d655f7b796d6"
+      },
+      {
+        state: "FAILURE",
+        targetUrl: "https://github.com/limebike/admintool/actions/runs/31542920701/job/93949134001"
+      },
+      {
+        conclusion: "SUCCESS",
+        detailsUrl: "https://app.circleci.com/workflow/ab06fad4-7d32-461c-bac8-2eea8e8edb67"
+      }
+    ]),
+    [
+      { provider: "circleci", id: "0795e769-bbc5-4dc8-8bbe-894c58def65c" },
+      { provider: "github-actions", id: "31542920701" }
+    ]
+  );
 });
 
 test("counts review threads whose latest reviewer comment has no reply", () => {

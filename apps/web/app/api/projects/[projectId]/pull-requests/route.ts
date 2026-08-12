@@ -119,10 +119,10 @@ export async function DELETE(request: Request, context: ProjectRouteContext) {
 }
 
 export async function PATCH(request: Request, context: ProjectRouteContext) {
-  const input = await parseMonitoringInput(request);
+  const input = await parsePullRequestSettingsInput(request);
   if (!input) {
     return NextResponse.json(
-      { error: "Select a tracked pull request and a monitoring setting." },
+      { error: "Select a tracked pull request and valid monitoring settings." },
       { status: 400 }
     );
   }
@@ -146,7 +146,12 @@ export async function PATCH(request: Request, context: ProjectRouteContext) {
 
     let pullRequest = await store.update(current, {
       ...current,
-      monitoring_enabled: input.monitoringEnabled
+      monitoring_enabled: input.monitoringEnabled,
+      retry_ci_enabled: input.monitoringEnabled && input.retryCiEnabled,
+      last_ci_retry_at:
+        input.monitoringEnabled && input.retryCiEnabled ? current.last_ci_retry_at : null,
+      last_ci_retry_error:
+        input.monitoringEnabled && input.retryCiEnabled ? current.last_ci_retry_error : null
     });
     let scanError: string | undefined;
 
@@ -183,9 +188,9 @@ async function parsePullRequestUrl(request: Request): Promise<string | null> {
   }
 }
 
-async function parseMonitoringInput(
+async function parsePullRequestSettingsInput(
   request: Request
-): Promise<{ url: string; monitoringEnabled: boolean } | null> {
+): Promise<{ url: string; monitoringEnabled: boolean; retryCiEnabled: boolean } | null> {
   try {
     const body: unknown = await request.json();
     if (
@@ -193,15 +198,21 @@ async function parseMonitoringInput(
       body === null ||
       !("url" in body) ||
       !("monitoringEnabled" in body) ||
+      !("retryCiEnabled" in body) ||
       typeof body.url !== "string" ||
-      typeof body.monitoringEnabled !== "boolean"
+      typeof body.monitoringEnabled !== "boolean" ||
+      typeof body.retryCiEnabled !== "boolean"
     ) {
       return null;
     }
 
     const url = body.url.trim();
     return url.length > 0 && url.length <= 2_048
-      ? { url, monitoringEnabled: body.monitoringEnabled }
+      ? {
+          url,
+          monitoringEnabled: body.monitoringEnabled,
+          retryCiEnabled: body.retryCiEnabled
+        }
       : null;
   } catch {
     return null;

@@ -1,4 +1,7 @@
 import { execFile } from "node:child_process";
+import { readFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { promisify } from "node:util";
 import type {
   ProjectPullRequestCiStatus,
@@ -23,6 +26,12 @@ export interface GitHubPullRequestHealth {
   unresolvedCommentCount: number;
   unrepliedCommentCount: number;
   ciStatus: ProjectPullRequestCiStatus;
+  ciRetryTargets: readonly GitHubCiRetryTarget[];
+}
+
+export interface GitHubCiRetryTarget {
+  provider: "circleci" | "github-actions";
+  id: string;
 }
 
 export interface GitHubReviewThreadComment {
@@ -258,8 +267,29 @@ export async function getGitHubPullRequestHealth(
     status: classifyGitHubPullRequestStatus(healthPayload.state, healthPayload.isDraft),
     unresolvedCommentCount: reviewThreadCounts.unresolvedCommentCount,
     unrepliedCommentCount: reviewThreadCounts.unrepliedCommentCount,
-    ciStatus: classifyGitHubPullRequestCiStatus(healthPayload.statusCheckRollup)
+    ciStatus: classifyGitHubPullRequestCiStatus(healthPayload.statusCheckRollup),
+    ciRetryTargets: getGitHubCiRetryTargets(healthPayload.statusCheckRollup)
   };
+}
+
+export async function retryGitHubPullRequestCi(
+  reference: GitHubPullRequestReference,
+  targets: readonly GitHubCiRetryTarget[]
+): Promise<void> {
+  if (targets.length === 0) {
+    throw new GitHubPullRequestError(
+      "The failing CI check does not expose a supported CircleCI workflow or GitHub Actions run to retry.",
+      502
+    );
+  }
+
+  for (const target of targets) {
+    if (target.provider === "circleci") {
+      await retryCircleCiWorkflow(target.id);
+    } else {
+      await retryGitHubActionsRun(reference, target.id);
+    }
+  }
 }
 
 export function classifyGitHubPullRequestStatus(
@@ -294,35 +324,17 @@ export function classifyGitHubPullRequestCiStatus(
   }
 
   let hasPending = false;
+  let hasFailure = false;
   let hasUnknown = false;
 
   for (const check of checks) {
-    const values = [check.conclusion, check.status, check.state]
-      .filter((value): value is string => typeof value === "string")
-      .map((value) => value.trim().toUpperCase())
-      .filter(Boolean);
-
-    if (
-      values.some((value) =>
-        [
-          "FAILURE",
-          "ERROR",
-          "TIMED_OUT",
-          "CANCELLED",
-          "ACTION_REQUIRED",
-          "STARTUP_FAILURE"
-        ].includes(value)
-      )
-    ) {
-      return "failure";
+    const values = ciCheckValues(check);
+    if (isFailedCiCheckValues(values)) {
+      hasFailure = true;
+      continue;
     }
 
-    if (
-      values.some((value) =>
-        ["PENDING", "QUEUED", "IN_PROGRESS", "WAITING", "REQUESTED"].includes(value)
-      ) ||
-      values.length === 0
-    ) {
+    if (isPendingCiCheckValues(values)) {
       hasPending = true;
       continue;
     }
@@ -339,10 +351,105 @@ export function classifyGitHubPullRequestCiStatus(
   if (hasPending) {
     return "pending";
   }
+  if (hasFailure) {
+    return "failure";
+  }
   if (hasUnknown) {
     return "unknown";
   }
   return "success";
+}
+
+export function getGitHubCiRetryTargets(
+  statusCheckRollup: unknown
+): GitHubCiRetryTarget[] {
+  if (!Array.isArray(statusCheckRollup)) {
+    return [];
+  }
+
+  const targets = new Map<string, GitHubCiRetryTarget>();
+  for (const check of statusCheckRollup) {
+    if (typeof check !== "object" || check === null || !isFailedCiCheckValues(ciCheckValues(check))) {
+      continue;
+    }
+
+    for (const url of ciCheckUrls(check)) {
+      const target = ciRetryTargetFromUrl(url);
+      if (target) {
+        targets.set(`${target.provider}:${target.id}`, target);
+      }
+    }
+  }
+
+  return [...targets.values()];
+}
+
+function ciCheckValues(check: object): string[] {
+  const values = [
+    "conclusion" in check ? check.conclusion : undefined,
+    "status" in check ? check.status : undefined,
+    "state" in check ? check.state : undefined
+  ];
+
+  return values
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim().toUpperCase())
+    .filter(Boolean);
+}
+
+function isFailedCiCheckValues(values: readonly string[]): boolean {
+  return values.some((value) =>
+    [
+      "FAILURE",
+      "ERROR",
+      "TIMED_OUT",
+      "CANCELLED",
+      "ACTION_REQUIRED",
+      "STARTUP_FAILURE"
+    ].includes(value)
+  );
+}
+
+function isPendingCiCheckValues(values: readonly string[]): boolean {
+  return (
+    values.length === 0 ||
+    values.some((value) =>
+      ["PENDING", "QUEUED", "IN_PROGRESS", "WAITING", "REQUESTED"].includes(value)
+    )
+  );
+}
+
+function ciCheckUrls(check: object): string[] {
+  return ["detailsUrl" in check ? check.detailsUrl : undefined, "targetUrl" in check ? check.targetUrl : undefined]
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function ciRetryTargetFromUrl(value: string): GitHubCiRetryTarget | null {
+  try {
+    const url = new URL(value);
+    const hostname = url.hostname.toLowerCase();
+    const circleCiMatch =
+      hostname === "app.circleci.com" || hostname === "circleci.com"
+        ? /\/(?:workflow|workflows)\/([0-9a-f-]{36})(?:\/|$)/i.exec(url.pathname)
+        : null;
+    if (circleCiMatch?.[1]) {
+      return { provider: "circleci", id: circleCiMatch[1] };
+    }
+
+    if (hostname !== "github.com") {
+      return null;
+    }
+    const githubActionsMatch = /^\/[^/]+\/[^/]+\/actions\/runs\/([1-9]\d*)(?:\/|$)/.exec(
+      url.pathname
+    );
+    return githubActionsMatch?.[1]
+      ? { provider: "github-actions", id: githubActionsMatch[1] }
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 export function countUnrepliedGitHubReviewThreads(
@@ -458,24 +565,130 @@ async function getAdditionalReviewThreadComments(
   return comments;
 }
 
-async function runGh(arguments_: string[]): Promise<unknown> {
-  let stdout: string;
+async function retryGitHubActionsRun(
+  reference: GitHubPullRequestReference,
+  runId: string
+): Promise<void> {
+  await runGhCommand(
+    [
+      "api",
+      "--method",
+      "POST",
+      `repos/${reference.repository}/actions/runs/${runId}/rerun-failed-jobs`
+    ],
+    "GitHub CLI could not retry the failing GitHub Actions run. Check GitHub CLI authentication and repository access."
+  );
+}
+
+async function retryCircleCiWorkflow(workflowId: string): Promise<void> {
+  const configuration = await getCircleCiConfiguration();
+  let response: Response;
   try {
-    ({ stdout } = await execFileAsync("gh", arguments_, {
-      encoding: "utf8",
-      maxBuffer: 1_024 * 1_024
-    }));
+    response = await fetch(
+      new URL(`/api/v2/workflow/${encodeURIComponent(workflowId)}/rerun`, configuration.host),
+      {
+        body: JSON.stringify({ from_failed: true }),
+        headers: {
+          "Circle-Token": configuration.token,
+          "Content-Type": "application/json"
+        },
+        method: "POST"
+      }
+    );
   } catch {
     throw new GitHubPullRequestError(
-      "GitHub CLI could not retrieve the pull request. Check GitHub CLI authentication and repository access.",
+      "CircleCI could not be reached to retry the failing workflow. Verify CircleCI access in Settings.",
       502
     );
   }
+
+  if (!response.ok) {
+    throw new GitHubPullRequestError(
+      "CircleCI did not accept the workflow retry. Verify CircleCI access in Settings.",
+      502
+    );
+  }
+}
+
+async function getCircleCiConfiguration(): Promise<{ host: string; token: string }> {
+  const environmentToken = process.env.CIRCLECI_CLI_TOKEN?.trim();
+  const environmentHost = process.env.CIRCLECI_CLI_HOST?.trim();
+  let configurationFile = "";
+
+  try {
+    configurationFile = await readFile(path.join(os.homedir(), ".circleci", "cli.yml"), "utf8");
+  } catch {
+    // An environment token is sufficient and does not require the CLI config file.
+  }
+
+  const token = environmentToken ?? circleCiConfigValue(configurationFile, "token");
+  if (!token) {
+    throw new GitHubPullRequestError(
+      "CircleCI authentication is not configured. Set up CircleCI access in Settings before enabling Retry CI.",
+      502
+    );
+  }
+
+  const configuredHost = environmentHost ?? circleCiConfigValue(configurationFile, "host");
+  let host: URL;
+  try {
+    host = new URL(configuredHost || "https://circleci.com");
+  } catch {
+    throw new GitHubPullRequestError(
+      "CircleCI CLI configuration has an invalid host. Set up CircleCI access in Settings.",
+      502
+    );
+  }
+  if (host.protocol !== "https:" || host.username || host.password) {
+    throw new GitHubPullRequestError(
+      "CircleCI CLI configuration has an invalid host. Set up CircleCI access in Settings.",
+      502
+    );
+  }
+
+  return { host: host.origin, token };
+}
+
+function circleCiConfigValue(configurationFile: string, key: "host" | "token"): string | null {
+  const match = new RegExp(`^\\s*${key}:\\s*(.+?)\\s*$`, "m").exec(configurationFile);
+  if (!match?.[1]) {
+    return null;
+  }
+
+  const value = match[1].trim();
+  if (
+    value.length >= 2 &&
+    ((value.startsWith("\"") && value.endsWith("\"")) ||
+      (value.startsWith("'") && value.endsWith("'")))
+  ) {
+    return value.slice(1, -1).trim() || null;
+  }
+
+  return value || null;
+}
+
+async function runGh(arguments_: string[]): Promise<unknown> {
+  const stdout = await runGhCommand(
+    arguments_,
+    "GitHub CLI could not retrieve the pull request. Check GitHub CLI authentication and repository access."
+  );
 
   try {
     return JSON.parse(stdout) as unknown;
   } catch {
     throw new GitHubPullRequestError("GitHub returned invalid pull request metadata.", 502);
+  }
+}
+
+async function runGhCommand(arguments_: string[], errorMessage: string): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync("gh", arguments_, {
+      encoding: "utf8",
+      maxBuffer: 1_024 * 1_024
+    });
+    return stdout;
+  } catch {
+    throw new GitHubPullRequestError(errorMessage, 502);
   }
 }
 

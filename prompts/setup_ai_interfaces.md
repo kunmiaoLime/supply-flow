@@ -97,10 +97,10 @@ or templates beneath `~/.codex` or `$CODEX_HOME`.
 
 ### CircleCI (`circleci`)
 
-- Confirm that the official `circleci` CLI is installed, then run an
-  authenticated, read-only command such as `circleci info`. Do not mark access
-  `accessible` from `circleci version`, `circleci diagnostic`, or a local
-  configuration file alone.
+- Confirm that the official `circleci` CLI is installed, then run
+  `circleci info org --json` as an authenticated, read-only check. Do not mark
+  access `accessible` from `circleci version`, `circleci diagnostic`, or a
+  local configuration file alone.
 - In setup mode, use the official `circleci setup` flow. Do not print tokens,
   pass them in a command that will be logged, or copy them into Supply Flow
   files.
