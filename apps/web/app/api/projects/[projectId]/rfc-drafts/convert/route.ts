@@ -1,11 +1,15 @@
 import { stat } from "node:fs/promises";
 import path from "node:path";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
+import { FileSessionStore } from "@supply-flow/core/file-session-store";
 import {
   ProjectRfcDraftPathSchema,
   type ProjectRecord
 } from "@supply-flow/core/project";
+import { sendAiSessionPrompt } from "@supply-flow/core/session-prompt";
+import { TmuxAdapter } from "@supply-flow/core/tmux";
 import { NextResponse } from "next/server";
+import { findActiveRfcDraftWriterSession } from "../../../../../rfc-draft-session";
 import {
   createProjectSession,
   dataDirectory,
@@ -19,6 +23,7 @@ export const runtime = "nodejs";
 
 const convertPromptPath = path.join(projectRoot, "prompts", "convert_rfc_draft.md");
 const rfcTrackerPath = path.join(projectRoot, "apps", "web", "scripts", "track-project-rfc.ts");
+const tmux = new TmuxAdapter();
 
 interface ConvertRfcInput {
   destination: string;
@@ -58,15 +63,30 @@ export async function POST(request: Request, context: ProjectRouteContext) {
       return NextResponse.json({ error: "The RFC draft file is unavailable." }, { status: 404 });
     }
 
+    const goal = buildConversionGoal(project, input);
+    const writerSession = await findActiveRfcDraftWriterSession(
+      project.project_id,
+      draft,
+      new FileSessionStore(projectPath)
+    );
+    if (writerSession) {
+      await sendAiSessionPrompt(
+        tmux,
+        writerSession.tmuxSessionName,
+        `The user approved this RFC draft. Start this Confluence conversion request now.\n\n${goal}`
+      );
+      return NextResponse.json({ reusedSession: true, session: writerSession }, { status: 202 });
+    }
+
     const session = await createProjectSession(project, {
       action: "convert-rfc",
       title: `Convert RFC: ${draft.title ?? "draft"}`.slice(0, 120),
-      goal: buildConversionGoal(project, input),
+      goal,
       workspacePath: projectPath,
       additionalWritableDirectories: [projectPath],
       loadProjectContext: true
     });
-    return NextResponse.json({ session }, { status: 201 });
+    return NextResponse.json({ reusedSession: false, session }, { status: 201 });
   } catch (error) {
     if (error instanceof ProjectSessionError) {
       return NextResponse.json({ error: error.message }, { status: error.status });

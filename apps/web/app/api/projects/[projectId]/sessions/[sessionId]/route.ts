@@ -40,7 +40,11 @@ export async function GET(request: Request, context: SessionRouteContext) {
       outputOffsetFromRequest(request)
     );
     return NextResponse.json({
-      ...(await replaceTruncatedOutputWithSnapshot(output, session.tmuxSessionName)),
+      ...(await replaceOutputWithTmuxSnapshot(
+        output,
+        session.tmuxSessionName,
+        tmuxRefreshRequested(request)
+      )),
       session
     });
   } catch (error) {
@@ -156,22 +160,24 @@ async function readTerminalOutput(
   }
 }
 
-async function replaceTruncatedOutputWithSnapshot(
+async function replaceOutputWithTmuxSnapshot(
   output: Awaited<ReturnType<typeof readTerminalOutput>>,
-  tmuxSessionName: string
+  tmuxSessionName: string,
+  refreshFromTmux: boolean
 ): Promise<Awaited<ReturnType<typeof readTerminalOutput>>> {
-  if (!output.outputTruncated) {
+  if (!refreshFromTmux && !output.outputTruncated) {
     return output;
   }
 
   try {
     return {
       ...output,
-      output: toTerminalLines(await tmux.captureOutput(tmuxSessionName, TERMINAL_SNAPSHOT_LINES))
+      output: toTerminalLines(await tmux.captureOutput(tmuxSessionName, TERMINAL_SNAPSHOT_LINES)),
+      outputTruncated: true
     };
   } catch {
-    // The session can exit after it is reconciled. The recent raw terminal log remains a fallback.
-    return output;
+    // The session can exit after it is reconciled. Reset to the raw terminal log as a fallback.
+    return refreshFromTmux ? { ...output, outputTruncated: true } : output;
   }
 }
 
@@ -187,6 +193,10 @@ function outputOffsetFromRequest(request: Request): number | undefined {
 
   const parsedOffset = Number(offset);
   return Number.isSafeInteger(parsedOffset) ? parsedOffset : undefined;
+}
+
+function tmuxRefreshRequested(request: Request): boolean {
+  return new URL(request.url).searchParams.get("refresh") === "tmux";
 }
 
 function projectDirectory(projectId: string): string {

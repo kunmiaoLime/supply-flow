@@ -4,6 +4,7 @@ import {
   getAiInterfaceSession,
   outputOffsetFromRequest,
   readAiInterfaceTerminalOutput,
+  tmuxRefreshRequested,
   terminateAiInterfaceSession
 } from "../../interface-session-service";
 
@@ -25,7 +26,8 @@ export async function GET(request: Request, context: SessionRouteContext) {
 
     const output = await readAiInterfaceTerminalOutput(
       session.id,
-      outputOffsetFromRequest(request)
+      outputOffsetFromRequest(request),
+      tmuxRefreshRequested(request)
     );
     return NextResponse.json({ ...output, session });
   } catch (error) {

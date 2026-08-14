@@ -1628,6 +1628,16 @@ code {
   height: 14px;
 }
 
+.session-icon-button.is-refreshing svg {
+  animation: tmux-terminal-refresh 0.8s linear infinite;
+}
+
+@keyframes tmux-terminal-refresh {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .tmux-terminal-viewport {
   min-height: 0;
   flex: 1;

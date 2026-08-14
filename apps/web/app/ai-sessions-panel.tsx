@@ -14,6 +14,7 @@ import {
   KeyRound,
   Lock,
   Plus,
+  RefreshCw,
   Save,
   Square,
   TerminalSquare,
@@ -78,9 +79,17 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
   const [togglingReadOnlySessionKey, setTogglingReadOnlySessionKey] = useState<string | null>(
     null
   );
+  const [terminalRefreshRequest, setTerminalRefreshRequest] = useState<{
+    requestId: number;
+    sessionKey: string;
+  } | null>(null);
+  const [refreshingTerminalSessionKey, setRefreshingTerminalSessionKey] = useState<
+    string | null
+  >(null);
   const titleInput = useRef<HTMLInputElement>(null);
   const contextSaveResetTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const authenticationResetTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const terminalRefreshRequestId = useRef(0);
 
   const sessions = combineSessions(globalSessions, projectSessions);
   const activeSession = sessions.find((session) => sessionKey(session) === activeSessionKey) ?? null;
@@ -451,6 +460,23 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
     }
   }
 
+  function refreshTerminal(scopedSession: ScopedSession) {
+    const key = sessionKey(scopedSession);
+    terminalRefreshRequestId.current += 1;
+    setSessionError("");
+    setTerminalRefreshRequest({
+      requestId: terminalRefreshRequestId.current,
+      sessionKey: key
+    });
+    setRefreshingTerminalSessionKey(key);
+  }
+
+  function completeTerminalRefresh(requestId: number) {
+    setRefreshingTerminalSessionKey((currentSessionKey) =>
+      terminalRefreshRequest?.requestId === requestId ? null : currentSessionKey
+    );
+  }
+
   function updateSession(scope: SessionScope, updatedSession: SessionRecord) {
     const update = (sessions_: SessionRecord[]) =>
       sessions_.map((session) => (session.id === updatedSession.id ? updatedSession : session));
@@ -559,6 +585,25 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
                   {activeSession.session.status === "starting" ||
                   activeSession.session.status === "running" ? (
                     <>
+                      <button
+                        aria-busy={
+                          refreshingTerminalSessionKey === sessionKey(activeSession)
+                        }
+                        aria-label={`Refresh ${activeSession.session.title} from tmux`}
+                        className={`session-icon-button${
+                          refreshingTerminalSessionKey === sessionKey(activeSession)
+                            ? " is-refreshing"
+                            : ""
+                        }`}
+                        disabled={
+                          refreshingTerminalSessionKey === sessionKey(activeSession)
+                        }
+                        onClick={() => refreshTerminal(activeSession)}
+                        title="Refresh terminal from tmux"
+                        type="button"
+                      >
+                        <RefreshCw aria-hidden="true" />
+                      </button>
                       {activeSession.scope === "project" ? (
                         <button
                           aria-label={`Save ${activeSession.session.title} context to the project`}
@@ -654,6 +699,12 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
                   updateSession(activeSession.scope, updatedSession)
                 }
                 onTerminalError={setSessionError}
+                onTerminalRefreshComplete={completeTerminalRefresh}
+                refreshRequestId={
+                  terminalRefreshRequest?.sessionKey === sessionKey(activeSession)
+                    ? terminalRefreshRequest.requestId
+                    : null
+                }
                 session={activeSession.session}
                 sessionEndpoint={sessionUrl(activeSession, project)}
               />

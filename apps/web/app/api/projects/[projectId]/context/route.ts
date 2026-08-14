@@ -7,11 +7,15 @@ import {
 } from "@supply-flow/core/file-context-analysis-store";
 import { FileImportConflictStore } from "@supply-flow/core/file-import-conflict-store";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
+import { FileSessionStore } from "@supply-flow/core/file-session-store";
 import {
   isProjectLocalDocumentType,
   type DocumentSourceType,
   type ProjectRecord
 } from "@supply-flow/core/project";
+import { sendAiSessionPrompt } from "@supply-flow/core/session-prompt";
+import type { SessionRecord } from "@supply-flow/core/session";
+import { TmuxAdapter } from "@supply-flow/core/tmux";
 import { NextResponse } from "next/server";
 import {
   createProjectSession,
@@ -26,6 +30,7 @@ export const runtime = "nodejs";
 const projectRoot = path.resolve(process.cwd(), "../..");
 const CONTEXT_FILE = "context.md";
 const MAX_SESSION_GOAL_LENGTH = 16_000;
+const tmux = new TmuxAdapter();
 
 type ContextOperation = "initialize" | "update";
 
@@ -126,6 +131,16 @@ export async function POST(request: Request, context: ProjectRouteContext) {
       );
     }
 
+    const existingSession = await findActiveProjectContextSession(project.project_id);
+    if (existingSession) {
+      await sendAiSessionPrompt(
+        tmux,
+        existingSession.tmuxSessionName,
+        `Continue the project context ${operation} request now.\n\n${goal}`
+      );
+      return NextResponse.json({ reusedSession: true, session: existingSession }, { status: 202 });
+    }
+
     const session = await createProjectSession(project, {
       action: operation === "initialize" ? "initialize-context" : "update-context",
       title: operation === "initialize" ? "Initialize project context" : "Update project context",
@@ -133,7 +148,7 @@ export async function POST(request: Request, context: ProjectRouteContext) {
       additionalWritableDirectories: [projectDirectory(project.project_id)],
       loadProjectContext: false
     });
-    return NextResponse.json({ session }, { status: 201 });
+    return NextResponse.json({ reusedSession: false, session }, { status: 201 });
   } catch (error) {
     if (error instanceof ProjectSessionError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
@@ -185,6 +200,45 @@ async function getContextStatus(projectId: string): Promise<{
 
     throw error;
   }
+}
+
+async function findActiveProjectContextSession(projectId: string): Promise<SessionRecord | null> {
+  let activeTmuxSessions: Set<string>;
+  try {
+    activeTmuxSessions = new Set(await tmux.listSessions());
+  } catch {
+    return null;
+  }
+
+  const store = new FileSessionStore(projectDirectory(projectId));
+  for (const session of await store.list()) {
+    if (
+      (session.status !== "starting" && session.status !== "running") ||
+      !activeTmuxSessions.has(session.tmuxSessionName) ||
+      !isProjectContextSession(session)
+    ) {
+      continue;
+    }
+
+    return session;
+  }
+
+  return null;
+}
+
+function isProjectContextSession(session: SessionRecord): boolean {
+  if (
+    session.title === "Initialize project context" ||
+    session.title === "Update project context"
+  ) {
+    return true;
+  }
+
+  return (
+    session.goal.includes("This is a context-management task.") &&
+    (session.goal.includes("Create the initial project context") ||
+      session.goal.includes("Incrementally update the existing project context"))
+  );
 }
 
 function buildContextGoal(project: ProjectRecord, operation: ContextOperation): string {

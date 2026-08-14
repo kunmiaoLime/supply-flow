@@ -14,6 +14,7 @@ import { FileAiModelSettingsStore } from "@supply-flow/core/file-ai-model-settin
 import { FileSessionStore } from "@supply-flow/core/file-session-store";
 import { findProvider } from "@supply-flow/core/providers";
 import {
+  prependCodexWriteModeBootstrap,
   prepareInitialAiSessionPrompt,
   prepareSessionWriteModePrompt,
   sendAiSessionPrompt
@@ -203,7 +204,7 @@ export async function updateAiInterfaceSessionReadOnly(
   await sendAiSessionPrompt(
     new TmuxAdapter(),
     updated.tmuxSessionName,
-    readOnlyModePrompt(readOnly)
+    readOnlyModePrompt(readOnly, updated.providerId)
   );
   return updated;
 }
@@ -260,7 +261,8 @@ export async function resizeAiInterfaceTerminal(
 
 export async function readAiInterfaceTerminalOutput(
   sessionId: string,
-  requestedOffset: number | undefined
+  requestedOffset: number | undefined,
+  refreshFromTmux = false
 ): Promise<{
   output: string;
   outputOffset: number;
@@ -268,7 +270,7 @@ export async function readAiInterfaceTerminalOutput(
   outputTruncated: boolean;
 }> {
   const output = await readTerminalOutput(terminalLogPath(sessionId), requestedOffset);
-  if (!output.outputTruncated) {
+  if (!refreshFromTmux && !output.outputTruncated) {
     return output;
   }
 
@@ -282,11 +284,12 @@ export async function readAiInterfaceTerminalOutput(
       ...output,
       output: toTerminalLines(
         await new TmuxAdapter().captureOutput(session.tmuxSessionName, TERMINAL_SNAPSHOT_LINES)
-      )
+      ),
+      outputTruncated: true
     };
   } catch {
     // The session can exit between the metadata lookup and terminal capture.
-    return output;
+    return refreshFromTmux ? { ...output, outputTruncated: true } : output;
   }
 }
 
@@ -298,6 +301,10 @@ export function outputOffsetFromRequest(request: Request): number | undefined {
 
   const parsedOffset = Number(offset);
   return Number.isSafeInteger(parsedOffset) ? parsedOffset : undefined;
+}
+
+export function tmuxRefreshRequested(request: Request): boolean {
+  return new URL(request.url).searchParams.get("refresh") === "tmux";
 }
 
 async function findActiveSession(store: FileSessionStore): Promise<SessionRecord | null> {
@@ -382,7 +389,9 @@ async function buildInitialPrompt(
     )
     .replaceAll("<SESSION_MODE_UPDATER>", buildReadOnlyUpdaterCommand(sessionId));
 
-  return prepareInitialAiSessionPrompt(`${writeModePrompt}\n\n${goal}`);
+  return prepareInitialAiSessionPrompt(`${writeModePrompt}\n\n${goal}`, {
+    bootstrapCodexWriteMode: configuration.providerId === "codex" && !configuration.readOnly
+  });
 }
 
 async function buildSetupGoal(input: {
@@ -428,10 +437,14 @@ function buildStatusUpdaterCommand(): string {
   ].join(" ");
 }
 
-function readOnlyModePrompt(readOnly: boolean): string {
-  return `Supply Flow changed this session's local read-only mode to ${
+function readOnlyModePrompt(readOnly: boolean, providerId: string): string {
+  const prompt = `Supply Flow changed this session's local read-only mode to ${
     readOnly ? "on" : "off"
-  } and persisted it in the AI interface session index. Reload the current session's readOnly value before any filesystem write and follow the repository-local write-mode policy. Do not invoke a global read_only skill.`;
+  } and persisted it in the AI interface session index. Reload the current session's readOnly value before any filesystem write and follow the repository-local write-mode policy.`;
+
+  return providerId === "codex" && !readOnly
+    ? prependCodexWriteModeBootstrap(prompt)
+    : prompt;
 }
 
 async function runAuthenticationCommand(command: string, workspacePath: string): Promise<void> {

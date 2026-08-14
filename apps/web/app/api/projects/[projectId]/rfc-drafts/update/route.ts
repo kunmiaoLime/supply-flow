@@ -1,4 +1,4 @@
-import { readFile, stat } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import path from "node:path";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
 import { FileSessionStore } from "@supply-flow/core/file-session-store";
@@ -8,23 +8,20 @@ import {
   type ProjectRecord,
   type ProjectRepository
 } from "@supply-flow/core/project";
-import type { SessionRecord } from "@supply-flow/core/session";
-import { TmuxAdapter } from "@supply-flow/core/tmux";
 import { NextResponse } from "next/server";
+import { findActiveRfcDraftWriterSession } from "../../../../../rfc-draft-session";
 import {
   createProjectSession,
   dataDirectory,
   projectDirectory,
   projectRoot,
-  ProjectSessionError,
-  terminalLogPath
+  ProjectSessionError
 } from "../../sessions/session-service";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const updateRfcPromptPath = path.join(projectRoot, "prompts", "update_rfc_draft.md");
-const tmux = new TmuxAdapter();
 
 interface ProjectRouteContext {
   params: Promise<{ projectId: string }>;
@@ -63,7 +60,7 @@ export async function POST(request: Request, context: ProjectRouteContext) {
     }
 
     const sessionStore = new FileSessionStore(projectPath);
-    const activeSession = await findActiveRfcDraftSession(
+    const activeSession = await findActiveRfcDraftWriterSession(
       project.project_id,
       draft,
       sessionStore
@@ -128,69 +125,6 @@ async function parseUpdateRfcDraftInput(request: Request): Promise<UpdateRfcDraf
     return draftLink.success ? { draftLink: draftLink.data } : null;
   } catch {
     return null;
-  }
-}
-
-async function findActiveRfcDraftSession(
-  projectId: string,
-  draft: DocumentSource,
-  store: FileSessionStore
-): Promise<SessionRecord | null> {
-  const activeTmuxSessions = await activeTmuxSessionNames();
-
-  if (draft.rfc_session_id) {
-    const associatedSession = await store.get(draft.rfc_session_id);
-    if (associatedSession && isActiveSession(associatedSession, activeTmuxSessions)) {
-      return associatedSession;
-    }
-  }
-
-  for (const session of await store.list()) {
-    if (
-      !isActiveSession(session, activeTmuxSessions) ||
-      !isRfcDraftSession(session) ||
-      !(await terminalOutputContains(projectId, session.id, draft.link))
-    ) {
-      continue;
-    }
-
-    return session;
-  }
-
-  return null;
-}
-
-async function activeTmuxSessionNames(): Promise<Set<string>> {
-  try {
-    return new Set(await tmux.listSessions());
-  } catch {
-    return new Set();
-  }
-}
-
-function isActiveSession(session: SessionRecord, activeTmuxSessions: Set<string>): boolean {
-  return (
-    (session.status === "starting" || session.status === "running") &&
-    activeTmuxSessions.has(session.tmuxSessionName)
-  );
-}
-
-function isRfcDraftSession(session: SessionRecord): boolean {
-  return (
-    session.goal.includes("Write an RFC draft") ||
-    session.goal.includes("Update an existing RFC draft")
-  );
-}
-
-async function terminalOutputContains(
-  projectId: string,
-  sessionId: string,
-  draftLink: string
-): Promise<boolean> {
-  try {
-    return (await readFile(terminalLogPath(projectId, sessionId), "utf8")).includes(draftLink);
-  } catch {
-    return false;
   }
 }
 

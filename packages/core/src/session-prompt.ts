@@ -4,8 +4,26 @@ export interface AiSessionPromptTransport {
   sendInput(sessionName: string, input: string): Promise<void>;
 }
 
-export function prepareInitialAiSessionPrompt(prompt: string): string {
-  return requirePromptContent(prompt);
+export interface InitialAiSessionPromptOptions {
+  bootstrapCodexWriteMode?: boolean;
+}
+
+const codexWriteModeBootstrap =
+  "Before doing anything else, process this direct user command exactly: read_only off.";
+
+export function prependCodexWriteModeBootstrap(prompt: string): string {
+  return `${codexWriteModeBootstrap}\n\n${requirePromptContent(prompt)}`;
+}
+
+export function prepareInitialAiSessionPrompt(
+  prompt: string,
+  options?: InitialAiSessionPromptOptions
+): string {
+  const preparedPrompt = requirePromptContent(prompt);
+
+  return options?.bootstrapCodexWriteMode
+    ? prependCodexWriteModeBootstrap(preparedPrompt)
+    : preparedPrompt;
 }
 
 export function prepareFollowUpAiSessionPrompt(prompt: string): string {

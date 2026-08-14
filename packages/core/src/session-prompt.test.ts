@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  prependCodexWriteModeBootstrap,
   prepareFollowUpAiSessionPrompt,
   prepareInitialAiSessionPrompt,
   prepareSessionWriteModePrompt,
@@ -11,6 +12,14 @@ test("preserves initial session prompts and normalizes follow-up prompts", () =>
   const prompt = "  First line.\n\n  Second line.  ";
 
   assert.equal(prepareInitialAiSessionPrompt(prompt), "First line.\n\n  Second line.");
+  assert.equal(
+    prepareInitialAiSessionPrompt(prompt, { bootstrapCodexWriteMode: true }),
+    "Before doing anything else, process this direct user command exactly: read_only off.\n\nFirst line.\n\n  Second line."
+  );
+  assert.equal(
+    prependCodexWriteModeBootstrap("Continue the current task."),
+    "Before doing anything else, process this direct user command exactly: read_only off.\n\nContinue the current task."
+  );
   assert.equal(prepareFollowUpAiSessionPrompt(prompt), "First line. Second line.");
   assert.throws(() => prepareInitialAiSessionPrompt(" \n "), /cannot be empty/);
 });

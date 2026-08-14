@@ -22,12 +22,16 @@ export function TmuxTerminal({
   sessionEndpoint,
   session,
   onSessionUpdated,
-  onTerminalError
+  onTerminalError,
+  refreshRequestId,
+  onTerminalRefreshComplete
 }: {
   sessionEndpoint: string;
   session: SessionRecord;
   onSessionUpdated: (session: SessionRecord) => void;
   onTerminalError: (message: string) => void;
+  refreshRequestId: number | null;
+  onTerminalRefreshComplete: (requestId: number) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -36,6 +40,7 @@ export function TmuxTerminal({
   const sessionStatusRef = useRef(session.status);
   const onSessionUpdatedRef = useRef(onSessionUpdated);
   const onTerminalErrorRef = useRef(onTerminalError);
+  const onTerminalRefreshCompleteRef = useRef(onTerminalRefreshComplete);
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
@@ -49,6 +54,10 @@ export function TmuxTerminal({
   useEffect(() => {
     onTerminalErrorRef.current = onTerminalError;
   }, [onTerminalError]);
+
+  useEffect(() => {
+    onTerminalRefreshCompleteRef.current = onTerminalRefreshComplete;
+  }, [onTerminalRefreshComplete]);
 
   useEffect(() => {
     if (!containerRef.current) {
@@ -184,6 +193,7 @@ export function TmuxTerminal({
     let cancelled = false;
     let pollTimer: number | undefined;
     let outputOffset = 0;
+    let refreshFromTmux = refreshRequestId !== null;
 
     function schedulePoll(delay: number) {
       if (!cancelled) {
@@ -199,9 +209,14 @@ export function TmuxTerminal({
         return;
       }
 
+      const requestedTmuxRefresh = refreshFromTmux;
+      refreshFromTmux = false;
+
       try {
         const response = await fetch(
-          `${sessionEndpoint}?offset=${outputOffset}`,
+          requestedTmuxRefresh
+            ? `${sessionEndpoint}?refresh=tmux`
+            : `${sessionEndpoint}?offset=${outputOffset}`,
           { cache: "no-store" }
         );
         const data = (await response.json()) as SessionDetailResponse;
@@ -237,6 +252,10 @@ export function TmuxTerminal({
             schedulePoll(OUTPUT_RETRY_INTERVAL_MS);
           }
         }
+      } finally {
+        if (requestedTmuxRefresh && refreshRequestId !== null) {
+          onTerminalRefreshCompleteRef.current(refreshRequestId);
+        }
       }
     }
 
@@ -247,7 +266,7 @@ export function TmuxTerminal({
         window.clearTimeout(pollTimer);
       }
     };
-  }, [isReady, session.id, sessionEndpoint]);
+  }, [isReady, refreshRequestId, session.id, sessionEndpoint]);
 
   return (
     <div className="tmux-terminal-viewport" onMouseDown={() => terminalRef.current?.focus()} ref={wrapperRef}>

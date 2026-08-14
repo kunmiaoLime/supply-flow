@@ -48,5 +48,6 @@ When the user directly requests `read_only on` or `read_only off`:
    report the active mode. The direct request authorizes only this state
    update; continue to follow the active mode for all other writes.
 
-Do not invoke a global `read_only` skill. Follow this local write-mode policy
-for the entire session.
+Follow this local write-mode policy for the entire session. A startup
+`read_only` command may also satisfy an environment-level per-thread policy
+when one is present, but it never replaces this project-local state.

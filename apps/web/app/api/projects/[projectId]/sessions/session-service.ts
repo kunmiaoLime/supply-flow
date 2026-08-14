@@ -95,7 +95,10 @@ export async function createProjectSession(
     id
   );
   const goal = prepareInitialAiSessionPrompt(
-    `${writeModePrompt}\n\n${contextGoal ?? input.goal}`.replaceAll("<AI_SESSION_ID>", id)
+    `${writeModePrompt}\n\n${contextGoal ?? input.goal}`.replaceAll("<AI_SESSION_ID>", id),
+    {
+      bootstrapCodexWriteMode: provider.id === "codex" && !sessionConfiguration.readOnly
+    }
   );
   if (goal.length > MAX_SESSION_GOAL_LENGTH) {
     throw new ProjectSessionError(
