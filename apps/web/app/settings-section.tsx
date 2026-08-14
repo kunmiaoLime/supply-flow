@@ -39,16 +39,18 @@ const aiInterfaceOptions: readonly { id: AiInterfaceId; label: string }[] = [
 
 export function SettingsSection({
   activeTab,
+  initialTemplates,
   projectId
 }: {
   activeTab: SettingsTab;
+  initialTemplates?: PullRequestTemplate[];
   projectId?: string;
 }) {
   const router = useRouter();
-  const [templates, setTemplates] = useState<PullRequestTemplate[]>([]);
+  const [templates, setTemplates] = useState<PullRequestTemplate[]>(initialTemplates ?? []);
   const [selectedRepository, setSelectedRepository] = useState("");
   const [editorContent, setEditorContent] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(initialTemplates === undefined);
   const [isSaving, setIsSaving] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [pullRequestUrl, setPullRequestUrl] = useState("");
@@ -78,6 +80,7 @@ export function SettingsSection({
     null
   );
   const importInput = useRef<HTMLInputElement>(null);
+  const hasInitialTemplates = useRef(initialTemplates !== undefined);
   const selectAllAiInterfacesInput = useRef<HTMLInputElement>(null);
 
   const selectedTemplate =
@@ -97,6 +100,15 @@ export function SettingsSection({
     selectedAiInterfaces.length > 0 && !allAiInterfacesSelected;
 
   useEffect(() => {
+    if (activeTab !== "pr-templates") {
+      return;
+    }
+
+    if (hasInitialTemplates.current) {
+      hasInitialTemplates.current = false;
+      return;
+    }
+
     let ignoreResult = false;
 
     async function loadTemplates() {
@@ -132,7 +144,7 @@ export function SettingsSection({
     return () => {
       ignoreResult = true;
     };
-  }, []);
+  }, [activeTab]);
 
   useEffect(() => {
     if (activeTab !== "rfc-template") {

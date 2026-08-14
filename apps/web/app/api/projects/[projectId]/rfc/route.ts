@@ -87,10 +87,7 @@ export async function POST(request: Request, context: ProjectRouteContext) {
     }
 
     const projectPath = projectDirectory(project.project_id);
-    const rfcTemplate = await new FileRfcTemplateStore(
-      dataDirectory,
-      defaultRfcTemplatePath
-    ).get();
+    const rfcTemplate = await new FileRfcTemplateStore(defaultRfcTemplatePath).get();
     const session = await createProjectSession(project, {
       action: "write-rfc",
       title: "Write RFC draft",

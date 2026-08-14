@@ -33,6 +33,7 @@ const JIRA_ORIGIN = "https://limebike.atlassian.net";
 const CONTEXT_FILE = "context.md";
 const projectRoot = path.resolve(process.cwd(), "../..");
 const pullRequestPromptPath = path.join(projectRoot, "prompts", "create_pull_request.md");
+const pullRequestTemplatesDirectory = path.join(projectRoot, "templates", "PR");
 const tmux = new TmuxAdapter();
 
 interface ProjectRouteContext {
@@ -125,7 +126,7 @@ export async function POST(request: Request, context: ProjectRouteContext) {
     }
     await requireProjectContext(project.project_id);
 
-    const pullRequestTemplate = await new FilePullRequestTemplateStore(dataDirectory).resolve(
+    const pullRequestTemplate = await new FilePullRequestTemplateStore(pullRequestTemplatesDirectory).resolve(
       repository.remote
     );
     const prompt = await pullRequestCreationPrompt(

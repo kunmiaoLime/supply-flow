@@ -14,13 +14,12 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const projectRoot = path.resolve(process.cwd(), "../..");
-const dataDirectory =
-  process.env.SUPPLY_FLOW_DATA_DIR ?? path.join(projectRoot, ".supply-flow");
+const templatesDirectory = path.join(projectRoot, "templates", "PR");
 const MAX_TEMPLATE_LENGTH = 100_000;
 
 export async function GET() {
   try {
-    const templates = await new FilePullRequestTemplateStore(dataDirectory).list();
+    const templates = await pullRequestTemplateStore().list();
     return NextResponse.json({ templates });
   } catch (error) {
     return pullRequestTemplateErrorResponse(error, "Unable to load PR templates.");
@@ -65,7 +64,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const template = await new FilePullRequestTemplateStore(dataDirectory).create(
+    const template = await pullRequestTemplateStore().create(
       reference.repository,
       content
     );
@@ -88,7 +87,7 @@ export async function PATCH(request: Request) {
   }
 
   try {
-    const template = await new FilePullRequestTemplateStore(dataDirectory).update(
+    const template = await pullRequestTemplateStore().update(
       input.repository,
       input.content
     );
@@ -96,6 +95,10 @@ export async function PATCH(request: Request) {
   } catch (error) {
     return pullRequestTemplateErrorResponse(error, "Unable to save the PR template.");
   }
+}
+
+function pullRequestTemplateStore(): FilePullRequestTemplateStore {
+  return new FilePullRequestTemplateStore(templatesDirectory);
 }
 
 async function parsePullRequestUrl(request: Request): Promise<string | null> {

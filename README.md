@@ -153,13 +153,14 @@ PR; when none exists, it requires the branch's tracked Jira task and
 `context.md`, then prompts a matching implementation session or creates a
 dedicated YOLO Codex session to create and track the PR.
 
-PR body templates are local to the workspace under
-`.supply-flow/templates/PR/`. The `pr-template-mapping.json` file maps a
-normalized GitHub `owner/repository` name to a template path relative to that
-directory. The PR workflow injects the matching template into the AI session,
-retains its section structure, and uses a standard summary/testing/links body
-when no mapping exists. Template paths cannot escape the local PR template
-directory.
+PR body templates are repository-owned under `templates/PR/`. The
+`pr-template-mapping.json` file maps a normalized GitHub `owner/repository`
+name to a template path relative to that directory. The PR workflow injects
+the matching template into the AI session, retains its section structure, and
+uses a standard summary/testing/links body when no mapping exists. The RFC
+template is likewise repository-owned at `templates/rfc_template.md`. Changes
+made through Settings modify these tracked files so they can be reviewed and
+committed with the application.
 
 `context.md` is created and updated by a dedicated AI session. It summarizes
 the configured document sources and repository scopes for future sessions.

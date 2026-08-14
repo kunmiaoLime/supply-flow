@@ -10,9 +10,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const projectRoot = path.resolve(process.cwd(), "../..");
-const dataDirectory =
-  process.env.SUPPLY_FLOW_DATA_DIR ?? path.join(projectRoot, ".supply-flow");
-const defaultTemplatePath = path.join(projectRoot, "templates", "rfc_template.md");
+const templatePath = path.join(projectRoot, "templates", "rfc_template.md");
 
 export async function GET() {
   try {
@@ -43,7 +41,7 @@ export async function PATCH(request: Request) {
 }
 
 function rfcTemplateStore(): FileRfcTemplateStore {
-  return new FileRfcTemplateStore(dataDirectory, defaultTemplatePath);
+  return new FileRfcTemplateStore(templatePath);
 }
 
 async function parseTemplateContent(request: Request): Promise<string | null> {

@@ -22,6 +22,7 @@ import type {
   ProjectRecord,
   ProjectRepository
 } from "@supply-flow/core/project";
+import type { PullRequestTemplate } from "@supply-flow/core/file-pull-request-template-store";
 import {
   CheckCircle2,
   Code2,
@@ -165,10 +166,12 @@ const tabHeadings: Record<TabId, { eyebrow: string; title: string; description: 
 };
 
 export function WorkspaceShell({
+  initialPrTemplates,
   projectId,
   settingsTab,
   tab
 }: {
+  initialPrTemplates?: PullRequestTemplate[];
   projectId?: string;
   settingsTab?: SettingsTab;
   tab: TabId;
@@ -1499,6 +1502,7 @@ export function WorkspaceShell({
             </div>
           ) : null}
           <PanelContent
+            initialPrTemplates={initialPrTemplates}
             isSavingRepositories={isSavingRepository}
             isSavingRequirements={isSavingRequirement}
             isConvertingRfc={isConvertingRfc}
@@ -2173,6 +2177,7 @@ export function WorkspaceShell({
 }
 
 function PanelContent({
+  initialPrTemplates,
   isSavingRepositories,
   isSavingRequirements,
   isConvertingRfc,
@@ -2198,6 +2203,7 @@ function PanelContent({
   tab,
   updatingRfcDraftLink
 }: {
+  initialPrTemplates?: PullRequestTemplate[];
   isSavingRepositories: boolean;
   isSavingRequirements: boolean;
   isConvertingRfc: boolean;
@@ -2227,6 +2233,7 @@ function PanelContent({
     return (
       <SettingsSection
         activeTab={settingsTab ?? defaultSettingsTab}
+        initialTemplates={initialPrTemplates}
         projectId={selectedProjectId || undefined}
       />
     );

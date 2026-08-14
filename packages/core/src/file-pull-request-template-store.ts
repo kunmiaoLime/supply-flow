@@ -3,7 +3,6 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { githubRepositoryFromRemote } from "@supply-flow/core/github-pull-request";
 
-const TEMPLATE_DIRECTORY = path.join("templates", "PR");
 const TEMPLATE_MAPPING_FILE = "pr-template-mapping.json";
 
 export interface PullRequestTemplate {
@@ -23,7 +22,7 @@ export class PullRequestTemplateError extends Error {
 }
 
 export class FilePullRequestTemplateStore {
-  public constructor(private readonly dataDirectory: string) {}
+  public constructor(private readonly templateDirectory: string) {}
 
   public async resolve(remote: string | null): Promise<PullRequestTemplate | null> {
     const repository = githubRepositoryFromRemote(remote);
@@ -192,13 +191,12 @@ export class FilePullRequestTemplateStore {
   private resolveTemplatePath(configuredPath: string): string {
     if (path.isAbsolute(configuredPath)) {
       throw new PullRequestTemplateError(
-        "Local PR template paths must be relative to .supply-flow/templates/PR."
+        "PR template paths must be relative to the configured template directory."
       );
     }
 
-    const templateDirectory = this.templatesDirectory();
-    const templatePath = path.resolve(templateDirectory, configuredPath);
-    const relativePath = path.relative(templateDirectory, templatePath);
+    const templatePath = path.resolve(this.templateDirectory, configuredPath);
+    const relativePath = path.relative(this.templateDirectory, templatePath);
     if (
       !relativePath ||
       relativePath === ".." ||
@@ -206,7 +204,7 @@ export class FilePullRequestTemplateStore {
       path.isAbsolute(relativePath)
     ) {
       throw new PullRequestTemplateError(
-        "Local PR template paths must stay within .supply-flow/templates/PR."
+        "PR template paths must stay within the configured template directory."
       );
     }
 
@@ -214,7 +212,7 @@ export class FilePullRequestTemplateStore {
   }
 
   private templatesDirectory(): string {
-    return path.join(this.dataDirectory, TEMPLATE_DIRECTORY);
+    return this.templateDirectory;
   }
 }
 
