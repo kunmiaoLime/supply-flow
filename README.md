@@ -32,11 +32,21 @@ replace the file store without changing the runner or web contracts.
 ## Setup
 
 ```sh
-npm install
+scripts/setup.sh
 npm run dev
 ```
 
 The web app starts at <http://localhost:3000>.
+
+`scripts/setup.sh` validates Node.js, npm, Git, and tmux; installs the locked
+npm dependencies; creates the ignored `.supply-flow/` state directories; and
+builds the web app. It also reports the availability of AI provider CLIs and
+optional integration tools without installing or authenticating them. Use
+`--skip-install` or `--skip-build` when those steps are not needed.
+
+At least one supported provider CLI, Codex or Claude Code, must be installed
+and authenticated before an AI session can start. Use **Settings > Setup AI
+interface** to configure document and CI integrations after the initial setup.
 
 ## Production web app
 
