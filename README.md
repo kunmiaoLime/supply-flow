@@ -78,6 +78,111 @@ index against tmux. Sessions recorded as `starting` or `running` whose tmux
 session no longer exists are persisted as `stopped`; active tmux sessions are
 left untouched.
 
+## Use the web app
+
+Open the running app in a browser, then use the project picker in the top bar
+to select the current project. The selected project is retained in the URL
+when navigating between workspace tabs.
+
+### 1. Configure the workspace
+
+1. Open **Settings > AI model** and set global or action-specific defaults for
+   the AI provider, model, reasoning effort, read-only mode, and YOLO mode.
+   The same page holds the provider authentication command used by the session
+   terminal.
+2. Open **Settings > Setup AI interface**. Select one or more integrations,
+   then use **Verify access** or **Setup access**. Each action opens an AI
+   session and records its outcome in local settings state.
+3. Optionally edit repository-owned **PR templates** or the **RFC template** in
+   Settings. These files live in `templates/`, so template changes appear in
+   Git and should be committed with the project.
+
+![AI model defaults and action-specific session configuration](docs/screenshots/ai-model-settings.png)
+
+![AI interface access status](docs/screenshots/setup-ai-interface.png)
+
+### 2. Create and prepare a project
+
+1. In the top bar, select **Create project**, enter a display name, and select
+   the new project from the picker.
+2. On the **Project** tab, add document sources. Google Docs, Confluence,
+   Figma, Slack, and local Markdown files are supported. Local Markdown files
+   are copied into the project state.
+3. Add repositories by their local path. Supply Flow verifies the path is
+   inside a Git repository, reads the repository name and optional `origin`,
+   and preserves the selected subdirectory as the project scope.
+4. Under **Context**, choose **Initialize context** for a new project or
+   **Update context** after document changes. The dedicated AI session writes
+   or merges `context.md`, respectively. It also records identified
+   requirement gaps and conflicts for the Project tab.
+
+![Project documents and repositories](docs/screenshots/project-documents-and-repositories.png)
+
+![Project context gaps and conflicts](docs/screenshots/project-context-gaps-and-conflicts.png)
+
+Use **Write RFC** to create an RFC draft from the project documents. Select the
+repositories it covers so the draft is scoped to backend, frontend, or both.
+RFC drafts are tracked as project documents: open them locally with **Review**,
+continue work with **Update**, then use **Convert to RFC** to publish an
+approved draft to Confluence.
+
+![Write RFC repository selection](docs/screenshots/write-rfc-dialog.png)
+
+### 3. Plan work and implement code
+
+1. On **Task plan**, use **Import task** to add an existing Jira ticket, or
+   **New task** to start a task-creation session. The AI discusses the work
+   before it creates a Jira ticket. Use **Create from plan** to turn an RFC
+   implementation plan into Jira sub-tasks.
+
+2. On **Code implementation**, choose a tracked task, repository, and parent
+   branch, then optionally add instructions. Configure the implementation and
+   reviewer sessions if their defaults need an override.
+3. Start implementation. Supply Flow creates an AI session, records the new
+   ticket branch, and opens the session in **AI sessions**. The agent works
+   from the project context and selected repository scope.
+4. Enable **Auto resolve** when you want the implementation and reviewer
+   sessions to iterate through the branch states from coding to review until
+   the review passes.
+
+![Configured implementation and review sessions](docs/screenshots/code-implementation-configured.png)
+
+### 4. Review and ship
+
+1. On **PR**, import an existing pull request or import a local branch. For a
+   tracked branch, **Track PR** finds its GitHub pull request; if none exists,
+   it resumes the branch implementation session when possible or starts the
+   appropriate session to create one.
+
+![Tracked pull requests and branches](docs/screenshots/pull-requests-and-branches.png)
+
+2. Select **Review** on a branch to view its saved review result and launch or
+   resume a review session. The dialog allows per-review AI configuration and
+   enables Auto resolve for that branch.
+
+![Branch review results and configuration](docs/screenshots/branch-review-dialog.png)
+
+3. On a tracked pull request, enable monitoring to refresh its review-comment
+   count and CI state. Use **Address issues** to resume the associated
+   implementation session or start a resolver session. Enable **Retry CI** to
+   rerun retryable failed CI until it passes or the toggle is disabled.
+
+### 5. Work with AI sessions and project data
+
+- **AI sessions** shows global setup sessions first, followed by sessions for
+  the selected project. Create an ad hoc session with **New session**, select
+  provider settings, and interact with its live tmux terminal.
+
+![Live AI session terminal](docs/screenshots/ai-sessions-terminal.png)
+
+- Use terminal controls to refresh the tmux connection, open a native macOS
+  terminal, toggle session read-only mode, or terminate the session. Use
+  **Save context** on project sessions to merge durable findings into the
+  project `context.md`.
+- Use the top-bar **Export project** action to download a project archive.
+  **Import project** accepts an archive and, when the name already exists,
+  offers separate, replace, or AI-assisted merge handling.
+
 ## Runner commands
 
 ```sh
