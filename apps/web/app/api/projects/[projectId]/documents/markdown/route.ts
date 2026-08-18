@@ -1,4 +1,5 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import path from "node:path";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
 import {
@@ -23,7 +24,8 @@ interface ProjectRouteContext {
 }
 
 interface MarkdownUpload {
-  file: File;
+  filename: string;
+  content: Buffer;
   title: string | null;
   documentIndex: number | null;
 }
@@ -97,9 +99,8 @@ export async function POST(request: Request, context: ProjectRouteContext) {
       throw new MarkdownDocumentError("The document is no longer associated with the project.", 409);
     }
 
-    const content = await validateMarkdownFile(upload.file);
     const markdownDirectory = path.join(projectDirectory(project.project_id), MARKDOWN_DIRECTORY);
-    const filename = await writeMarkdownFile(markdownDirectory, upload.file.name, content);
+    const filename = await writeMarkdownFile(markdownDirectory, upload.filename, upload.content);
     const document: DocumentSource = {
       type: "markdown",
       link: `${MARKDOWN_DIRECTORY}/${filename}`,
@@ -146,20 +147,6 @@ async function parseMarkdownUpload(request: Request): Promise<MarkdownUpload> {
     throw new MarkdownDocumentError("Choose a Markdown file to upload.");
   }
 
-  const file = form.get("file");
-  if (!(file instanceof File)) {
-    throw new MarkdownDocumentError("Choose a Markdown file to upload.");
-  }
-  if (!file.name.toLowerCase().endsWith(".md")) {
-    throw new MarkdownDocumentError("Only files with a .md extension can be uploaded.");
-  }
-  if (file.size === 0) {
-    throw new MarkdownDocumentError("The Markdown file is empty.");
-  }
-  if (file.size > MAX_MARKDOWN_BYTES) {
-    throw new MarkdownDocumentError("Markdown files must be 5 MB or smaller.");
-  }
-
   const titleValue = form.get("title");
   if (titleValue !== null && typeof titleValue !== "string") {
     throw new MarkdownDocumentError("Enter a valid document title.");
@@ -171,7 +158,7 @@ async function parseMarkdownUpload(request: Request): Promise<MarkdownUpload> {
   }
 
   return {
-    file,
+    ...(await readMarkdownSource(form.get("file"), form.get("path"))),
     title: title === null ? null : title.data,
     documentIndex: parseDocumentIndex(form.get("documentIndex"))
   };
@@ -193,8 +180,84 @@ function parseDocumentIndex(value: FormDataEntryValue | null): number | null {
   return index;
 }
 
-async function validateMarkdownFile(file: File): Promise<Buffer> {
-  const content = Buffer.from(await file.arrayBuffer());
+async function readMarkdownSource(
+  fileValue: FormDataEntryValue | null,
+  pathValue: FormDataEntryValue | null
+): Promise<Pick<MarkdownUpload, "filename" | "content">> {
+  if (fileValue instanceof File && fileValue.name) {
+    validateMarkdownFilename(fileValue.name);
+    if (fileValue.size === 0) {
+      throw new MarkdownDocumentError("The Markdown file is empty.");
+    }
+    if (fileValue.size > MAX_MARKDOWN_BYTES) {
+      throw new MarkdownDocumentError("Markdown files must be 5 MB or smaller.");
+    }
+
+    return {
+      filename: fileValue.name,
+      content: validateMarkdownContent(Buffer.from(await fileValue.arrayBuffer()))
+    };
+  }
+
+  if (typeof pathValue === "string" && pathValue.trim()) {
+    return readMarkdownFileAtPath(pathValue);
+  }
+
+  throw new MarkdownDocumentError("Choose a local Markdown file or enter its path.");
+}
+
+async function readMarkdownFileAtPath(
+  sourcePathText: string
+): Promise<Pick<MarkdownUpload, "filename" | "content">> {
+  const sourcePath = resolveLocalPath(sourcePathText);
+  const filename = path.basename(sourcePath);
+  validateMarkdownFilename(filename);
+
+  let fileInfo: Awaited<ReturnType<typeof stat>>;
+  try {
+    fileInfo = await stat(sourcePath);
+  } catch (error) {
+    if (isMissingFileError(error)) {
+      throw new MarkdownDocumentError("The Markdown file path does not exist.");
+    }
+
+    throw error;
+  }
+
+  if (!fileInfo.isFile()) {
+    throw new MarkdownDocumentError("The Markdown file path must refer to a file.");
+  }
+  if (fileInfo.size === 0) {
+    throw new MarkdownDocumentError("The Markdown file is empty.");
+  }
+  if (fileInfo.size > MAX_MARKDOWN_BYTES) {
+    throw new MarkdownDocumentError("Markdown files must be 5 MB or smaller.");
+  }
+
+  return {
+    filename,
+    content: validateMarkdownContent(await readFile(sourcePath))
+  };
+}
+
+function resolveLocalPath(value: string): string {
+  const trimmedValue = value.trim();
+  const expandedValue =
+    trimmedValue === "~"
+      ? homedir()
+      : trimmedValue.startsWith("~/")
+        ? path.join(homedir(), trimmedValue.slice(2))
+        : trimmedValue;
+  return path.resolve(expandedValue);
+}
+
+function validateMarkdownFilename(filename: string): void {
+  if (!filename.toLowerCase().endsWith(".md")) {
+    throw new MarkdownDocumentError("Only files with a .md extension can be uploaded.");
+  }
+}
+
+function validateMarkdownContent(content: Buffer): Buffer {
   try {
     const text = new TextDecoder("utf-8", { fatal: true }).decode(content);
     if (text.includes("\0")) {

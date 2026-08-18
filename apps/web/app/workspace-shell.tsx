@@ -208,6 +208,7 @@ export function WorkspaceShell({
   const [editingRequirementIndex, setEditingRequirementIndex] = useState<number | null>(null);
   const [requirementForm, setRequirementForm] = useState<RequirementForm>(emptyRequirementForm);
   const [markdownFile, setMarkdownFile] = useState<File | null>(null);
+  const [markdownFilePath, setMarkdownFilePath] = useState("");
   const [requirementError, setRequirementError] = useState("");
   const [requirementListError, setRequirementListError] = useState("");
   const [isSavingRequirement, setIsSavingRequirement] = useState(false);
@@ -233,6 +234,7 @@ export function WorkspaceShell({
   const repositoryLocalPathInput = useRef<HTMLInputElement>(null);
   const requirementLinkInput = useRef<HTMLInputElement>(null);
   const requirementMarkdownInput = useRef<HTMLInputElement>(null);
+  const requirementMarkdownPathInput = useRef<HTMLInputElement>(null);
   const rfcRepositorySelectionInput = useRef<HTMLInputElement>(null);
   const rfcConfluenceDestinationInput = useRef<HTMLInputElement>(null);
   const readmeCloseButton = useRef<HTMLButtonElement>(null);
@@ -311,7 +313,7 @@ export function WorkspaceShell({
   useEffect(() => {
     if (requirementDialogMode) {
       if (requirementForm.type === "markdown") {
-        requirementMarkdownInput.current?.focus();
+        requirementMarkdownPathInput.current?.focus();
       } else {
         requirementLinkInput.current?.focus();
       }
@@ -858,6 +860,7 @@ export function WorkspaceShell({
   function openAddRequirementDialog() {
     setRequirementForm(emptyRequirementForm);
     setMarkdownFile(null);
+    setMarkdownFilePath("");
     setEditingRequirementIndex(null);
     setRequirementError("");
     setRequirementDialogMode("add");
@@ -875,6 +878,7 @@ export function WorkspaceShell({
       title: document.title ?? ""
     });
     setMarkdownFile(null);
+    setMarkdownFilePath("");
     setEditingRequirementIndex(index);
     setRequirementError("");
     setRequirementDialogMode("edit");
@@ -884,12 +888,30 @@ export function WorkspaceShell({
     if (!isSavingRequirement) {
       setRequirementDialogMode(null);
       setMarkdownFile(null);
+      setMarkdownFilePath("");
       setRequirementError("");
     }
   }
 
   function selectMarkdownFile(event: ChangeEvent<HTMLInputElement>) {
-    setMarkdownFile(event.target.files?.[0] ?? null);
+    const file = event.target.files?.[0] ?? null;
+    setMarkdownFile(file);
+    setMarkdownFilePath(file?.name ?? "");
+    setRequirementError("");
+  }
+
+  function chooseMarkdownFile() {
+    requirementMarkdownInput.current?.click();
+  }
+
+  function updateMarkdownFilePath(value: string) {
+    setMarkdownFilePath(value);
+    if (markdownFile) {
+      setMarkdownFile(null);
+      if (requirementMarkdownInput.current) {
+        requirementMarkdownInput.current.value = "";
+      }
+    }
     setRequirementError("");
   }
 
@@ -900,6 +922,7 @@ export function WorkspaceShell({
       link: type === current.type ? current.link : ""
     }));
     setMarkdownFile(null);
+    setMarkdownFilePath("");
     if (requirementMarkdownInput.current) {
       requirementMarkdownInput.current.value = "";
     }
@@ -936,7 +959,8 @@ export function WorkspaceShell({
   }
 
   async function uploadMarkdownDocument(
-    file: File,
+    file: File | null,
+    filePath: string,
     documentIndex: number | null
   ): Promise<ProjectRecord> {
     if (!selectedProject) {
@@ -944,7 +968,11 @@ export function WorkspaceShell({
     }
 
     const formData = new FormData();
-    formData.set("file", file);
+    if (file) {
+      formData.set("file", file);
+    } else {
+      formData.set("path", filePath);
+    }
     formData.set("title", requirementForm.title.trim());
     if (documentIndex !== null) {
       formData.set("documentIndex", String(documentIndex));
@@ -984,17 +1012,19 @@ export function WorkspaceShell({
       editingRequirementIndex === null ? null : selectedProject.documents[editingRequirementIndex];
 
     if (requirementForm.type === "markdown") {
-      if (markdownFile) {
+      const filePath = markdownFilePath.trim();
+      if (markdownFile || filePath) {
         setIsSavingRequirement(true);
         setRequirementError("");
         setRequirementListError("");
 
         try {
-          await uploadMarkdownDocument(markdownFile, editingRequirementIndex);
+          await uploadMarkdownDocument(markdownFile, filePath, editingRequirementIndex);
           setRequirementDialogMode(null);
           setEditingRequirementIndex(null);
           setRequirementForm(emptyRequirementForm);
           setMarkdownFile(null);
+          setMarkdownFilePath("");
         } catch (error) {
           setRequirementError(
             error instanceof Error ? error.message : "Unable to upload the Markdown document."
@@ -1006,7 +1036,7 @@ export function WorkspaceShell({
       }
 
       if (requirementDialogMode === "add" || currentDocument?.type !== "markdown") {
-        setRequirementError("Choose a local Markdown file to upload.");
+        setRequirementError("Choose a local Markdown file or enter its path.");
         return;
       }
     }
@@ -1040,6 +1070,7 @@ export function WorkspaceShell({
       setEditingRequirementIndex(null);
       setRequirementForm(emptyRequirementForm);
       setMarkdownFile(null);
+      setMarkdownFilePath("");
     } catch (error) {
       setRequirementError(
         error instanceof Error ? error.message : "Unable to update documents."
@@ -1977,24 +2008,46 @@ export function WorkspaceShell({
                   </select>
                 </label>
                 {requirementForm.type === "markdown" ? (
-                  <label htmlFor="requirement-markdown">
-                    <span>Markdown file</span>
+                  <div className="markdown-file-field">
+                    <label htmlFor="requirement-markdown-path">
+                      <span>Markdown file</span>
+                    </label>
+                    <div className="markdown-file-control">
+                      <input
+                        autoCapitalize="none"
+                        autoComplete="off"
+                        id="requirement-markdown-path"
+                        onChange={(event) => updateMarkdownFilePath(event.target.value)}
+                        placeholder="/path/to/document.md"
+                        ref={requirementMarkdownPathInput}
+                        spellCheck={false}
+                        type="text"
+                        value={markdownFilePath}
+                      />
+                      <button
+                        className="dialog-secondary-button"
+                        onClick={chooseMarkdownFile}
+                        type="button"
+                      >
+                        <FileUp aria-hidden="true" />
+                        <span>Choose file</span>
+                      </button>
+                    </div>
                     <input
                       accept=".md,text/markdown"
-                      id="requirement-markdown"
+                      aria-hidden="true"
+                      className="sr-only"
                       onChange={selectMarkdownFile}
                       ref={requirementMarkdownInput}
-                      required={requirementDialogMode === "add"}
+                      tabIndex={-1}
                       type="file"
                     />
-                    {markdownFile ? (
-                      <span className="selected-markdown-file">{markdownFile.name}</span>
-                    ) : requirementDialogMode === "edit" ? (
+                    {requirementDialogMode === "edit" && !markdownFile ? (
                       <span className="selected-markdown-file">
                         Current file: {requirementForm.link}
                       </span>
                     ) : null}
-                  </label>
+                  </div>
                 ) : (
                   <label htmlFor="requirement-link">
                     <span>Link</span>

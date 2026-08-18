@@ -3072,8 +3072,19 @@ code {
   border-color: var(--teal);
 }
 
-.requirement-form-fields input[type="file"] {
-  padding: 7px 10px;
+.markdown-file-field {
+  display: grid;
+  gap: 7px;
+}
+
+.markdown-file-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.markdown-file-control .dialog-secondary-button {
+  min-height: 40px;
 }
 
 .requirement-form-fields .selected-markdown-file {
