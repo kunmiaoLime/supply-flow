@@ -35,20 +35,42 @@ test("stores session metadata and append-only events", async () => {
 
     const updated = await store.update("session_01", {
       status: "running",
-      readOnly: false
+      readOnly: false,
+      notifyWhenComplete: true
+    });
+    await store.appendEvent({
+      schemaVersion: 1,
+      sessionId: "session_01",
+      timestamp: new Date().toISOString(),
+      type: "notification-requested",
+      message: "Completion notification requested."
+    });
+    const notificationCanceled = await store.update("session_01", {
+      notifyWhenComplete: false
+    });
+    await store.appendEvent({
+      schemaVersion: 1,
+      sessionId: "session_01",
+      timestamp: new Date().toISOString(),
+      type: "notification-canceled",
+      message: "Completion notification canceled."
     });
     const events = await store.readEvents("session_01");
 
-    assert.equal(updated.status, "running");
-    assert.equal(updated.readOnly, false);
-    assert.equal(events.length, 1);
+    assert.equal(notificationCanceled.status, "running");
+    assert.equal(notificationCanceled.readOnly, false);
+    assert.equal(updated.notifyWhenComplete, true);
+    assert.equal(notificationCanceled.notifyWhenComplete, false);
+    assert.equal(events.length, 3);
     assert.equal(events[0]?.type, "created");
+    assert.equal(events[1]?.type, "notification-requested");
+    assert.equal(events[2]?.type, "notification-canceled");
     assert.deepEqual((await store.list()).map((session) => session.id), ["session_01"]);
     assert.deepEqual(
       JSON.parse(await readFile(path.join(rootDirectory, "sessions.json"), "utf8")),
       {
         schemaVersion: 1,
-        sessions: [updated]
+        sessions: [notificationCanceled]
       }
     );
 

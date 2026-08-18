@@ -23,6 +23,10 @@ import {
 import type { SessionRecord } from "@supply-flow/core/session";
 import { TmuxAdapter } from "@supply-flow/core/tmux";
 import { dataDirectory, projectRoot } from "../../projects/[projectId]/sessions/session-service";
+import {
+  loadCompletionNotificationCancellationPrompt,
+  loadCompletionNotificationPrompt
+} from "../../../completion-notification";
 
 const execFile = promisify(execFileCallback);
 const SETUP_SESSION_DIRECTORY = "ai-interface-sessions";
@@ -208,6 +212,36 @@ export async function updateAiInterfaceSessionReadOnly(
     updated.tmuxSessionName,
     readOnlyModePrompt(readOnly, updated.providerId)
   );
+  return updated;
+}
+
+export async function setAiInterfaceSessionCompletionNotification(
+  sessionId: string,
+  enabled: boolean
+): Promise<SessionRecord> {
+  const session = await getRunningAiInterfaceSession(sessionId);
+  if (session.notifyWhenComplete === enabled) {
+    return session;
+  }
+
+  const store = new FileSessionStore(aiInterfaceSessionDirectory());
+  await sendAiSessionPrompt(
+    new TmuxAdapter(),
+    session.tmuxSessionName,
+    enabled
+      ? await loadCompletionNotificationPrompt(projectRoot)
+      : await loadCompletionNotificationCancellationPrompt(projectRoot)
+  );
+  const updated = await store.update(session.id, { notifyWhenComplete: enabled });
+  await store.appendEvent({
+    schemaVersion: 1,
+    sessionId: updated.id,
+    timestamp: new Date().toISOString(),
+    type: enabled ? "notification-requested" : "notification-canceled",
+    message: enabled
+      ? "Requested a Slack notification when the current work reaches a terminal state."
+      : "Canceled the Slack notification for the current work."
+  });
   return updated;
 }
 

@@ -15,6 +15,7 @@ export const SessionRecordSchema = z.object({
   reasoningEffort: ReasoningEffortSchema.optional(),
   readOnly: z.boolean().optional(),
   yoloMode: z.boolean().optional(),
+  notifyWhenComplete: z.boolean().optional(),
   workspacePath: z.string().min(1),
   tmuxSessionName: z.string().min(1),
   status: SessionStatusSchema,
@@ -37,14 +38,24 @@ export const SessionEventSchema = z.object({
   schemaVersion: z.literal(1),
   sessionId: z.string().min(1),
   timestamp: z.string().datetime(),
-  type: z.enum(["created", "started", "stopped", "failed", "terminal-output"]),
+  type: z.enum([
+    "created",
+    "started",
+    "stopped",
+    "failed",
+    "terminal-output",
+    "notification-requested",
+    "notification-canceled"
+  ]),
   message: z.string(),
   data: z.record(z.string(), z.unknown()).optional()
 });
 
 export type SessionEvent = z.infer<typeof SessionEventSchema>;
 
-export type SessionUpdate = Partial<Pick<SessionRecord, "status" | "readOnly">> & {
+export type SessionUpdate = Partial<
+  Pick<SessionRecord, "status" | "readOnly" | "notifyWhenComplete">
+> & {
   lastError?: string;
 };
 

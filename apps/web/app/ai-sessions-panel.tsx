@@ -8,6 +8,8 @@ import {
 import type { ProjectRecord } from "@supply-flow/core/project";
 import type { SessionRecord } from "@supply-flow/core/session";
 import {
+  Bell,
+  BellRing,
   Bot,
   Check,
   Circle,
@@ -86,6 +88,8 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
   const [refreshingTerminalSessionKey, setRefreshingTerminalSessionKey] = useState<
     string | null
   >(null);
+  const [requestingCompletionNotificationSessionKey, setRequestingCompletionNotificationSessionKey] =
+    useState<string | null>(null);
   const titleInput = useRef<HTMLInputElement>(null);
   const contextSaveResetTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const authenticationResetTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -429,6 +433,41 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
     }
   }
 
+  async function toggleCompletionNotification(scopedSession: ScopedSession) {
+    const key = sessionKey(scopedSession);
+    if (requestingCompletionNotificationSessionKey) {
+      return;
+    }
+
+    const enabled = !scopedSession.session.notifyWhenComplete;
+    setRequestingCompletionNotificationSessionKey(key);
+    setSessionError("");
+
+    try {
+      const response = await fetch(`${sessionUrl(scopedSession, project)}/notify`, {
+        body: JSON.stringify({ enabled }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      });
+      const data = (await response.json()) as {
+        enabled?: boolean;
+        session?: SessionRecord;
+        error?: string;
+      };
+      if (!response.ok || data.enabled !== enabled || !data.session) {
+        throw new Error(data.error ?? "Unable to update the completion notification.");
+      }
+
+      updateSession(scopedSession.scope, data.session);
+    } catch (error) {
+      setSessionError(
+        error instanceof Error ? error.message : "Unable to update the completion notification."
+      );
+    } finally {
+      setRequestingCompletionNotificationSessionKey(null);
+    }
+  }
+
   async function toggleReadOnly(scopedSession: ScopedSession) {
     const key = sessionKey(scopedSession);
     if (togglingReadOnlySessionKey) {
@@ -620,6 +659,34 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
                         type="button"
                       >
                         <RefreshCw aria-hidden="true" />
+                      </button>
+                      <button
+                        aria-label={
+                          activeSession.session.notifyWhenComplete
+                            ? `Turn off completion notification for ${activeSession.session.title}`
+                            : `Notify when ${activeSession.session.title} is complete`
+                        }
+                        aria-pressed={activeSession.session.notifyWhenComplete === true}
+                        className={`session-icon-button${
+                          activeSession.session.notifyWhenComplete ? " is-active" : ""
+                        }`}
+                        disabled={
+                          requestingCompletionNotificationSessionKey ===
+                            sessionKey(activeSession)
+                        }
+                        onClick={() => void toggleCompletionNotification(activeSession)}
+                        title={
+                          activeSession.session.notifyWhenComplete
+                            ? "Completion notification is on. Turn off"
+                            : "Notify when current work is complete"
+                        }
+                        type="button"
+                      >
+                        {activeSession.session.notifyWhenComplete ? (
+                          <BellRing aria-hidden="true" />
+                        ) : (
+                          <Bell aria-hidden="true" />
+                        )}
                       </button>
                       {activeSession.scope === "project" ? (
                         <button
