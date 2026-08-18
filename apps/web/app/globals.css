@@ -2783,12 +2783,12 @@ code {
   line-height: 1.45;
 }
 
-.review-results-content,
+.review-results-markdown,
 .review-results-empty {
   margin: 12px 0 0;
 }
 
-.review-results-content {
+.review-results-markdown {
   min-height: 0;
   flex: 1;
   overflow: auto;
@@ -2797,11 +2797,96 @@ code {
   border-radius: 5px;
   background: var(--surface-soft);
   color: var(--ink);
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.55;
   overflow-wrap: anywhere;
-  white-space: pre-wrap;
+}
+
+.review-results-markdown > :first-child {
+  margin-top: 0;
+}
+
+.review-results-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.review-results-markdown h1,
+.review-results-markdown h2,
+.review-results-markdown h3,
+.review-results-markdown h4 {
+  margin: 22px 0 10px;
+  color: var(--ink);
+  font-family: inherit;
+  line-height: 1.3;
+}
+
+.review-results-markdown h1 {
+  font-size: 20px;
+}
+
+.review-results-markdown h2 {
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--line);
+  font-size: 16px;
+}
+
+.review-results-markdown h3,
+.review-results-markdown h4 {
+  font-size: 14px;
+}
+
+.review-results-markdown p,
+.review-results-markdown ul,
+.review-results-markdown ol,
+.review-results-markdown pre,
+.review-results-markdown blockquote {
+  margin: 0 0 14px;
+}
+
+.review-results-markdown ul,
+.review-results-markdown ol {
+  padding-left: 22px;
+}
+
+.review-results-markdown li + li {
+  margin-top: 4px;
+}
+
+.review-results-markdown a {
+  color: var(--teal);
+  font-weight: 700;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.review-results-markdown code {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: #edf2ef;
+  color: #1c493d;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.92em;
+}
+
+.review-results-markdown pre {
+  overflow: auto;
+  padding: 12px 14px;
+  border: 1px solid #d7e0da;
+  border-radius: 5px;
+  background: #f2f6f3;
+}
+
+.review-results-markdown pre code {
+  padding: 0;
+  background: transparent;
+  color: #263b31;
+  font-size: 12px;
+}
+
+.review-results-markdown blockquote {
+  padding-left: 12px;
+  border-left: 3px solid #9fd8c4;
+  color: var(--muted);
 }
 
 .review-results-empty {

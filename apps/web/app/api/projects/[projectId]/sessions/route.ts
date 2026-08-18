@@ -58,9 +58,7 @@ export async function GET(_request: Request, context: ProjectRouteContext) {
 
     const store = new FileSessionStore(projectDirectory(project.project_id));
     const tmuxSessionNames = await getTmuxSessionNames();
-    const sessions = await Promise.all(
-      (await store.list()).map((session) => reconcileSession(store, session, tmuxSessionNames))
-    );
+    const sessions = await reconcileSessions(store, tmuxSessionNames);
 
     return NextResponse.json({ sessions });
   } catch (error) {
@@ -125,32 +123,36 @@ async function parseNewSessionInput(request: Request): Promise<NewSessionInput |
 }
 
 async function getTmuxSessionNames(): Promise<Set<string>> {
-  try {
-    return new Set(await tmux.listSessions());
-  } catch {
-    return new Set();
-  }
+  return new Set(await tmux.listSessions());
 }
 
 async function reconcileSession(
   store: FileSessionStore,
   session: SessionRecord,
   tmuxSessionNames: Set<string>
-): Promise<SessionRecord> {
-  if (
-    (session.status === "starting" || session.status === "running") &&
-    !tmuxSessionNames.has(session.tmuxSessionName)
-  ) {
-    const stopped = await store.update(session.id, { status: "stopped" });
-    await store.appendEvent({
-      schemaVersion: 1,
-      sessionId: session.id,
-      timestamp: stopped.updatedAt,
-      type: "stopped",
-      message: `tmux session ${session.tmuxSessionName} is no longer active.`
-    });
-    return stopped;
+): Promise<SessionRecord | null> {
+  if (!tmuxSessionNames.has(session.tmuxSessionName)) {
+    await store.remove(session.id);
+    return null;
   }
 
-  return session;
+  return session.status === "running"
+    ? session
+    : store.update(session.id, { lastError: undefined, status: "running" });
+}
+
+async function reconcileSessions(
+  store: FileSessionStore,
+  tmuxSessionNames: Set<string>
+): Promise<SessionRecord[]> {
+  const sessions: SessionRecord[] = [];
+
+  for (const session of await store.list()) {
+    const reconciled = await reconcileSession(store, session, tmuxSessionNames);
+    if (reconciled) {
+      sessions.push(reconciled);
+    }
+  }
+
+  return sessions;
 }

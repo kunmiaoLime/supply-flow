@@ -22,6 +22,7 @@ import {
   Trash2
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AiSessionConfigurationFields } from "./ai-session-configuration-fields";
 import { workspaceTabUrl } from "./workspace-url";
@@ -840,7 +841,9 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
               {isLoadingReview ? (
                 <p className="review-results-empty">Loading review results...</p>
               ) : reviewResult ? (
-                <pre className="review-results-content">{reviewResult.content}</pre>
+                <div className="review-results-markdown">
+                  <ReactMarkdown>{reviewResult.content}</ReactMarkdown>
+                </div>
               ) : (
                 <p className="review-results-empty">No review results.</p>
               )}

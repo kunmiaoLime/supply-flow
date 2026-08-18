@@ -115,8 +115,16 @@ export class TmuxAdapter {
   }
 
   public async listSessions(): Promise<string[]> {
-    const result = await this.run(["list-sessions", "-F", "#{session_name}"]);
-    return result.stdout.split("\n").filter(Boolean);
+    try {
+      const result = await this.run(["list-sessions", "-F", "#{session_name}"]);
+      return result.stdout.split("\n").filter(Boolean);
+    } catch (error) {
+      if (isNoTmuxServerError(error)) {
+        return [];
+      }
+
+      throw error;
+    }
   }
 
   public async terminateSession(sessionName: string): Promise<void> {
@@ -189,4 +197,18 @@ function assertTerminalDimension(value: number, label: string): void {
   if (!Number.isInteger(value) || value < 1 || value > 1_000) {
     throw new Error(`Invalid terminal ${label}: "${value}".`);
   }
+}
+
+function isNoTmuxServerError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null || !("stderr" in error)) {
+    return false;
+  }
+
+  return (
+    typeof error.stderr === "string" &&
+    (/no server running/i.test(error.stderr) ||
+      /error connecting to .*\((no such file or directory|connection refused)\)/i.test(
+        error.stderr
+      ))
+  );
 }

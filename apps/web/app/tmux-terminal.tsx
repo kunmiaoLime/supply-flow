@@ -22,6 +22,7 @@ export function TmuxTerminal({
   sessionEndpoint,
   session,
   onSessionUpdated,
+  onSessionRemoved,
   onTerminalError,
   refreshRequestId,
   onTerminalRefreshComplete
@@ -29,6 +30,7 @@ export function TmuxTerminal({
   sessionEndpoint: string;
   session: SessionRecord;
   onSessionUpdated: (session: SessionRecord) => void;
+  onSessionRemoved: () => void;
   onTerminalError: (message: string) => void;
   refreshRequestId: number | null;
   onTerminalRefreshComplete: (requestId: number) => void;
@@ -39,6 +41,7 @@ export function TmuxTerminal({
   const fitAddonRef = useRef<FitAddon | null>(null);
   const sessionStatusRef = useRef(session.status);
   const onSessionUpdatedRef = useRef(onSessionUpdated);
+  const onSessionRemovedRef = useRef(onSessionRemoved);
   const onTerminalErrorRef = useRef(onTerminalError);
   const onTerminalRefreshCompleteRef = useRef(onTerminalRefreshComplete);
   const [isReady, setIsReady] = useState(false);
@@ -50,6 +53,10 @@ export function TmuxTerminal({
   useEffect(() => {
     onSessionUpdatedRef.current = onSessionUpdated;
   }, [onSessionUpdated]);
+
+  useEffect(() => {
+    onSessionRemovedRef.current = onSessionRemoved;
+  }, [onSessionRemoved]);
 
   useEffect(() => {
     onTerminalErrorRef.current = onTerminalError;
@@ -220,6 +227,10 @@ export function TmuxTerminal({
           { cache: "no-store" }
         );
         const data = (await response.json()) as SessionDetailResponse;
+        if (response.status === 404) {
+          onSessionRemovedRef.current();
+          return;
+        }
         if (!response.ok || !data.session) {
           throw new Error(data.error ?? "Unable to read terminal output.");
         }

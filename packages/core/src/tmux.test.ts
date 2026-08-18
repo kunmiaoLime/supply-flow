@@ -115,6 +115,26 @@ test("unsets requested environment variables before launching a provider", async
   ]);
 });
 
+test("treats a missing tmux server as no active sessions", async () => {
+  const adapter = new TmuxAdapter(async () => {
+    throw Object.assign(new Error("tmux exited"), {
+      stderr: "error connecting to /private/tmp/tmux-501/default (No such file or directory)"
+    });
+  });
+
+  assert.deepEqual(await adapter.listSessions(), []);
+});
+
+test("propagates tmux listing errors other than a missing server", async () => {
+  const adapter = new TmuxAdapter(async () => {
+    throw Object.assign(new Error("tmux is unavailable"), {
+      stderr: "command not found"
+    });
+  });
+
+  await assert.rejects(() => adapter.listSessions(), /tmux is unavailable/);
+});
+
 function emptyResult(): TmuxCommandResult {
   return {
     stdout: "",

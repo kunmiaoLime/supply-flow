@@ -13,9 +13,9 @@ export async function register(): Promise<void> {
       return;
     }
 
-    if (result.stoppedCount > 0) {
+    if (result.removedCount > 0) {
       console.info(
-        `Reconciled ${result.stoppedCount} stopped AI session(s) across ${result.projectCount} project(s).`
+        `Unregistered ${result.removedCount} inactive AI session(s) across ${result.projectCount} project(s).`
       );
     }
   } catch (error) {

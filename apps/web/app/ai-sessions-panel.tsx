@@ -488,6 +488,23 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
     }
   }
 
+  function removeSessionFromUi(scopedSession: ScopedSession) {
+    const key = sessionKey(scopedSession);
+    setSessionError("");
+    if (scopedSession.scope === "global") {
+      setGlobalSessions((currentSessions) =>
+        currentSessions.filter((session) => session.id !== scopedSession.session.id)
+      );
+    } else {
+      setProjectSessions((currentSessions) =>
+        currentSessions.filter((session) => session.id !== scopedSession.session.id)
+      );
+    }
+    setActiveSessionKey((currentSessionKey) =>
+      currentSessionKey === key ? null : currentSessionKey
+    );
+  }
+
   return (
     <>
       <section aria-label="AI sessions" className="ai-sessions-section">
@@ -695,6 +712,7 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
               </div>
               <TmuxTerminal
                 key={sessionKey(activeSession)}
+                onSessionRemoved={() => removeSessionFromUi(activeSession)}
                 onSessionUpdated={(updatedSession) =>
                   updateSession(activeSession.scope, updatedSession)
                 }

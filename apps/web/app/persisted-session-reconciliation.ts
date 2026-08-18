@@ -11,12 +11,12 @@ const AI_INTERFACE_SESSIONS_DIRECTORY = "ai-interface-sessions";
 export interface PersistedSessionReconciliation {
   projectCount: number;
   sessionCount: number;
-  stoppedCount: number;
+  removedCount: number;
 }
 
 interface SessionStoreReconciliation {
   sessions: SessionRecord[];
-  stoppedCount: number;
+  removedCount: number;
 }
 
 export async function reconcilePersistedAiSessions(): Promise<PersistedSessionReconciliation | null> {
@@ -48,7 +48,7 @@ export async function reconcilePersistedAiSessions(): Promise<PersistedSessionRe
   return {
     projectCount: projects.length,
     sessionCount: flattenedSessions.length,
-    stoppedCount: sessions.reduce((count, result) => count + result.stoppedCount, 0)
+    removedCount: sessions.reduce((count, result) => count + result.removedCount, 0)
   };
 }
 
@@ -56,30 +56,24 @@ export async function reconcileSessionStore(
   store: FileSessionStore,
   activeTmuxSessions: ReadonlySet<string>
 ): Promise<SessionStoreReconciliation> {
-  let stoppedCount = 0;
-  const sessions = await Promise.all(
-    (await store.list()).map(async (session) => {
-      if (
-        (session.status !== "starting" && session.status !== "running") ||
-        activeTmuxSessions.has(session.tmuxSessionName)
-      ) {
-        return session;
-      }
+  const sessions: SessionRecord[] = [];
+  let removedCount = 0;
 
-      const stopped = await store.update(session.id, { status: "stopped" });
-      stoppedCount += 1;
-      await store.appendEvent({
-        schemaVersion: 1,
-        sessionId: session.id,
-        timestamp: stopped.updatedAt,
-        type: "stopped",
-        message: `tmux session ${session.tmuxSessionName} is no longer active.`
-      });
-      return stopped;
-    })
-  );
+  for (const session of await store.list()) {
+    if (!activeTmuxSessions.has(session.tmuxSessionName)) {
+      await store.remove(session.id);
+      removedCount += 1;
+      continue;
+    }
 
-  return { sessions, stoppedCount };
+    sessions.push(
+      session.status === "running"
+        ? session
+        : await store.update(session.id, { lastError: undefined, status: "running" })
+    );
+  }
+
+  return { sessions, removedCount };
 }
 
 async function directoryExists(directory: string): Promise<boolean> {

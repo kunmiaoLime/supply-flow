@@ -65,15 +65,14 @@ export async function startOrResumeAiInterfaceSetupSession(input: {
       await sendAiSessionPrompt(new TmuxAdapter(), activeSession.tmuxSessionName, goal);
     } catch {
       // A race with a terminal exit is reconciled by a fresh session below.
-      const stopped = await reconcileAiInterfaceSession(store, activeSession);
-      if (stopped.status === "starting" || stopped.status === "running") {
+      const current = await reconcileAiInterfaceSession(store, activeSession);
+      if (current) {
         throw new AiInterfaceSessionError("Unable to send the setup task to the active AI session.", 500);
       }
     }
 
-    const current = await store.get(activeSession.id);
-    if (current && (current.status === "starting" || current.status === "running")) {
-      return { session: current, resumed: true };
+    if (await store.get(activeSession.id)) {
+      return { session: activeSession, resumed: true };
     }
   }
 
@@ -168,8 +167,8 @@ export async function startOrResumeAiInterfaceSetupSession(input: {
 
 export async function listAiInterfaceSessions(): Promise<SessionRecord[]> {
   const store = new FileSessionStore(aiInterfaceSessionDirectory());
-  const sessions = await store.list();
-  return Promise.all(sessions.map((session) => reconcileAiInterfaceSession(store, session)));
+  const activeTmuxSessions = new Set(await new TmuxAdapter().listSessions());
+  return reconcileAiInterfaceSessions(store, activeTmuxSessions);
 }
 
 export async function getAiInterfaceSession(sessionId: string): Promise<SessionRecord | null> {
@@ -308,15 +307,8 @@ export function tmuxRefreshRequested(request: Request): boolean {
 }
 
 async function findActiveSession(store: FileSessionStore): Promise<SessionRecord | null> {
-  const sessions = await store.list();
-  for (const session of sessions) {
-    const current = await reconcileAiInterfaceSession(store, session);
-    if (current.status === "starting" || current.status === "running") {
-      return current;
-    }
-  }
-
-  return null;
+  const activeTmuxSessions = new Set(await new TmuxAdapter().listSessions());
+  return (await reconcileAiInterfaceSessions(store, activeTmuxSessions))[0] ?? null;
 }
 
 async function getRunningAiInterfaceSession(sessionId: string): Promise<SessionRecord> {
@@ -324,39 +316,40 @@ async function getRunningAiInterfaceSession(sessionId: string): Promise<SessionR
   if (!session) {
     throw new AiInterfaceSessionError(`Unknown AI interface session "${sessionId}".`, 404);
   }
-  if (session.status !== "starting" && session.status !== "running") {
-    throw new AiInterfaceSessionError(`AI interface session "${sessionId}" is not running.`, 409);
-  }
 
   return session;
 }
 
 async function reconcileAiInterfaceSession(
   store: FileSessionStore,
-  session: SessionRecord
-): Promise<SessionRecord> {
-  if (session.status !== "starting" && session.status !== "running") {
-    return session;
+  session: SessionRecord,
+  activeTmuxSessions?: ReadonlySet<string>
+): Promise<SessionRecord | null> {
+  const activeSessions = activeTmuxSessions ?? new Set(await new TmuxAdapter().listSessions());
+  if (!activeSessions.has(session.tmuxSessionName)) {
+    await store.remove(session.id);
+    return null;
   }
 
-  try {
-    const activeSessions = await new TmuxAdapter().listSessions();
-    if (activeSessions.includes(session.tmuxSessionName)) {
-      return session;
+  return session.status === "running"
+    ? session
+    : store.update(session.id, { lastError: undefined, status: "running" });
+}
+
+async function reconcileAiInterfaceSessions(
+  store: FileSessionStore,
+  activeTmuxSessions: ReadonlySet<string>
+): Promise<SessionRecord[]> {
+  const sessions: SessionRecord[] = [];
+
+  for (const session of await store.list()) {
+    const reconciled = await reconcileAiInterfaceSession(store, session, activeTmuxSessions);
+    if (reconciled) {
+      sessions.push(reconciled);
     }
-  } catch {
-    // No tmux server means that the terminal stopped.
   }
 
-  const stopped = await store.update(session.id, { status: "stopped" });
-  await store.appendEvent({
-    schemaVersion: 1,
-    sessionId: session.id,
-    timestamp: stopped.updatedAt,
-    type: "stopped",
-    message: `tmux session ${session.tmuxSessionName} is no longer active.`
-  });
-  return stopped;
+  return sessions;
 }
 
 async function workspacePath(): Promise<string> {

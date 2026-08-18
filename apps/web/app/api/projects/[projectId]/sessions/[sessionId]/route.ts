@@ -35,6 +35,12 @@ export async function GET(request: Request, context: SessionRouteContext) {
     }
 
     const session = await reconcileSession(store, current);
+    if (!session) {
+      return NextResponse.json(
+        { error: `AI session "${sessionId}" is no longer running.` },
+        { status: 404 }
+      );
+    }
     const output = await readTerminalOutput(
       terminalLogPath(project.project_id, session.id),
       outputOffsetFromRequest(request)
@@ -89,29 +95,16 @@ export async function DELETE(_request: Request, context: SessionRouteContext) {
 async function reconcileSession(
   store: FileSessionStore,
   session: SessionRecord
-): Promise<SessionRecord> {
-  if (session.status !== "starting" && session.status !== "running") {
-    return session;
+): Promise<SessionRecord | null> {
+  const activeSessions = await tmux.listSessions();
+  if (!activeSessions.includes(session.tmuxSessionName)) {
+    await store.remove(session.id);
+    return null;
   }
 
-  try {
-    const activeSessions = await tmux.listSessions();
-    if (activeSessions.includes(session.tmuxSessionName)) {
-      return session;
-    }
-  } catch {
-    // tmux returns an error when no server is running, which means this session stopped.
-  }
-
-  const stopped = await store.update(session.id, { status: "stopped" });
-  await store.appendEvent({
-    schemaVersion: 1,
-    sessionId: session.id,
-    timestamp: stopped.updatedAt,
-    type: "stopped",
-    message: `tmux session ${session.tmuxSessionName} is no longer active.`
-  });
-  return stopped;
+  return session.status === "running"
+    ? session
+    : store.update(session.id, { lastError: undefined, status: "running" });
 }
 
 async function readTerminalOutput(
