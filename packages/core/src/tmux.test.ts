@@ -115,6 +115,38 @@ test("unsets requested environment variables before launching a provider", async
   ]);
 });
 
+test("sets requested environment variables before launching a provider", async () => {
+  const commands: string[][] = [];
+  const adapter = new TmuxAdapter(async (arguments_) => {
+    commands.push(arguments_);
+    return emptyResult();
+  });
+
+  await adapter.createSession({
+    sessionName: "sf_session_01",
+    workspacePath: "/tmp/worktree",
+    launch: {
+      executable: "codex",
+      environment: {
+        PATH: "/opt/homebrew/bin:/usr/bin"
+      },
+      arguments: ["--model", "gpt-5"]
+    }
+  });
+
+  assert.deepEqual(commands, [
+    [
+      "new-session",
+      "-d",
+      "-s",
+      "sf_session_01",
+      "-c",
+      "/tmp/worktree",
+      "'env' 'PATH=/opt/homebrew/bin:/usr/bin' 'codex' '--model' 'gpt-5'"
+    ]
+  ]);
+});
+
 test("treats a missing tmux server as no active sessions", async () => {
   const adapter = new TmuxAdapter(async () => {
     throw Object.assign(new Error("tmux exited"), {

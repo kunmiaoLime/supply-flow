@@ -161,6 +161,7 @@ function promptSettleDelay(input: string): number {
 
 function toShellCommand(launch: ProviderLaunchSpec): string {
   const unsetEnvironment = launch.unsetEnvironment ?? [];
+  const environment = launch.environment ?? {};
 
   for (const name of unsetEnvironment) {
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
@@ -168,9 +169,22 @@ function toShellCommand(launch: ProviderLaunchSpec): string {
     }
   }
 
+  for (const [name, value] of Object.entries(environment)) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+      throw new Error(`Invalid environment variable name: "${name}".`);
+    }
+    if (value.includes("\0")) {
+      throw new Error(`Invalid environment variable value for "${name}".`);
+    }
+  }
+
   return [
-    ...(unsetEnvironment.length > 0
-      ? ["env", ...unsetEnvironment.flatMap((name) => ["-u", name])]
+    ...(unsetEnvironment.length > 0 || Object.keys(environment).length > 0
+      ? [
+          "env",
+          ...unsetEnvironment.flatMap((name) => ["-u", name]),
+          ...Object.entries(environment).map(([name, value]) => `${name}=${value}`)
+        ]
       : []),
     launch.executable,
     ...launch.arguments

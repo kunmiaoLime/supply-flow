@@ -6,6 +6,7 @@ export interface ProviderLaunchSpec {
   executable: string;
   arguments: string[];
   unsetEnvironment?: readonly string[];
+  environment?: Readonly<Record<string, string>>;
 }
 
 export interface ProviderLaunchOptions {

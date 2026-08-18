@@ -8,6 +8,7 @@ import {
 } from "@supply-flow/core/ai-model-settings";
 import { FileAiModelSettingsStore } from "@supply-flow/core/file-ai-model-settings-store";
 import { FileSessionStore } from "@supply-flow/core/file-session-store";
+import { withManagedSessionEnvironment } from "@supply-flow/core/managed-session-environment";
 import type { ProjectRecord } from "@supply-flow/core/project";
 import { findProvider } from "@supply-flow/core/providers";
 import type { SessionRecord } from "@supply-flow/core/session";
@@ -142,19 +143,21 @@ export async function createProjectSession(
       sessionName: tmuxSessionName,
       workspacePath,
       outputPath: terminalLogPath(project.project_id, id),
-      launch: provider.createLaunchSpec({
-        initialPrompt: goal,
-        additionalWritableDirectories: Array.from(
-          new Set([
-            ...(input.additionalWritableDirectories ?? []),
-            projectDirectory(project.project_id)
-          ])
-        ),
-        bypassApprovalsAndSandbox: sessionConfiguration.yoloMode,
-        readOnly: sessionConfiguration.readOnly,
-        model: sessionConfiguration.model,
-        reasoningEffort: sessionConfiguration.reasoningEffort
-      })
+      launch: withManagedSessionEnvironment(
+        provider.createLaunchSpec({
+          initialPrompt: goal,
+          additionalWritableDirectories: Array.from(
+            new Set([
+              ...(input.additionalWritableDirectories ?? []),
+              projectDirectory(project.project_id)
+            ])
+          ),
+          bypassApprovalsAndSandbox: sessionConfiguration.yoloMode,
+          readOnly: sessionConfiguration.readOnly,
+          model: sessionConfiguration.model,
+          reasoningEffort: sessionConfiguration.reasoningEffort
+        })
+      )
     });
     session = await store.update(id, { status: "running" });
     await store.appendEvent({

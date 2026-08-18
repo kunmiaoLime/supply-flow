@@ -20,6 +20,7 @@
     "./file-session-store": "./src/file-session-store.ts",
     "./github-pull-request": "./src/github-pull-request.ts",
     "./import-conflict": "./src/import-conflict.ts",
+    "./managed-session-environment": "./src/managed-session-environment.ts",
     "./pull-request": "./src/pull-request.ts",
     "./project": "./src/project.ts",
     "./repository-discovery": "./src/repository-discovery.ts",
@@ -29,7 +30,7 @@
     "./tmux": "./src/tmux.ts"
   },
   "scripts": {
-    "test": "tsx --test src/file-ai-interface-store.test.ts src/file-ai-model-settings-store.test.ts src/file-branch-store.test.ts src/file-context-analysis-store.test.ts src/file-pull-request-store.test.ts src/file-pull-request-template-store.test.ts src/file-project-store.test.ts src/file-rfc-template-store.test.ts src/file-session-store.test.ts src/github-pull-request.test.ts src/providers.test.ts src/repository-discovery.test.ts src/session-prompt.test.ts src/tmux.test.ts",
+    "test": "tsx --test src/file-ai-interface-store.test.ts src/file-ai-model-settings-store.test.ts src/file-branch-store.test.ts src/file-context-analysis-store.test.ts src/file-pull-request-store.test.ts src/file-pull-request-template-store.test.ts src/file-project-store.test.ts src/file-rfc-template-store.test.ts src/file-session-store.test.ts src/github-pull-request.test.ts src/managed-session-environment.test.ts src/providers.test.ts src/repository-discovery.test.ts src/session-prompt.test.ts src/tmux.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

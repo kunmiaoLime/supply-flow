@@ -38,11 +38,13 @@ npm run dev
 
 The web app starts at <http://localhost:3000>.
 
-`scripts/setup.sh` validates Node.js, npm, Git, and tmux; installs the locked
-npm dependencies; creates the ignored `.supply-flow/` state directories; and
-builds the web app. It also reports the availability of AI provider CLIs and
-optional integration tools without installing or authenticating them. Use
-`--skip-install` or `--skip-build` when those steps are not needed.
+`scripts/setup.sh` installs missing Node.js/npm, Git, tmux, and ripgrep dependencies,
+then validates their versions; installs the locked npm dependencies; creates
+the ignored `.supply-flow/` state directories; and builds the web app. On
+macOS it bootstraps Homebrew when needed; on Linux it uses `apt`, `dnf`, or
+`pacman`. It reports AI provider CLIs and optional integration tools without
+installing or authenticating them. Use `--skip-install` or `--skip-build` when
+those npm install or build steps are not needed.
 
 At least one supported provider CLI, Codex or Claude Code, must be installed
 and authenticated before an AI session can start. Use **Settings > Setup AI
@@ -74,9 +76,8 @@ npm run stop:web -- --port 3004
 server; it does not terminate any tmux-backed AI sessions.
 
 When the web app starts, it reconciles every project and global AI session
-index against tmux. Sessions recorded as `starting` or `running` whose tmux
-session no longer exists are persisted as `stopped`; active tmux sessions are
-left untouched.
+index against tmux. Sessions whose tmux session no longer exists are removed
+from the local session index; active tmux sessions are left untouched.
 
 ## Use the web app
 

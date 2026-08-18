@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { FileSessionStore } from "@supply-flow/core/file-session-store";
+import { withManagedSessionEnvironment } from "@supply-flow/core/managed-session-environment";
 import { findProvider } from "@supply-flow/core/providers";
 import { TmuxAdapter } from "@supply-flow/core/tmux";
 import type { SessionRecord } from "@supply-flow/core/session";
@@ -97,7 +98,7 @@ async function startSession(arguments_: string[]): Promise<void> {
     await tmux.createSession({
       sessionName: tmuxSessionName,
       workspacePath,
-      launch: provider.createLaunchSpec({ initialPrompt: goal })
+      launch: withManagedSessionEnvironment(provider.createLaunchSpec({ initialPrompt: goal }))
     });
     await store.update(id, { status: "running" });
     await store.appendEvent({

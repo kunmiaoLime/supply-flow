@@ -12,6 +12,7 @@ import type { AiInterfaceId } from "@supply-flow/core/ai-interface";
 import { FileAiInterfaceStore } from "@supply-flow/core/file-ai-interface-store";
 import { FileAiModelSettingsStore } from "@supply-flow/core/file-ai-model-settings-store";
 import { FileSessionStore } from "@supply-flow/core/file-session-store";
+import { withManagedSessionEnvironment } from "@supply-flow/core/managed-session-environment";
 import { findProvider } from "@supply-flow/core/providers";
 import {
   prependCodexWriteModeBootstrap,
@@ -127,14 +128,16 @@ export async function startOrResumeAiInterfaceSetupSession(input: {
       sessionName: tmuxSessionName,
       workspacePath: workspace,
       outputPath: terminalLogPath(id),
-      launch: provider.createLaunchSpec({
-        initialPrompt: prompt,
-        additionalWritableDirectories: [path.join(dataDirectory, "settings")],
-        bypassApprovalsAndSandbox: configuration.yoloMode,
-        readOnly: configuration.readOnly,
-        model: configuration.model,
-        reasoningEffort: configuration.reasoningEffort
-      })
+      launch: withManagedSessionEnvironment(
+        provider.createLaunchSpec({
+          initialPrompt: prompt,
+          additionalWritableDirectories: [path.join(dataDirectory, "settings")],
+          bypassApprovalsAndSandbox: configuration.yoloMode,
+          readOnly: configuration.readOnly,
+          model: configuration.model,
+          reasoningEffort: configuration.reasoningEffort
+        })
+      )
     });
     session = await store.update(id, { status: "running" });
     await store.appendEvent({
