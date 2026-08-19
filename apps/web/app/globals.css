@@ -996,13 +996,6 @@ button:focus-visible {
   opacity: 0.58;
 }
 
-.ai-model-default-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: auto;
-  padding-top: 18px;
-}
-
 .ai-interface-setup {
   display: flex;
   min-height: 0;

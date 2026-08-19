@@ -62,11 +62,9 @@ export function SettingsSection({
   const [isSavingRfcTemplate, setIsSavingRfcTemplate] = useState(false);
   const [rfcTemplateError, setRfcTemplateError] = useState("");
   const [aiModelSettings, setAiModelSettings] = useState<AiModelSettings | null>(null);
-  const [savedAiModelSettings, setSavedAiModelSettings] = useState<AiModelSettings | null>(
-    null
-  );
   const [isLoadingAiModelSettings, setIsLoadingAiModelSettings] = useState(true);
   const [isSavingAiModelSettings, setIsSavingAiModelSettings] = useState(false);
+  const [aiModelSettingsSaveRequest, setAiModelSettingsSaveRequest] = useState(0);
   const [aiModelSettingsError, setAiModelSettingsError] = useState("");
   const [aiInterfaceStatus, setAiInterfaceStatus] = useState<AiInterfaceStatusIndex | null>(
     null
@@ -82,16 +80,14 @@ export function SettingsSection({
   const importInput = useRef<HTMLInputElement>(null);
   const hasInitialTemplates = useRef(initialTemplates !== undefined);
   const selectAllAiInterfacesInput = useRef<HTMLInputElement>(null);
+  const aiModelSettingsRef = useRef<AiModelSettings | null>(null);
+  const completedAiModelSettingsSaveRequest = useRef(0);
 
   const selectedTemplate =
     templates.find((template) => template.repository === selectedRepository) ?? null;
   const isDirty = selectedTemplate !== null && editorContent !== selectedTemplate.content;
   const isRfcTemplateDirty =
     rfcTemplate !== null && rfcTemplateContent !== rfcTemplate.content;
-  const isAiModelSettingsDirty =
-    aiModelSettings !== null &&
-    savedAiModelSettings !== null &&
-    JSON.stringify(aiModelSettings) !== JSON.stringify(savedAiModelSettings);
   const hasInvalidAuthenticationCommand =
     aiModelSettings !== null &&
     Object.values(aiModelSettings.authenticationCommands).some((command) => !command.trim());
@@ -256,13 +252,13 @@ export function SettingsSection({
         }
 
         if (!ignoreResult) {
+          aiModelSettingsRef.current = data.settings;
           setAiModelSettings(data.settings);
-          setSavedAiModelSettings(data.settings);
         }
       } catch (error) {
         if (!ignoreResult) {
+          aiModelSettingsRef.current = null;
           setAiModelSettings(null);
-          setSavedAiModelSettings(null);
           setAiModelSettingsError(
             error instanceof Error ? error.message : "Unable to load AI model settings."
           );
@@ -279,6 +275,60 @@ export function SettingsSection({
       ignoreResult = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (
+      !aiModelSettings ||
+      !aiModelSettingsSaveRequest ||
+      aiModelSettingsSaveRequest <= completedAiModelSettingsSaveRequest.current ||
+      hasInvalidAuthenticationCommand ||
+      isSavingAiModelSettings
+    ) {
+      return;
+    }
+
+    const requestId = aiModelSettingsSaveRequest;
+    const settingsToSave = aiModelSettings;
+
+    async function saveAiModelSettings() {
+      setIsSavingAiModelSettings(true);
+      setAiModelSettingsError("");
+
+      try {
+        const response = await fetch(aiModelsUrl(), {
+          body: JSON.stringify(settingsToSave),
+          headers: { "Content-Type": "application/json" },
+          method: "PATCH"
+        });
+        const data = (await response.json()) as {
+          settings?: AiModelSettings;
+          error?: string;
+        };
+        if (!response.ok || !data.settings) {
+          throw new Error(data.error ?? "Unable to save AI model settings.");
+        }
+
+        if (sameAiModelSettings(aiModelSettingsRef.current, settingsToSave)) {
+          aiModelSettingsRef.current = data.settings;
+          setAiModelSettings(data.settings);
+        }
+      } catch (error) {
+        setAiModelSettingsError(
+          error instanceof Error ? error.message : "Unable to save AI model settings."
+        );
+      } finally {
+        completedAiModelSettingsSaveRequest.current = requestId;
+        setIsSavingAiModelSettings(false);
+      }
+    }
+
+    void saveAiModelSettings();
+  }, [
+    aiModelSettings,
+    aiModelSettingsSaveRequest,
+    hasInvalidAuthenticationCommand,
+    isSavingAiModelSettings
+  ]);
 
   useEffect(() => {
     if (selectedRepository && !selectedTemplate) {
@@ -475,16 +525,8 @@ export function SettingsSection({
   }
 
   function updateAiModelSelection(action: AiSessionAction, value: string) {
-    if (isSavingAiModelSettings) {
-      return;
-    }
-
     const selection = parseModelSelection(value);
-    setAiModelSettings((currentSettings) => {
-      if (!currentSettings) {
-        return currentSettings;
-      }
-
+    queueAiModelSettingsUpdate((currentSettings) => {
       const currentSelection = currentSettings.actions[action];
       const providerId = selection?.providerId ?? null;
       const effectiveProviderId = providerId ?? currentSettings.globalDefault.providerId;
@@ -511,15 +553,7 @@ export function SettingsSection({
   }
 
   function updateAiModelReasoningEffort(action: AiSessionAction, value: string) {
-    if (isSavingAiModelSettings) {
-      return;
-    }
-
-    setAiModelSettings((currentSettings) => {
-      if (!currentSettings) {
-        return currentSettings;
-      }
-
+    queueAiModelSettingsUpdate((currentSettings) => {
       return {
         ...currentSettings,
         actions: {
@@ -538,15 +572,7 @@ export function SettingsSection({
     action: AiSessionAction,
     field: "readOnly" | "yoloMode"
   ) {
-    if (isSavingAiModelSettings) {
-      return;
-    }
-
-    setAiModelSettings((currentSettings) => {
-      if (!currentSettings) {
-        return currentSettings;
-      }
-
+    queueAiModelSettingsUpdate((currentSettings) => {
       const currentSelection = currentSettings.actions[action];
       const nextValue = !currentSelection[field];
       return {
@@ -564,20 +590,12 @@ export function SettingsSection({
   }
 
   function updateGlobalDefaultSelection(value: string) {
-    if (isSavingAiModelSettings) {
-      return;
-    }
-
     const selection = parseModelSelection(value);
     if (!selection) {
       return;
     }
 
-    setAiModelSettings((currentSettings) => {
-      if (!currentSettings) {
-        return currentSettings;
-      }
-
+    queueAiModelSettingsUpdate((currentSettings) => {
       const globalDefault = {
         ...currentSettings.globalDefault,
         providerId: selection.providerId,
@@ -610,15 +628,7 @@ export function SettingsSection({
   }
 
   function updateGlobalDefaultReasoningEffort(value: string) {
-    if (isSavingAiModelSettings) {
-      return;
-    }
-
-    setAiModelSettings((currentSettings) => {
-      if (!currentSettings) {
-        return currentSettings;
-      }
-
+    queueAiModelSettingsUpdate((currentSettings) => {
       return {
         ...currentSettings,
         globalDefault: {
@@ -631,15 +641,7 @@ export function SettingsSection({
   }
 
   function updateAuthenticationCommand(providerId: AiProviderId, command: string) {
-    if (isSavingAiModelSettings) {
-      return;
-    }
-
-    setAiModelSettings((currentSettings) => {
-      if (!currentSettings) {
-        return currentSettings;
-      }
-
+    queueAiModelSettingsUpdate((currentSettings) => {
       return {
         ...currentSettings,
         authenticationCommands: {
@@ -651,46 +653,22 @@ export function SettingsSection({
     setAiModelSettingsError("");
   }
 
-  async function saveAiModelSettings() {
-    if (
-      !aiModelSettings ||
-      !isAiModelSettingsDirty ||
-      isLoadingAiModelSettings ||
-      isSavingAiModelSettings
-    ) {
-      return;
-    }
-    if (hasInvalidAuthenticationCommand) {
-      setAiModelSettingsError("Enter an authentication command line for each AI provider.");
+  function queueAiModelSettingsUpdate(
+    update: (currentSettings: AiModelSettings) => AiModelSettings
+  ) {
+    const currentSettings = aiModelSettingsRef.current;
+    if (!currentSettings) {
       return;
     }
 
-    setIsSavingAiModelSettings(true);
-    setAiModelSettingsError("");
-
-    try {
-      const response = await fetch(aiModelsUrl(), {
-        body: JSON.stringify(aiModelSettings),
-        headers: { "Content-Type": "application/json" },
-        method: "PATCH"
-      });
-      const data = (await response.json()) as {
-        settings?: AiModelSettings;
-        error?: string;
-      };
-      if (!response.ok || !data.settings) {
-        throw new Error(data.error ?? "Unable to save AI model settings.");
-      }
-
-      setAiModelSettings(data.settings);
-      setSavedAiModelSettings(data.settings);
-    } catch (error) {
-      setAiModelSettingsError(
-        error instanceof Error ? error.message : "Unable to save AI model settings."
-      );
-    } finally {
-      setIsSavingAiModelSettings(false);
+    const nextSettings = update(currentSettings);
+    if (sameAiModelSettings(currentSettings, nextSettings)) {
+      return;
     }
+
+    aiModelSettingsRef.current = nextSettings;
+    setAiModelSettings(nextSettings);
+    setAiModelSettingsSaveRequest((currentRequest) => currentRequest + 1);
   }
 
   function toggleAiInterface(interfaceId: AiInterfaceId) {
@@ -963,7 +941,7 @@ export function SettingsSection({
                     <label className="ai-model-default-field">
                       <span>AI model</span>
                       <select
-                        disabled={isSavingAiModelSettings}
+                        disabled={isLoadingAiModelSettings}
                         onChange={(event) =>
                           updateGlobalDefaultSelection(event.target.value)
                         }
@@ -980,7 +958,7 @@ export function SettingsSection({
                     <label className="ai-model-default-field">
                       <span>Reasoning effort</span>
                       <select
-                        disabled={isSavingAiModelSettings}
+                        disabled={isLoadingAiModelSettings}
                         onChange={(event) =>
                           updateGlobalDefaultReasoningEffort(event.target.value)
                         }
@@ -1007,7 +985,7 @@ export function SettingsSection({
                         <label className="ai-model-default-field">
                           <span>AI model</span>
                           <select
-                            disabled={isSavingAiModelSettings}
+                            disabled={isLoadingAiModelSettings}
                             onChange={(event) =>
                               updateAiModelSelection(action.id, event.target.value)
                             }
@@ -1026,7 +1004,7 @@ export function SettingsSection({
                         <label className="ai-model-default-field">
                           <span>Reasoning effort</span>
                           <select
-                            disabled={isSavingAiModelSettings}
+                            disabled={isLoadingAiModelSettings}
                             onChange={(event) =>
                               updateAiModelReasoningEffort(action.id, event.target.value)
                             }
@@ -1046,7 +1024,7 @@ export function SettingsSection({
                             aria-checked={selection.readOnly}
                             aria-label={`${action.label} read-only`}
                             className="ai-model-toggle"
-                            disabled={isSavingAiModelSettings}
+                            disabled={isLoadingAiModelSettings}
                             onClick={() => toggleAiSessionSetting(action.id, "readOnly")}
                             role="switch"
                             title={
@@ -1065,7 +1043,7 @@ export function SettingsSection({
                             aria-checked={selection.yoloMode}
                             aria-label={`${action.label} YOLO mode`}
                             className="ai-model-toggle"
-                            disabled={isSavingAiModelSettings}
+                            disabled={isLoadingAiModelSettings}
                             onClick={() => toggleAiSessionSetting(action.id, "yoloMode")}
                             role="switch"
                             title={
@@ -1095,7 +1073,7 @@ export function SettingsSection({
                         <input
                           autoCapitalize="none"
                           autoComplete="off"
-                          disabled={isSavingAiModelSettings}
+                          disabled={isLoadingAiModelSettings}
                           id={`authentication-command-${providerId}`}
                           maxLength={4_096}
                           onChange={(event) =>
@@ -1109,22 +1087,6 @@ export function SettingsSection({
                     ))}
                   </div>
                 </section>
-                <div className="ai-model-default-actions">
-                  <button
-                    className="save-pr-template-button"
-                    disabled={
-                      isSavingAiModelSettings ||
-                      isLoadingAiModelSettings ||
-                      hasInvalidAuthenticationCommand ||
-                      !isAiModelSettingsDirty
-                    }
-                    onClick={() => void saveAiModelSettings()}
-                    type="button"
-                  >
-                    <Save aria-hidden="true" />
-                    <span>{isSavingAiModelSettings ? "Saving..." : "Save"}</span>
-                  </button>
-                </div>
               </div>
             ) : (
               <div className="pr-template-empty-state">
@@ -1312,6 +1274,13 @@ function rfcTemplateUrl(): string {
 
 function aiModelsUrl(): string {
   return "/api/settings/ai-models";
+}
+
+function sameAiModelSettings(
+  left: AiModelSettings | null,
+  right: AiModelSettings
+): boolean {
+  return left !== null && JSON.stringify(left) === JSON.stringify(right);
 }
 
 function aiInterfacesUrl(): string {
