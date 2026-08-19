@@ -188,7 +188,7 @@ export function TaskPlanSection({
         currentTask.jira_ticket === task.jira_ticket && index !== editingTaskIndex
     );
     if (duplicateTicket) {
-      setDialogError("This Jira ticket is already in the task plan.");
+      setDialogError("This Jira ticket is already tracked in Task manager.");
       return;
     }
 

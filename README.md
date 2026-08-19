@@ -131,7 +131,7 @@ approved draft to Confluence.
 
 ### 3. Plan work and implement code
 
-1. On **Task plan**, use **Import task** to add an existing Jira ticket, or
+1. On **Task manager**, use **Import task** to add an existing Jira ticket, or
    **New task** to start a task-creation session. The AI discusses the work
    before it creates a Jira ticket. Use **Create from plan** to turn an RFC
    implementation plan into Jira sub-tasks.

@@ -60,7 +60,7 @@ export async function POST(request: Request, context: ProjectRouteContext) {
 
     if (project.tasks.some((task) => jiraTicketKey(task.jira_ticket) === issue.key)) {
       return NextResponse.json(
-        { error: "This Jira ticket is already in the task plan." },
+        { error: "This Jira ticket is already tracked in Task manager." },
         { status: 409 }
       );
     }

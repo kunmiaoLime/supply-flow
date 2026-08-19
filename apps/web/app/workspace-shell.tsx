@@ -115,7 +115,7 @@ const requirementSourceOptions: readonly {
 
 const navigationTabs: readonly NavigationTab[] = [
   { id: "project", label: "Project", href: "/project", icon: FolderKanban },
-  { id: "task-plan", label: "Task plan", href: "/task_plan", icon: ListTodo },
+  { id: "task-plan", label: "Task manager", href: "/task_plan", icon: ListTodo },
   {
     id: "code-implementation",
     label: "Code implementation",
@@ -140,8 +140,8 @@ const tabHeadings: Record<TabId, { eyebrow: string; title: string; description: 
   },
   "task-plan": {
     eyebrow: "Delivery",
-    title: "Task plan",
-    description: "The current execution plan for this workspace."
+    title: "Task manager",
+    description: "Create and track Jira tasks for this workspace."
   },
   "code-implementation": {
     eyebrow: "Workspace",
@@ -1509,7 +1509,7 @@ export function WorkspaceShell({
               : tab === "project"
                 ? "Project"
                 : tab === "task-plan"
-                  ? "Task plan"
+                  ? "Task manager"
                   : tab === "code-implementation"
                     ? "Code implementation"
                     : tab === "pr"
