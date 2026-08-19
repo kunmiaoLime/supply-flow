@@ -1,0 +1,20 @@
+apps/web/app/settings-section.tsx
+  s_03516d03c2d1bf::t_8531175c2331b0 67,83-84,255,260,279-332,529,556,575,598,631,644,656-660,663-665,669-671,944,961,988,1007,1027,1046,1076,1279-1283
+  s_03516d03c2d1bf::t_6306f84d06df90 1284-1285
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "fa4dab202d3f8eba0ce64a29b7b2962143193284",
+  "prompts": {},
+  "sessions": {
+    "s_03516d03c2d1bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7adb2a0-5933-4bb5-865f-22e5064fcf95",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    }
+  }
+}
