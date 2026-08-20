@@ -1,0 +1,21 @@
+apps/web/app/globals.css
+  s_cc8385010f3208::t_dd6167b4b2df54 2338-2347
+apps/web/app/workspace-shell.tsx
+  s_cc8385010f3208::t_3e025cc3723e19 2814-2817,2861-2908
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "de96d2f6fa28397a0fbe6e8bee2dfd70d4a0a2cf",
+  "prompts": {},
+  "sessions": {
+    "s_cc8385010f3208": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a01582-343f-7090-94b8-6ee68ba37a4f",
+        "model": "unknown"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    }
+  }
+}
