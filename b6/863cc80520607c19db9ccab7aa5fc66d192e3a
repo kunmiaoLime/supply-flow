@@ -1,0 +1,19 @@
+apps/web/app/tmux-terminal.tsx
+  s_cc8385010f3208::t_63954962623f0f 18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "b6863cc80520607c19db9ccab7aa5fc66d192e3a",
+  "prompts": {},
+  "sessions": {
+    "s_cc8385010f3208": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a01582-343f-7090-94b8-6ee68ba37a4f",
+        "model": "unknown"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    }
+  }
+}
