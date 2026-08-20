@@ -29,10 +29,13 @@ import {
   Download,
   Eye,
   ExternalLink,
+  FileArchive,
   FilePenLine,
   FileText,
   FileUp,
+  Folder,
   FolderKanban,
+  FolderUp,
   GitBranch,
   GitPullRequest,
   Info,
@@ -88,6 +91,18 @@ interface RequirementForm {
 interface ProjectImportConflict {
   importedProjectName: string;
   existingProjects: Array<Pick<ProjectRecord, "project_id" | "project_name">>;
+}
+
+interface ProjectArchiveEntry {
+  name: string;
+  path: string;
+  type: "archive" | "directory";
+}
+
+interface ProjectArchiveDirectory {
+  entries: ProjectArchiveEntry[];
+  parentPath: string | null;
+  path: string;
 }
 
 const emptyRepositoryForm: RepositoryForm = {
@@ -184,7 +199,13 @@ export function WorkspaceShell({
   const [creationError, setCreationError] = useState("");
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [isImportProjectDialogOpen, setIsImportProjectDialogOpen] = useState(false);
-  const [projectArchive, setProjectArchive] = useState<File | null>(null);
+  const [projectArchivePath, setProjectArchivePath] = useState("");
+  const [isProjectArchiveBrowserOpen, setIsProjectArchiveBrowserOpen] = useState(false);
+  const [projectArchiveDirectory, setProjectArchiveDirectory] =
+    useState<ProjectArchiveDirectory | null>(null);
+  const [projectArchiveBrowserError, setProjectArchiveBrowserError] = useState("");
+  const [isLoadingProjectArchiveDirectory, setIsLoadingProjectArchiveDirectory] =
+    useState(false);
   const [importProjectError, setImportProjectError] = useState("");
   const [isImportingProject, setIsImportingProject] = useState(false);
   const [projectImportConflict, setProjectImportConflict] =
@@ -229,7 +250,7 @@ export function WorkspaceShell({
   const [readmeError, setReadmeError] = useState("");
   const [isLoadingReadme, setIsLoadingReadme] = useState(false);
   const projectNameInput = useRef<HTMLInputElement>(null);
-  const projectArchiveInput = useRef<HTMLInputElement>(null);
+  const projectArchivePathInput = useRef<HTMLInputElement>(null);
   const removeProjectNameInput = useRef<HTMLInputElement>(null);
   const repositoryLocalPathInput = useRef<HTMLInputElement>(null);
   const requirementLinkInput = useRef<HTMLInputElement>(null);
@@ -294,7 +315,7 @@ export function WorkspaceShell({
 
   useEffect(() => {
     if (isImportProjectDialogOpen) {
-      projectArchiveInput.current?.focus();
+      projectArchivePathInput.current?.focus();
     }
   }, [isImportProjectDialogOpen]);
 
@@ -476,20 +497,23 @@ export function WorkspaceShell({
   }
 
   function openImportProjectDialog() {
-    setProjectArchive(null);
+    setProjectArchivePath("");
+    setIsProjectArchiveBrowserOpen(false);
+    setProjectArchiveDirectory(null);
+    setProjectArchiveBrowserError("");
     setImportProjectError("");
     setProjectImportConflict(null);
     setProjectImportMode("separate");
     setImportTargetProjectId("");
-    if (projectArchiveInput.current) {
-      projectArchiveInput.current.value = "";
-    }
     setIsImportProjectDialogOpen(true);
   }
 
   function closeImportProjectDialog() {
     if (!isImportingProject) {
       setIsImportProjectDialogOpen(false);
+      setIsProjectArchiveBrowserOpen(false);
+      setProjectArchiveDirectory(null);
+      setProjectArchiveBrowserError("");
       setImportProjectError("");
       setProjectImportConflict(null);
       setProjectImportMode("separate");
@@ -497,12 +521,71 @@ export function WorkspaceShell({
     }
   }
 
-  function selectProjectArchive(event: ChangeEvent<HTMLInputElement>) {
-    setProjectArchive(event.target.files?.[0] ?? null);
-    setImportProjectError("");
+  function updateProjectArchivePath(value: string) {
+    setProjectArchivePath(value);
     setProjectImportConflict(null);
     setProjectImportMode("separate");
     setImportTargetProjectId("");
+    setImportProjectError("");
+  }
+
+  async function loadProjectArchiveDirectory(directoryPath?: string) {
+    setIsLoadingProjectArchiveDirectory(true);
+    setProjectArchiveBrowserError("");
+
+    try {
+      const query = directoryPath
+        ? `?${new URLSearchParams({ path: directoryPath }).toString()}`
+        : "";
+      const response = await fetch(`/api/projects/import/files${query}`);
+      const data = (await response.json()) as {
+        entries?: ProjectArchiveEntry[];
+        error?: string;
+        parentPath?: string | null;
+        path?: string;
+      };
+      if (
+        !response.ok ||
+        !data.path ||
+        !Array.isArray(data.entries) ||
+        (data.parentPath !== null && typeof data.parentPath !== "string")
+      ) {
+        throw new Error(data.error ?? "Unable to list local project archives.");
+      }
+
+      setProjectArchiveDirectory({
+        path: data.path,
+        parentPath: data.parentPath,
+        entries: data.entries
+      });
+    } catch (error) {
+      setProjectArchiveBrowserError(
+        error instanceof Error ? error.message : "Unable to list local project archives."
+      );
+    }
+    setIsLoadingProjectArchiveDirectory(false);
+  }
+
+  function openProjectArchiveBrowser() {
+    setIsProjectArchiveBrowserOpen(true);
+    void loadProjectArchiveDirectory();
+  }
+
+  function closeProjectArchiveBrowser() {
+    if (!isLoadingProjectArchiveDirectory) {
+      setIsProjectArchiveBrowserOpen(false);
+      setProjectArchiveBrowserError("");
+    }
+  }
+
+  function selectProjectArchiveEntry(entry: ProjectArchiveEntry) {
+    if (entry.type === "directory") {
+      void loadProjectArchiveDirectory(entry.path);
+      return;
+    }
+
+    updateProjectArchivePath(entry.path);
+    setIsProjectArchiveBrowserOpen(false);
   }
 
   function openRemoveProjectDialog() {
@@ -586,8 +669,9 @@ export function WorkspaceShell({
 
   async function importProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!projectArchive) {
-      setImportProjectError("Choose a ZIP archive to import.");
+    const archivePath = projectArchivePath.trim();
+    if (!archivePath) {
+      setImportProjectError("Choose a ZIP archive or enter its path.");
       return;
     }
     if (
@@ -604,7 +688,7 @@ export function WorkspaceShell({
 
     try {
       const formData = new FormData();
-      formData.set("archive", projectArchive);
+      formData.set("archivePath", archivePath);
       if (projectImportConflict) {
         formData.set("mode", projectImportMode);
         if (projectImportMode !== "separate") {
@@ -648,7 +732,7 @@ export function WorkspaceShell({
         )
       ]);
       setIsImportProjectDialogOpen(false);
-      setProjectArchive(null);
+      setProjectArchivePath("");
       router.push(workspaceTabUrl("/ai_sessions", data.project.project_id, data.session.id));
     } catch (error) {
       setImportProjectError(
@@ -1667,115 +1751,200 @@ export function WorkspaceShell({
           className="dialog-backdrop"
           onMouseDown={(event) => {
             if (event.currentTarget === event.target) {
-              closeImportProjectDialog();
+              if (isProjectArchiveBrowserOpen) {
+                closeProjectArchiveBrowser();
+              } else {
+                closeImportProjectDialog();
+              }
             }
           }}
         >
           <section
-            aria-labelledby="import-project-title"
+            aria-labelledby={
+              isProjectArchiveBrowserOpen
+                ? "project-archive-browser-title"
+                : "import-project-title"
+            }
             aria-modal="true"
             className="create-project-dialog import-project-dialog"
             role="dialog"
           >
-            <h2 id="import-project-title">Import project</h2>
-            <form onSubmit={importProject}>
-              <label className="project-archive-field" htmlFor="project-archive">
-                <span>Project archive</span>
-                <input
-                  accept=".zip,application/zip,application/x-zip-compressed"
-                  id="project-archive"
-                  onChange={selectProjectArchive}
-                  ref={projectArchiveInput}
-                  required
-                  type="file"
-                />
-              </label>
-              {projectArchive ? (
-                <p className="selected-project-archive">{projectArchive.name}</p>
-              ) : null}
-              {projectImportConflict ? (
-                <fieldset className="project-import-options">
-                  <legend>Existing project found</legend>
-                  <p>
-                    {projectImportConflict.importedProjectName} is already available locally.
+            {isProjectArchiveBrowserOpen ? (
+              <>
+                <h2 id="project-archive-browser-title">Choose ZIP archive</h2>
+                <div className="project-archive-browser-location">
+                  <code>{projectArchiveDirectory?.path ?? "~/Downloads"}</code>
+                  <button
+                    aria-label="Go to parent folder"
+                    className="dialog-secondary-button project-archive-parent-button"
+                    disabled={
+                      isLoadingProjectArchiveDirectory ||
+                      !projectArchiveDirectory?.parentPath
+                    }
+                    onClick={() => {
+                      if (projectArchiveDirectory?.parentPath) {
+                        void loadProjectArchiveDirectory(projectArchiveDirectory.parentPath);
+                      }
+                    }}
+                    title="Go to parent folder"
+                    type="button"
+                  >
+                    <FolderUp aria-hidden="true" />
+                  </button>
+                </div>
+                {isLoadingProjectArchiveDirectory ? (
+                  <p className="project-archive-browser-status">Loading...</p>
+                ) : projectArchiveBrowserError ? (
+                  <p className="create-project-error" role="alert">
+                    {projectArchiveBrowserError}
                   </p>
-                  <label className="project-import-option">
-                    <input
-                      checked={projectImportMode === "separate"}
-                      name="project-import-mode"
-                      onChange={() => setProjectImportMode("separate")}
-                      type="radio"
-                      value="separate"
-                    />
-                    <span>Create a separate project</span>
-                  </label>
-                  <label className="project-import-option">
-                    <input
-                      checked={projectImportMode === "replace"}
-                      name="project-import-mode"
-                      onChange={() => setProjectImportMode("replace")}
-                      type="radio"
-                      value="replace"
-                    />
-                    <span>Replace existing project</span>
-                  </label>
-                  <label className="project-import-option">
-                    <input
-                      checked={projectImportMode === "merge"}
-                      name="project-import-mode"
-                      onChange={() => setProjectImportMode("merge")}
-                      type="radio"
-                      value="merge"
-                    />
-                    <span>Merge with existing project</span>
-                  </label>
-                  {projectImportMode !== "separate" ? (
-                    <label className="project-import-target">
-                      <span>Project to update</span>
-                      <select
-                        onChange={(event) => setImportTargetProjectId(event.target.value)}
-                        value={importTargetProjectId}
+                ) : (
+                  <ul className="project-archive-browser-list">
+                    {(projectArchiveDirectory?.entries ?? []).map((entry) => (
+                      <li key={entry.path}>
+                        <button
+                          className="project-archive-browser-entry"
+                          onClick={() => selectProjectArchiveEntry(entry)}
+                          type="button"
+                        >
+                          {entry.type === "directory" ? (
+                            <Folder aria-hidden="true" />
+                          ) : (
+                            <FileArchive aria-hidden="true" />
+                          )}
+                          <span>{entry.name}</span>
+                        </button>
+                      </li>
+                    ))}
+                    {projectArchiveDirectory?.entries.length === 0 ? (
+                      <li className="project-archive-browser-status">No ZIP archives in this folder.</li>
+                    ) : null}
+                  </ul>
+                )}
+                <div className="dialog-actions">
+                  <button
+                    className="dialog-cancel-button"
+                    disabled={isLoadingProjectArchiveDirectory}
+                    onClick={closeProjectArchiveBrowser}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 id="import-project-title">Import project</h2>
+                <form onSubmit={importProject}>
+                  <div className="project-archive-field">
+                    <label htmlFor="project-archive-path">Project archive</label>
+                    <div className="project-archive-control">
+                      <input
+                        autoCapitalize="none"
+                        autoComplete="off"
+                        id="project-archive-path"
+                        onChange={(event) => updateProjectArchivePath(event.target.value)}
+                        placeholder="~/Downloads/project.zip"
+                        ref={projectArchivePathInput}
+                        spellCheck={false}
+                        type="text"
+                        value={projectArchivePath}
+                      />
+                      <button
+                        className="dialog-secondary-button"
+                        onClick={openProjectArchiveBrowser}
+                        type="button"
                       >
-                        {projectImportConflict.existingProjects.map((project) => (
-                          <option key={project.project_id} value={project.project_id}>
-                            {project.project_name} ({project.project_id})
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                        <FileUp aria-hidden="true" />
+                        <span>Choose ZIP archive</span>
+                      </button>
+                    </div>
+                  </div>
+                  {projectImportConflict ? (
+                    <fieldset className="project-import-options">
+                      <legend>Existing project found</legend>
+                      <p>
+                        {projectImportConflict.importedProjectName} is already available locally.
+                      </p>
+                      <label className="project-import-option">
+                        <input
+                          checked={projectImportMode === "separate"}
+                          name="project-import-mode"
+                          onChange={() => setProjectImportMode("separate")}
+                          type="radio"
+                          value="separate"
+                        />
+                        <span>Create a separate project</span>
+                      </label>
+                      <label className="project-import-option">
+                        <input
+                          checked={projectImportMode === "replace"}
+                          name="project-import-mode"
+                          onChange={() => setProjectImportMode("replace")}
+                          type="radio"
+                          value="replace"
+                        />
+                        <span>Replace existing project</span>
+                      </label>
+                      <label className="project-import-option">
+                        <input
+                          checked={projectImportMode === "merge"}
+                          name="project-import-mode"
+                          onChange={() => setProjectImportMode("merge")}
+                          type="radio"
+                          value="merge"
+                        />
+                        <span>Merge with existing project</span>
+                      </label>
+                      {projectImportMode !== "separate" ? (
+                        <label className="project-import-target">
+                          <span>Project to update</span>
+                          <select
+                            onChange={(event) => setImportTargetProjectId(event.target.value)}
+                            value={importTargetProjectId}
+                          >
+                            {projectImportConflict.existingProjects.map((project) => (
+                              <option key={project.project_id} value={project.project_id}>
+                                {project.project_name} ({project.project_id})
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : null}
+                    </fieldset>
                   ) : null}
-                </fieldset>
-              ) : null}
-              {importProjectError ? (
-                <p className="create-project-error" role="alert">
-                  {importProjectError}
-                </p>
-              ) : null}
-              <div className="dialog-actions">
-                <button
-                  className="dialog-cancel-button"
-                  disabled={isImportingProject}
-                  onClick={closeImportProjectDialog}
-                  type="button"
-                >
-                  Cancel
-                </button>
-                <button
-                  className="import-project-button"
-                  disabled={isImportingProject || !projectArchive}
-                  type="submit"
-                >
-                  <FileUp aria-hidden="true" />
-                  <span>
-                    {isImportingProject
-                      ? "Starting..."
-                      : projectImportConflict
-                        ? "Start import"
-                        : "Continue"}
-                  </span>
-                </button>
-              </div>
-            </form>
+                  {importProjectError ? (
+                    <p className="create-project-error" role="alert">
+                      {importProjectError}
+                    </p>
+                  ) : null}
+                  <div className="dialog-actions">
+                    <button
+                      className="dialog-cancel-button"
+                      disabled={isImportingProject}
+                      onClick={closeImportProjectDialog}
+                      type="button"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="import-project-button"
+                      disabled={isImportingProject || !projectArchivePath.trim()}
+                      type="submit"
+                    >
+                      <FileUp aria-hidden="true" />
+                      <span>
+                        {isImportingProject
+                          ? "Starting..."
+                          : projectImportConflict
+                            ? "Start import"
+                            : "Continue"}
+                      </span>
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
           </section>
         </div>
       ) : null}

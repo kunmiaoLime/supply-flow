@@ -1,5 +1,6 @@
 import { execFile as execFileCallback } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
@@ -27,9 +28,14 @@ const importModes = ["separate", "replace", "merge"] as const;
 type ImportMode = (typeof importModes)[number];
 
 interface ImportInput {
-  archive: File;
+  archive: ArchiveInput;
   mode: ImportMode | null;
   targetProjectId: string | null;
+}
+
+interface ArchiveInput {
+  filename: string;
+  copyTo: (destination: string) => Promise<void>;
 }
 
 class ProjectImportError extends Error {
@@ -54,8 +60,8 @@ export async function POST(request: Request) {
     importDirectory = await mkdtemp(path.join(importsDirectory, "import-"));
 
     const archivePath = path.join(importDirectory, "project.zip");
-    await writeFile(archivePath, Buffer.from(await input.archive.arrayBuffer()));
-    const importedMetadata = await inspectArchive(archivePath, input.archive.name);
+    await input.archive.copyTo(archivePath);
+    const importedMetadata = await inspectArchive(archivePath, input.archive.filename);
 
     const projectName = importedMetadata.projectName;
     const projects = await projectStore.list();
@@ -148,16 +154,7 @@ async function parseImportInput(request: Request): Promise<ImportInput> {
     throw new ProjectImportError("Choose a project ZIP archive to import.");
   }
 
-  const archive = form.get("archive");
-  if (!(archive instanceof File) || !archive.name.toLowerCase().endsWith(".zip")) {
-    throw new ProjectImportError("Choose a ZIP archive exported by Supply Flow.");
-  }
-  if (archive.size === 0) {
-    throw new ProjectImportError("The selected ZIP archive is empty.");
-  }
-  if (archive.size > MAX_ARCHIVE_BYTES) {
-    throw new ProjectImportError("Project archives must be 512 MB or smaller.");
-  }
+  const archive = await parseArchiveInput(form.get("archive"), form.get("archivePath"));
 
   const mode = parseImportMode(form.get("mode"));
   const targetProjectId = parseTargetProjectId(form.get("targetProjectId"));
@@ -166,6 +163,82 @@ async function parseImportInput(request: Request): Promise<ImportInput> {
   }
 
   return { archive, mode, targetProjectId };
+}
+
+async function parseArchiveInput(
+  archiveValue: FormDataEntryValue | null,
+  archivePathValue: FormDataEntryValue | null
+): Promise<ArchiveInput> {
+  if (typeof archivePathValue === "string" && archivePathValue.trim()) {
+    return archiveFromPath(archivePathValue);
+  }
+
+  if (archiveValue instanceof File) {
+    validateArchiveFilename(archiveValue.name);
+    validateArchiveSize(archiveValue.size);
+    return {
+      filename: archiveValue.name,
+      copyTo: async (destination) => {
+        await writeFile(destination, Buffer.from(await archiveValue.arrayBuffer()));
+      }
+    };
+  }
+
+  throw new ProjectImportError("Choose a ZIP archive exported by Supply Flow.");
+}
+
+async function archiveFromPath(value: string): Promise<ArchiveInput> {
+  const sourcePath = resolveLocalPath(value);
+  const filename = path.basename(sourcePath);
+  validateArchiveFilename(filename);
+
+  let fileInfo: Awaited<ReturnType<typeof stat>>;
+  try {
+    fileInfo = await stat(sourcePath);
+  } catch {
+    throw new ProjectImportError("The project archive path does not exist.");
+  }
+
+  if (!fileInfo.isFile()) {
+    throw new ProjectImportError("The project archive path must refer to a ZIP file.");
+  }
+  validateArchiveSize(fileInfo.size);
+
+  return {
+    filename,
+    copyTo: async (destination) => {
+      await copyFile(sourcePath, destination);
+    }
+  };
+}
+
+function resolveLocalPath(value: string): string {
+  const trimmed = value.trim();
+  const expanded =
+    trimmed === "~"
+      ? homedir()
+      : trimmed.startsWith("~/")
+        ? path.join(homedir(), trimmed.slice(2))
+        : trimmed;
+  if (!path.isAbsolute(expanded)) {
+    throw new ProjectImportError('Enter an absolute archive path or one starting with "~/".');
+  }
+  return path.resolve(expanded);
+}
+
+function validateArchiveFilename(filename: string): void {
+  if (!filename.toLowerCase().endsWith(".zip")) {
+    throw new ProjectImportError("Choose a ZIP archive exported by Supply Flow.");
+  }
+}
+
+function validateArchiveSize(size: number): void {
+  if (size === 0) {
+    throw new ProjectImportError("The selected ZIP archive is empty.");
+  }
+  if (size > MAX_ARCHIVE_BYTES) {
+    throw new ProjectImportError("Project archives must be 512 MB or smaller.");
+  }
 }
 
 async function inspectArchive(

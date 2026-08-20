@@ -397,23 +397,89 @@ button:focus-visible {
   font-weight: 700;
 }
 
-.project-archive-field input {
-  width: 100%;
-  border: 1px solid var(--line-strong);
-  border-radius: 6px;
-  background: var(--surface-soft);
-  color: var(--ink);
-  cursor: pointer;
-  font: inherit;
+.project-archive-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
 }
 
-.selected-project-archive {
-  margin: -8px 0 0;
+.project-archive-control .dialog-secondary-button {
+  min-height: 40px;
+}
+
+.project-archive-browser-location {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin: -8px 0 14px;
+}
+
+.project-archive-browser-location code {
   overflow: hidden;
   color: var(--muted);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.project-archive-parent-button {
+  width: 36px;
+  padding: 0;
+}
+
+.project-archive-browser-list {
+  max-height: min(360px, 48dvh);
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  list-style: none;
+}
+
+.project-archive-browser-list > li + li {
+  border-top: 1px solid var(--line);
+}
+
+.project-archive-browser-entry {
+  display: flex;
+  width: 100%;
+  min-height: 40px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 0;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+}
+
+.project-archive-browser-entry:hover {
+  background: var(--teal-soft);
+}
+
+.project-archive-browser-entry svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  color: var(--teal);
+}
+
+.project-archive-browser-entry span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-archive-browser-status {
+  margin: 0;
+  padding: 14px;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .project-import-options {
