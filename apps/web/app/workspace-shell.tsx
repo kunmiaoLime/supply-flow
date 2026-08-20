@@ -2811,7 +2811,10 @@ function RepositorySection({
                     <dt>Remote</dt>
                     <dd>
                       {repository.remote ? (
-                        <code>{repository.remote}</code>
+                        <RepositoryRemoteLink
+                          name={repository.name}
+                          remote={repository.remote}
+                        />
                       ) : (
                         <span className="repository-missing-value">No origin configured</span>
                       )}
@@ -2853,6 +2856,54 @@ function RepositorySection({
       )}
     </section>
   );
+}
+
+function RepositoryRemoteLink({ name, remote }: { name: string; remote: string }) {
+  const url = githubRepositoryUrl(remote);
+  if (!url) {
+    return <code>{remote}</code>;
+  }
+
+  return (
+    <a
+      className="repository-remote-link"
+      href={url}
+      rel="noreferrer"
+      target="_blank"
+      title={`Open ${name} on GitHub`}
+    >
+      <code>{remote}</code>
+    </a>
+  );
+}
+
+function githubRepositoryUrl(remote: string): string | null {
+  const trimmedRemote = remote.trim();
+  const sshMatch = /^git@github\.com:(.+)$/i.exec(trimmedRemote);
+  const repositoryPath = sshMatch ? sshMatch[1] : githubRepositoryPathFromUrl(trimmedRemote);
+  if (!repositoryPath) {
+    return null;
+  }
+
+  const parts = repositoryPath
+    .replace(/^\/+|\/+$/g, "")
+    .replace(/\.git$/i, "")
+    .split("/");
+  const [owner, repository] = parts;
+  if (parts.length !== 2 || !owner || !repository) {
+    return null;
+  }
+
+  return `https://github.com/${owner}/${repository}`;
+}
+
+function githubRepositoryPathFromUrl(remote: string): string | null {
+  try {
+    const url = new URL(remote);
+    return url.hostname.toLowerCase() === "github.com" ? url.pathname : null;
+  } catch {
+    return null;
+  }
 }
 
 function requirementSourceLabel(type: DocumentSourceType): string {

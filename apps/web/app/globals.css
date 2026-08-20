@@ -2335,6 +2335,16 @@ code {
   font-size: 11px;
 }
 
+.repository-remote-link {
+  color: var(--teal);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.repository-remote-link:hover {
+  color: var(--teal-deep);
+}
+
 .repository-missing-value {
   color: var(--muted);
   font-size: 11px;
