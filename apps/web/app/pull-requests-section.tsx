@@ -398,6 +398,12 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
                       <span className={`pull-request-health-chip is-${pullRequest.status}`}>
                         {pullRequest.status}
                       </span>
+                      <span
+                        className={`pull-request-health-chip is-approval-${pullRequest.approval_status}`}
+                        title="Approval coverage for required CODEOWNERS review parties"
+                      >
+                        {formatApprovalStatus(pullRequest)}
+                      </span>
                       <span className="pull-request-health-chip">
                         {pullRequest.unresolved_comment_count} unresolved
                       </span>
@@ -606,6 +612,19 @@ function formatLastScannedAt(value: string | null): string {
 
   const date = new Date(value);
   return Number.isNaN(date.valueOf()) ? "Not scanned" : `Scanned ${date.toLocaleTimeString()}`;
+}
+
+function formatApprovalStatus(pullRequest: ProjectPullRequest): string {
+  if (pullRequest.approval_status === "approved") {
+    return "Approved";
+  }
+  if (pullRequest.approval_status === "pending") {
+    return `${pullRequest.approved_review_party_count}/${pullRequest.required_review_party_count} approved`;
+  }
+  if (pullRequest.approval_status === "not-required") {
+    return "No review required";
+  }
+  return "Approval unavailable";
 }
 
 function formatTime(value: string): string {

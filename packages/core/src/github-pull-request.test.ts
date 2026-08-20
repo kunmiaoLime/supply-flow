@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  countApprovedGitHubCodeOwnerParties,
+  githubCodeOwnerPartyKey,
+  resolveGitHubCodeOwnerParties
+} from "./github-codeowners.js";
+import {
   classifyGitHubPullRequestCiStatus,
   classifyGitHubPullRequestStatus,
   countUnrepliedGitHubReviewThreads,
+  getApprovedGitHubReviewerLogins,
   getGitHubCiRetryTargets,
   githubRepositoryFromRemote,
   parseGitHubPullRequestUrl
@@ -130,5 +136,85 @@ test("counts review threads whose latest reviewer comment has no reply", () => {
       "developer"
     ),
     2
+  );
+});
+
+test("resolves required CODEOWNERS parties from the last matching rule", () => {
+  assert.deepEqual(
+    resolveGitHubCodeOwnerParties(
+      [
+        "* @limebike/ios",
+        "Apps/Supply/ @limebike/mobile-supply @limebike/ios",
+        "Apps/Supply/OneAppTests/** @limebike/ios-tests",
+        "README.md @documentation"
+      ].join("\n"),
+      [
+        "Apps/Supply/OneApp/Libraries/Fingerprint/SupplyFingerprintService.swift",
+        "Apps/Supply/OneAppTests/LibraryTests/SupplyFingerprintServiceTests.swift",
+        "README.md"
+      ]
+    ),
+    [
+      { kind: "team", organization: "limebike", slug: "mobile-supply" },
+      { kind: "team", organization: "limebike", slug: "ios" },
+      { kind: "team", organization: "limebike", slug: "ios-tests" },
+      { kind: "user", login: "documentation" }
+    ]
+  );
+});
+
+test("counts one approved reviewer for every required party they represent", () => {
+  const mobileSupply = {
+    kind: "team" as const,
+    organization: "limebike",
+    slug: "mobile-supply"
+  };
+  const ios = { kind: "team" as const, organization: "limebike", slug: "ios" };
+  const parties = [mobileSupply, ios, { kind: "user" as const, login: "reviewer-three" }];
+  const approvedTeamMemberLogins = new Map([
+    [githubCodeOwnerPartyKey(mobileSupply), ["reviewer-one"]],
+    [githubCodeOwnerPartyKey(ios), ["reviewer-one"]]
+  ]);
+
+  assert.equal(
+    countApprovedGitHubCodeOwnerParties(
+      parties,
+      ["reviewer-one"],
+      approvedTeamMemberLogins
+    ),
+    2
+  );
+});
+
+test("uses each reviewer's latest decisive review to identify active approvals", () => {
+  assert.deepEqual(
+    getApprovedGitHubReviewerLogins([
+      {
+        authorLogin: "reviewer-one",
+        state: "APPROVED",
+        submittedAt: "2026-08-19T20:00:00Z"
+      },
+      {
+        authorLogin: "reviewer-one",
+        state: "COMMENTED",
+        submittedAt: "2026-08-19T21:00:00Z"
+      },
+      {
+        authorLogin: "reviewer-two",
+        state: "APPROVED",
+        submittedAt: "2026-08-19T20:00:00Z"
+      },
+      {
+        authorLogin: "reviewer-two",
+        state: "CHANGES_REQUESTED",
+        submittedAt: "2026-08-19T21:00:00Z"
+      },
+      {
+        authorLogin: "reviewer-three",
+        state: "DISMISSED",
+        submittedAt: "2026-08-19T22:00:00Z"
+      }
+    ]),
+    ["reviewer-one"]
   );
 });

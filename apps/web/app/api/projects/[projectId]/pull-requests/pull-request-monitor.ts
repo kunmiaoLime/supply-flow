@@ -60,6 +60,9 @@ async function scanPullRequest(
     unresolved_comment_count: health.unresolvedCommentCount,
     unreplied_comment_count: health.unrepliedCommentCount,
     ci_status: health.ciStatus,
+    approval_status: health.approvalStatus,
+    required_review_party_count: health.requiredReviewPartyCount,
+    approved_review_party_count: health.approvedReviewPartyCount,
     last_scanned_at: now.toISOString(),
     last_ci_retry_at: shouldRetryCi ? pullRequest.last_ci_retry_at : null,
     last_ci_retry_error: shouldRetryCi ? pullRequest.last_ci_retry_error : null

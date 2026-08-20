@@ -3,7 +3,14 @@ import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import {
+  countApprovedGitHubCodeOwnerParties,
+  githubCodeOwnerPartyKey,
+  resolveGitHubCodeOwnerParties,
+  type GitHubCodeOwnerParty
+} from "@supply-flow/core/github-codeowners";
 import type {
+  ProjectPullRequestApprovalStatus,
   ProjectPullRequestCiStatus,
   ProjectPullRequestStatus
 } from "@supply-flow/core/pull-request";
@@ -27,6 +34,9 @@ export interface GitHubPullRequestHealth {
   unrepliedCommentCount: number;
   ciStatus: ProjectPullRequestCiStatus;
   ciRetryTargets: readonly GitHubCiRetryTarget[];
+  approvalStatus: ProjectPullRequestApprovalStatus;
+  requiredReviewPartyCount: number;
+  approvedReviewPartyCount: number;
 }
 
 export interface GitHubCiRetryTarget {
@@ -58,7 +68,20 @@ interface GitHubPullRequestDescriptionPayload {
 interface GitHubPullRequestHealthPayload {
   state: string;
   isDraft: boolean;
+  baseRefName: string;
   statusCheckRollup: unknown;
+}
+
+export interface GitHubPullRequestReview {
+  authorLogin: string | null;
+  state: string;
+  submittedAt: string | null;
+}
+
+interface GitHubPullRequestApproval {
+  status: ProjectPullRequestApprovalStatus;
+  requiredPartyCount: number;
+  approvedPartyCount: number;
 }
 
 export class GitHubPullRequestError extends Error {
@@ -253,7 +276,7 @@ export async function getGitHubPullRequestHealth(
       "view",
       reference.url,
       "--json",
-      "state,isDraft,statusCheckRollup"
+      "state,isDraft,baseRefName,statusCheckRollup"
     ])
   );
 
@@ -262,14 +285,278 @@ export async function getGitHubPullRequestHealth(
     throw new GitHubPullRequestError("The pull request repository is invalid.", 400);
   }
 
-  const reviewThreadCounts = await getReviewThreadCounts(owner, repository, reference.number);
+  const [reviewThreadCounts, approval] = await Promise.all([
+    getReviewThreadCounts(owner, repository, reference.number),
+    getGitHubPullRequestApprovalStatus(
+      owner,
+      repository,
+      reference.number,
+      healthPayload.baseRefName
+    )
+  ]);
   return {
     status: classifyGitHubPullRequestStatus(healthPayload.state, healthPayload.isDraft),
     unresolvedCommentCount: reviewThreadCounts.unresolvedCommentCount,
     unrepliedCommentCount: reviewThreadCounts.unrepliedCommentCount,
     ciStatus: classifyGitHubPullRequestCiStatus(healthPayload.statusCheckRollup),
-    ciRetryTargets: getGitHubCiRetryTargets(healthPayload.statusCheckRollup)
+    ciRetryTargets: getGitHubCiRetryTargets(healthPayload.statusCheckRollup),
+    approvalStatus: approval.status,
+    requiredReviewPartyCount: approval.requiredPartyCount,
+    approvedReviewPartyCount: approval.approvedPartyCount
   };
+}
+
+async function getGitHubPullRequestApprovalStatus(
+  owner: string,
+  repository: string,
+  number: number,
+  baseRefName: string
+): Promise<GitHubPullRequestApproval> {
+  if (!(await requiresGitHubCodeOwnerReviews(owner, repository, baseRefName))) {
+    return {
+      status: "not-required",
+      requiredPartyCount: 0,
+      approvedPartyCount: 0
+    };
+  }
+
+  const [codeowners, changedFiles] = await Promise.all([
+    getGitHubCodeOwners(owner, repository, baseRefName),
+    getGitHubPullRequestChangedFiles(owner, repository, number)
+  ]);
+  if (codeowners === null) {
+    return {
+      status: "unknown",
+      requiredPartyCount: 0,
+      approvedPartyCount: 0
+    };
+  }
+
+  const parties = resolveGitHubCodeOwnerParties(codeowners, changedFiles);
+  if (parties.length === 0) {
+    return {
+      status: "not-required",
+      requiredPartyCount: 0,
+      approvedPartyCount: 0
+    };
+  }
+
+  const approvedReviewerLogins = getApprovedGitHubReviewerLogins(
+    await getGitHubPullRequestReviews(owner, repository, number)
+  );
+  const approvedTeamMemberLogins = await getApprovedGitHubTeamMemberLogins(
+    parties,
+    approvedReviewerLogins
+  );
+  const approvedPartyCount = countApprovedGitHubCodeOwnerParties(
+    parties,
+    approvedReviewerLogins,
+    approvedTeamMemberLogins
+  );
+
+  return {
+    status: approvedPartyCount === parties.length ? "approved" : "pending",
+    requiredPartyCount: parties.length,
+    approvedPartyCount
+  };
+}
+
+async function requiresGitHubCodeOwnerReviews(
+  owner: string,
+  repository: string,
+  baseRefName: string
+): Promise<boolean> {
+  const response = await runGhCommandAllowingNotFound(
+    [
+      "api",
+      `repos/${encodeURIComponent(owner)}/${encodeURIComponent(
+        repository
+      )}/branches/${encodeURIComponent(baseRefName)}/protection/required_pull_request_reviews`
+    ],
+    "GitHub CLI could not retrieve the pull request review policy. Check GitHub CLI authentication and repository access."
+  );
+  if (response === null) {
+    return false;
+  }
+
+  const payload = parseGitHubRequiredPullRequestReviewsPayload(response);
+  return payload.requireCodeOwnerReviews;
+}
+
+async function getGitHubCodeOwners(
+  owner: string,
+  repository: string,
+  baseRefName: string
+): Promise<string | null> {
+  const result = parseGitHubCodeOwnersPayload(
+    await runGh([
+      "api",
+      "graphql",
+      "-f",
+      `query=${CODEOWNERS_QUERY}`,
+      "-F",
+      `owner=${owner}`,
+      "-F",
+      `repository=${repository}`,
+      "-F",
+      `dotGithubExpression=${baseRefName}:.github/CODEOWNERS`,
+      "-F",
+      `rootExpression=${baseRefName}:CODEOWNERS`,
+      "-F",
+      `docsExpression=${baseRefName}:docs/CODEOWNERS`
+    ])
+  );
+
+  return result.dotGithub ?? result.root ?? result.docs;
+}
+
+async function getGitHubPullRequestChangedFiles(
+  owner: string,
+  repository: string,
+  number: number
+): Promise<string[]> {
+  const pages = parseGitHubPaginatedApiPages(
+    await runGh([
+      "api",
+      "--paginate",
+      "--slurp",
+      `repos/${encodeURIComponent(owner)}/${encodeURIComponent(
+        repository
+      )}/pulls/${number}/files?per_page=100`
+    ]),
+    "changed file"
+  );
+
+  return pages.map((file) => {
+    if (
+      typeof file !== "object" ||
+      file === null ||
+      !("filename" in file) ||
+      typeof file.filename !== "string" ||
+      !file.filename.trim()
+    ) {
+      throw new GitHubPullRequestError("GitHub returned invalid changed file data.", 502);
+    }
+    return file.filename;
+  });
+}
+
+async function getGitHubPullRequestReviews(
+  owner: string,
+  repository: string,
+  number: number
+): Promise<GitHubPullRequestReview[]> {
+  const pages = parseGitHubPaginatedApiPages(
+    await runGh([
+      "api",
+      "--paginate",
+      "--slurp",
+      `repos/${encodeURIComponent(owner)}/${encodeURIComponent(
+        repository
+      )}/pulls/${number}/reviews?per_page=100`
+    ]),
+    "review"
+  );
+
+  return pages.map(parseGitHubPullRequestReview);
+}
+
+async function getApprovedGitHubTeamMemberLogins(
+  parties: readonly GitHubCodeOwnerParty[],
+  approvedReviewerLogins: readonly string[]
+): Promise<Map<string, string[]>> {
+  const teamParties = parties.filter(
+    (party): party is Extract<GitHubCodeOwnerParty, { kind: "team" }> =>
+      party.kind === "team"
+  );
+  const memberships = await Promise.all(
+    teamParties.map(async (party) => {
+      const approvedMembers = (
+        await Promise.all(
+          approvedReviewerLogins.map(async (login) =>
+            (await isGitHubTeamMember(party.organization, party.slug, login)) ? login : null
+          )
+        )
+      ).filter((login): login is string => login !== null);
+
+      return [githubCodeOwnerPartyKey(party), approvedMembers] as const;
+    })
+  );
+
+  return new Map(memberships);
+}
+
+async function isGitHubTeamMember(
+  organization: string,
+  teamSlug: string,
+  login: string
+): Promise<boolean> {
+  const response = await runGhCommandAllowingNotFound(
+    [
+      "api",
+      `orgs/${encodeURIComponent(organization)}/teams/${encodeURIComponent(
+        teamSlug
+      )}/memberships/${encodeURIComponent(login)}`
+    ],
+    "GitHub CLI could not verify the required review-team membership. Check GitHub CLI authentication and organization access."
+  );
+  if (response === null) {
+    return false;
+  }
+
+  try {
+    const payload: unknown = JSON.parse(response);
+    return (
+      typeof payload === "object" &&
+      payload !== null &&
+      "state" in payload &&
+      payload.state === "active"
+    );
+  } catch {
+    throw new GitHubPullRequestError(
+      "GitHub returned invalid required review-team membership data.",
+      502
+    );
+  }
+}
+
+export function getApprovedGitHubReviewerLogins(
+  reviews: readonly GitHubPullRequestReview[]
+): string[] {
+  const latestReviewByAuthor = new Map<
+    string,
+    { state: string; submittedAt: number; sequence: number }
+  >();
+
+  reviews.forEach((review, sequence) => {
+    const authorLogin = review.authorLogin?.trim().toLowerCase();
+    const state = review.state.trim().toUpperCase();
+    if (
+      !authorLogin ||
+      !["APPROVED", "CHANGES_REQUESTED", "DISMISSED"].includes(state)
+    ) {
+      return;
+    }
+
+    const submittedAt = review.submittedAt ? Date.parse(review.submittedAt) : Number.NaN;
+    const normalizedSubmittedAt = Number.isNaN(submittedAt) ? 0 : submittedAt;
+    const currentReview = latestReviewByAuthor.get(authorLogin);
+    if (
+      !currentReview ||
+      normalizedSubmittedAt > currentReview.submittedAt ||
+      (normalizedSubmittedAt === currentReview.submittedAt && sequence > currentReview.sequence)
+    ) {
+      latestReviewByAuthor.set(authorLogin, {
+        state,
+        submittedAt: normalizedSubmittedAt,
+        sequence
+      });
+    }
+  });
+
+  return [...latestReviewByAuthor.entries()]
+    .filter(([, review]) => review.state === "APPROVED")
+    .map(([login]) => login);
 }
 
 export async function retryGitHubPullRequestCi(
@@ -692,15 +979,149 @@ async function runGhCommand(arguments_: string[], errorMessage: string): Promise
   }
 }
 
+async function runGhCommandAllowingNotFound(
+  arguments_: string[],
+  errorMessage: string
+): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync("gh", arguments_, {
+      encoding: "utf8",
+      maxBuffer: 1_024 * 1_024
+    });
+    return stdout;
+  } catch (error) {
+    if (isGitHubNotFoundError(error)) {
+      return null;
+    }
+    throw new GitHubPullRequestError(errorMessage, 502);
+  }
+}
+
+function isGitHubNotFoundError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "stderr" in error &&
+    typeof error.stderr === "string" &&
+    /\bHTTP 404\b/.test(error.stderr)
+  );
+}
+
+function parseGitHubRequiredPullRequestReviewsPayload(value: string): {
+  requireCodeOwnerReviews: boolean;
+} {
+  try {
+    const payload: unknown = JSON.parse(value);
+    if (
+      typeof payload !== "object" ||
+      payload === null ||
+      !("require_code_owner_reviews" in payload) ||
+      typeof payload.require_code_owner_reviews !== "boolean"
+    ) {
+      throw new Error("Invalid payload");
+    }
+    return { requireCodeOwnerReviews: payload.require_code_owner_reviews };
+  } catch {
+    throw new GitHubPullRequestError(
+      "GitHub returned invalid pull request review policy data.",
+      502
+    );
+  }
+}
+
+function parseGitHubCodeOwnersPayload(value: unknown): {
+  dotGithub: string | null;
+  root: string | null;
+  docs: string | null;
+} {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("data" in value) ||
+    typeof value.data !== "object" ||
+    value.data === null ||
+    !("repository" in value.data) ||
+    typeof value.data.repository !== "object" ||
+    value.data.repository === null
+  ) {
+    throw new GitHubPullRequestError("GitHub returned invalid CODEOWNERS data.", 502);
+  }
+
+  const repository = value.data.repository;
+  return {
+    dotGithub: parseGitHubCodeOwnersBlob(repository, "dotGithub"),
+    root: parseGitHubCodeOwnersBlob(repository, "root"),
+    docs: parseGitHubCodeOwnersBlob(repository, "docs")
+  };
+}
+
+function parseGitHubCodeOwnersBlob(value: object, field: string): string | null {
+  const record = value as Record<string, unknown>;
+  const blob = record[field];
+  if (blob === undefined || blob === null) {
+    return null;
+  }
+  if (
+    typeof blob !== "object" ||
+    !("text" in blob) ||
+    typeof blob.text !== "string"
+  ) {
+    throw new GitHubPullRequestError("GitHub returned invalid CODEOWNERS data.", 502);
+  }
+  return blob.text;
+}
+
+function parseGitHubPaginatedApiPages(value: unknown, resource: string): unknown[] {
+  if (!Array.isArray(value) || !value.every(Array.isArray)) {
+    throw new GitHubPullRequestError(`GitHub returned invalid ${resource} data.`, 502);
+  }
+  return value.flat();
+}
+
+function parseGitHubPullRequestReview(value: unknown): GitHubPullRequestReview {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("user" in value) ||
+    !("state" in value) ||
+    !("submitted_at" in value) ||
+    (typeof value.user !== "object" && value.user !== null) ||
+    typeof value.state !== "string" ||
+    (typeof value.submitted_at !== "string" && value.submitted_at !== null)
+  ) {
+    throw new GitHubPullRequestError("GitHub returned invalid pull request review data.", 502);
+  }
+
+  if (value.user === null) {
+    return {
+      authorLogin: null,
+      state: value.state,
+      submittedAt: value.submitted_at
+    };
+  }
+  if (!("login" in value.user) || typeof value.user.login !== "string") {
+    throw new GitHubPullRequestError("GitHub returned invalid pull request review data.", 502);
+  }
+
+  return {
+    authorLogin: value.user.login,
+    state: value.state,
+    submittedAt: value.submitted_at
+  };
+}
+
 function parseGitHubPullRequestHealthPayload(value: unknown): GitHubPullRequestHealthPayload {
   if (
     typeof value !== "object" ||
     value === null ||
     !("state" in value) ||
     !("isDraft" in value) ||
+    !("baseRefName" in value) ||
     !("statusCheckRollup" in value) ||
     typeof value.state !== "string" ||
-    typeof value.isDraft !== "boolean"
+    typeof value.isDraft !== "boolean" ||
+    typeof value.baseRefName !== "string" ||
+    !value.baseRefName.trim()
   ) {
     throw new GitHubPullRequestError("GitHub returned invalid pull request health data.", 502);
   }
@@ -708,6 +1129,7 @@ function parseGitHubPullRequestHealthPayload(value: unknown): GitHubPullRequestH
   return {
     state: value.state,
     isDraft: value.isDraft,
+    baseRefName: value.baseRefName,
     statusCheckRollup: value.statusCheckRollup
   };
 }
@@ -954,6 +1376,34 @@ const REVIEW_THREADS_QUERY = `
             hasNextPage
             endCursor
           }
+        }
+      }
+    }
+  }
+`;
+
+const CODEOWNERS_QUERY = `
+  query CodeOwners(
+    $owner: String!
+    $repository: String!
+    $dotGithubExpression: String!
+    $rootExpression: String!
+    $docsExpression: String!
+  ) {
+    repository(owner: $owner, name: $repository) {
+      dotGithub: object(expression: $dotGithubExpression) {
+        ... on Blob {
+          text
+        }
+      }
+      root: object(expression: $rootExpression) {
+        ... on Blob {
+          text
+        }
+      }
+      docs: object(expression: $docsExpression) {
+        ... on Blob {
+          text
         }
       }
     }

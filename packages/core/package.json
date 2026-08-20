@@ -18,6 +18,7 @@
     "./file-project-store": "./src/file-project-store.ts",
     "./file-rfc-template-store": "./src/file-rfc-template-store.ts",
     "./file-session-store": "./src/file-session-store.ts",
+    "./github-codeowners": "./src/github-codeowners.ts",
     "./github-pull-request": "./src/github-pull-request.ts",
     "./import-conflict": "./src/import-conflict.ts",
     "./managed-session-environment": "./src/managed-session-environment.ts",

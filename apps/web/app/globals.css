@@ -3326,7 +3326,8 @@ code {
 
 .pull-request-health-chip.is-open,
 .pull-request-health-chip.is-draft,
-.pull-request-health-chip.is-ci-success {
+.pull-request-health-chip.is-ci-success,
+.pull-request-health-chip.is-approval-approved {
   border-color: #84c7a9;
   background: #ecf8f1;
   color: #176c48;
@@ -3346,6 +3347,12 @@ code {
 }
 
 .pull-request-health-chip.is-ci-pending {
+  border-color: #dfc483;
+  background: #fff8e7;
+  color: #84620a;
+}
+
+.pull-request-health-chip.is-approval-pending {
   border-color: #dfc483;
   background: #fff8e7;
   color: #84620a;

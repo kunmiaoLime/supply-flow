@@ -16,11 +16,22 @@ export const projectPullRequestCiStatuses = [
   "failure"
 ] as const;
 
+export const projectPullRequestApprovalStatuses = [
+  "unknown",
+  "not-required",
+  "pending",
+  "approved"
+] as const;
+
 export const ProjectPullRequestStatusSchema = z.enum(projectPullRequestStatuses);
 export const ProjectPullRequestCiStatusSchema = z.enum(projectPullRequestCiStatuses);
+export const ProjectPullRequestApprovalStatusSchema = z.enum(projectPullRequestApprovalStatuses);
 
 export type ProjectPullRequestStatus = z.infer<typeof ProjectPullRequestStatusSchema>;
 export type ProjectPullRequestCiStatus = z.infer<typeof ProjectPullRequestCiStatusSchema>;
+export type ProjectPullRequestApprovalStatus = z.infer<
+  typeof ProjectPullRequestApprovalStatusSchema
+>;
 
 export const ProjectPullRequestSchema = z.object({
   url: z.string().trim().url().max(2_048),
@@ -34,6 +45,9 @@ export const ProjectPullRequestSchema = z.object({
   unresolved_comment_count: z.number().int().nonnegative().default(0),
   unreplied_comment_count: z.number().int().nonnegative().default(0),
   ci_status: ProjectPullRequestCiStatusSchema.default("unknown"),
+  approval_status: ProjectPullRequestApprovalStatusSchema.default("unknown"),
+  required_review_party_count: z.number().int().nonnegative().default(0),
+  approved_review_party_count: z.number().int().nonnegative().default(0),
   last_scanned_at: z.string().datetime().nullable().default(null),
   last_ci_retry_at: z.string().datetime().nullable().default(null),
   last_ci_retry_error: z.string().trim().min(1).max(4_000).nullable().default(null),
