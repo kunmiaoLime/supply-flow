@@ -15,7 +15,7 @@ interface SessionDetailResponse {
   error?: string;
 }
 
-const OUTPUT_POLL_INTERVAL_MS = 750;
+const OUTPUT_POLL_INTERVAL_MS = 100;
 const OUTPUT_RETRY_INTERVAL_MS = 1_500;
 
 export function TmuxTerminal({
