@@ -1,0 +1,27 @@
+apps/web/app/globals.css
+  s_6aff4918db5406::t_3d12251d1c87a9 400-436,438-453,457-469,472,478-483
+  s_6aff4918db5406::t_0cd2353d7c59f5 484
+apps/web/app/workspace-shell.tsx
+  s_6aff4918db5406::t_3d12251d1c87a9 32,36,38,96-107,202-208,253,318,500-503,514-516,524-525,529-588,672-674,691,735,1754-1758,1763-1767,1772-1799,1801-1856,1858-1914,1916-1947
+apps/web/app/api/projects/import/files/route.ts
+  s_6aff4918db5406::t_3d12251d1c87a9 1-105
+apps/web/app/api/projects/import/route.ts
+  s_6aff4918db5406::t_3d12251d1c87a9 2-3,31,36-40,63-64,157,168-242
+  s_6aff4918db5406::t_6d5c0f76c475f4 243
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "102061a4a725219c4a7dc4bc876f2c22bd09c821",
+  "prompts": {},
+  "sessions": {
+    "s_6aff4918db5406": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e57821b-1961-435d-86a8-105955e5cafd",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    }
+  }
+}
