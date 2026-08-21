@@ -9,6 +9,7 @@ import {
   classifyGitHubPullRequestCiStatus,
   classifyGitHubPullRequestStatus,
   countUnrepliedGitHubReviewThreads,
+  getGitHubReviewThreadIssueFingerprints,
   getApprovedGitHubReviewerLogins,
   getGitHubCiRetryTargets,
   githubRepositoryFromRemote,
@@ -136,6 +137,32 @@ test("counts review threads whose latest reviewer comment has no reply", () => {
       "developer"
     ),
     2
+  );
+});
+
+test("identifies unresolved or unreplied review threads for auto-resolution", () => {
+  assert.deepEqual(
+    getGitHubReviewThreadIssueFingerprints(
+      [
+        {
+          id: "resolved-and-replied",
+          isResolved: true,
+          comments: [{ authorLogin: "reviewer" }, { authorLogin: "developer" }]
+        },
+        {
+          id: "unresolved",
+          isResolved: false,
+          comments: [{ authorLogin: "reviewer" }, { authorLogin: "developer" }]
+        },
+        {
+          id: "unreplied",
+          isResolved: true,
+          comments: [{ authorLogin: "reviewer" }]
+        }
+      ],
+      "developer"
+    ),
+    ["review-thread:unresolved", "review-thread:unreplied"]
   );
 });
 

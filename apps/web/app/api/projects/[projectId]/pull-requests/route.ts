@@ -148,6 +148,7 @@ export async function PATCH(request: Request, context: ProjectRouteContext) {
       ...current,
       monitoring_enabled: input.monitoringEnabled,
       retry_ci_enabled: input.monitoringEnabled && input.retryCiEnabled,
+      auto_resolve_issues: input.monitoringEnabled && input.autoResolveIssues,
       last_ci_retry_at:
         input.monitoringEnabled && input.retryCiEnabled ? current.last_ci_retry_at : null,
       last_ci_retry_error:
@@ -190,7 +191,12 @@ async function parsePullRequestUrl(request: Request): Promise<string | null> {
 
 async function parsePullRequestSettingsInput(
   request: Request
-): Promise<{ url: string; monitoringEnabled: boolean; retryCiEnabled: boolean } | null> {
+): Promise<{
+  url: string;
+  monitoringEnabled: boolean;
+  retryCiEnabled: boolean;
+  autoResolveIssues: boolean;
+} | null> {
   try {
     const body: unknown = await request.json();
     if (
@@ -199,9 +205,11 @@ async function parsePullRequestSettingsInput(
       !("url" in body) ||
       !("monitoringEnabled" in body) ||
       !("retryCiEnabled" in body) ||
+      !("autoResolveIssues" in body) ||
       typeof body.url !== "string" ||
       typeof body.monitoringEnabled !== "boolean" ||
-      typeof body.retryCiEnabled !== "boolean"
+      typeof body.retryCiEnabled !== "boolean" ||
+      typeof body.autoResolveIssues !== "boolean"
     ) {
       return null;
     }
@@ -211,7 +219,8 @@ async function parsePullRequestSettingsInput(
       ? {
           url,
           monitoringEnabled: body.monitoringEnabled,
-          retryCiEnabled: body.retryCiEnabled
+          retryCiEnabled: body.retryCiEnabled,
+          autoResolveIssues: body.autoResolveIssues
         }
       : null;
   } catch {

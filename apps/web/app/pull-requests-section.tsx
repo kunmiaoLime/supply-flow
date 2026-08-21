@@ -229,18 +229,37 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
     await updatePullRequestSettings(
       pullRequest,
       monitoringEnabled,
-      monitoringEnabled ? pullRequest.retry_ci_enabled : false
+      monitoringEnabled ? pullRequest.retry_ci_enabled : false,
+      monitoringEnabled ? pullRequest.auto_resolve_issues : false
     );
   }
 
   async function updateRetryCi(pullRequest: ProjectPullRequest, retryCiEnabled: boolean) {
-    await updatePullRequestSettings(pullRequest, pullRequest.monitoring_enabled, retryCiEnabled);
+    await updatePullRequestSettings(
+      pullRequest,
+      pullRequest.monitoring_enabled,
+      retryCiEnabled,
+      pullRequest.auto_resolve_issues
+    );
+  }
+
+  async function updateAutoResolveIssues(
+    pullRequest: ProjectPullRequest,
+    autoResolveIssues: boolean
+  ) {
+    await updatePullRequestSettings(
+      pullRequest,
+      pullRequest.monitoring_enabled,
+      pullRequest.retry_ci_enabled,
+      autoResolveIssues
+    );
   }
 
   async function updatePullRequestSettings(
     pullRequest: ProjectPullRequest,
     monitoringEnabled: boolean,
-    retryCiEnabled: boolean
+    retryCiEnabled: boolean,
+    autoResolveIssues: boolean
   ) {
     if (removingPullRequest || updatingMonitoringUrl || addressingPullRequestUrl) {
       return;
@@ -251,7 +270,12 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
 
     try {
       const response = await fetch(pullRequestsUrl(project.project_id), {
-        body: JSON.stringify({ url: pullRequest.url, monitoringEnabled, retryCiEnabled }),
+        body: JSON.stringify({
+          url: pullRequest.url,
+          monitoringEnabled,
+          retryCiEnabled,
+          autoResolveIssues
+        }),
         headers: { "Content-Type": "application/json" },
         method: "PATCH"
       });
@@ -394,43 +418,6 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
                       <ExternalLink aria-hidden="true" />
                       <code>{pullRequest.url}</code>
                     </a>
-                    <div className="pull-request-health" aria-label="Pull request health">
-                      <span className={`pull-request-health-chip is-${pullRequest.status}`}>
-                        {pullRequest.status}
-                      </span>
-                      <span
-                        className={`pull-request-health-chip is-approval-${pullRequest.approval_status}`}
-                        title="Approval coverage for required CODEOWNERS review parties"
-                      >
-                        {formatApprovalStatus(pullRequest)}
-                      </span>
-                      <span className="pull-request-health-chip">
-                        {pullRequest.unresolved_comment_count} unresolved
-                      </span>
-                      <span className="pull-request-health-chip">
-                        {pullRequest.unreplied_comment_count} unreplied
-                      </span>
-                      <span className={`pull-request-health-chip is-ci-${pullRequest.ci_status}`}>
-                        CI {pullRequest.ci_status}
-                      </span>
-                      <span className="pull-request-scan-time">
-                        {formatLastScannedAt(pullRequest.last_scanned_at)}
-                      </span>
-                      {pullRequest.retry_ci_enabled && pullRequest.last_ci_retry_at ? (
-                        <span
-                          className={
-                            pullRequest.last_ci_retry_error
-                              ? "pull-request-ci-retry is-error"
-                              : "pull-request-ci-retry"
-                          }
-                          title={pullRequest.last_ci_retry_error ?? undefined}
-                        >
-                          {pullRequest.last_ci_retry_error
-                            ? "CI retry failed"
-                            : `CI retried ${formatTime(pullRequest.last_ci_retry_at)}`}
-                        </span>
-                      ) : null}
-                    </div>
                   </div>
                   <div className="repository-actions">
                     <label
@@ -475,6 +462,30 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
                       />
                       <span>Retry CI</span>
                     </label>
+                    <label
+                      className="pull-request-monitor-control"
+                      title={
+                        pullRequest.monitoring_enabled
+                          ? "Start addressing newly detected review issues or failing CI"
+                          : "Enable monitoring before automatically addressing issues"
+                      }
+                    >
+                      <input
+                        checked={pullRequest.auto_resolve_issues}
+                        disabled={
+                          isClosed ||
+                          !pullRequest.monitoring_enabled ||
+                          Boolean(removingPullRequest) ||
+                          Boolean(updatingMonitoringUrl) ||
+                          Boolean(addressingPullRequestUrl)
+                        }
+                        onChange={(event) =>
+                          void updateAutoResolveIssues(pullRequest, event.target.checked)
+                        }
+                        type="checkbox"
+                      />
+                      <span>Auto resolve issues</span>
+                    </label>
                     <button
                       className="pull-request-address-button"
                       disabled={
@@ -514,6 +525,43 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
                     {isUpdatingMonitoring ? (
                       <span className="sr-only">
                         Updating monitoring for pull request #{pullRequest.number}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="pull-request-health" aria-label="Pull request health">
+                    <span className={`pull-request-health-chip is-${pullRequest.status}`}>
+                      {pullRequest.status}
+                    </span>
+                    <span
+                      className={`pull-request-health-chip is-approval-${pullRequest.approval_status}`}
+                      title="Approval coverage for required CODEOWNERS review parties"
+                    >
+                      {formatApprovalStatus(pullRequest)}
+                    </span>
+                    <span className="pull-request-health-chip">
+                      {pullRequest.unresolved_comment_count} unresolved
+                    </span>
+                    <span className="pull-request-health-chip">
+                      {pullRequest.unreplied_comment_count} unreplied
+                    </span>
+                    <span className={`pull-request-health-chip is-ci-${pullRequest.ci_status}`}>
+                      CI {pullRequest.ci_status}
+                    </span>
+                    <span className="pull-request-scan-time">
+                      {formatLastScannedAt(pullRequest.last_scanned_at)}
+                    </span>
+                    {pullRequest.retry_ci_enabled && pullRequest.last_ci_retry_at ? (
+                      <span
+                        className={
+                          pullRequest.last_ci_retry_error
+                            ? "pull-request-ci-retry is-error"
+                            : "pull-request-ci-retry"
+                        }
+                        title={pullRequest.last_ci_retry_error ?? undefined}
+                      >
+                        {pullRequest.last_ci_retry_error
+                          ? "CI retry failed"
+                          : `CI retried ${formatTime(pullRequest.last_ci_retry_at)}`}
                       </span>
                     ) : null}
                   </div>

@@ -32,6 +32,7 @@ export interface GitHubPullRequestHealth {
   status: ProjectPullRequestStatus;
   unresolvedCommentCount: number;
   unrepliedCommentCount: number;
+  issueFingerprints: readonly string[];
   ciStatus: ProjectPullRequestCiStatus;
   ciRetryTargets: readonly GitHubCiRetryTarget[];
   approvalStatus: ProjectPullRequestApprovalStatus;
@@ -51,6 +52,10 @@ export interface GitHubReviewThreadComment {
 export interface GitHubReviewThread {
   isResolved: boolean;
   comments: readonly GitHubReviewThreadComment[];
+}
+
+export interface GitHubReviewThreadWithId extends GitHubReviewThread {
+  id: string;
 }
 
 interface GitHubPullRequestPayload {
@@ -285,8 +290,8 @@ export async function getGitHubPullRequestHealth(
     throw new GitHubPullRequestError("The pull request repository is invalid.", 400);
   }
 
-  const [reviewThreadCounts, approval] = await Promise.all([
-    getReviewThreadCounts(owner, repository, reference.number),
+  const [reviewThreadHealth, approval] = await Promise.all([
+    getReviewThreadHealth(owner, repository, reference.number),
     getGitHubPullRequestApprovalStatus(
       owner,
       repository,
@@ -294,12 +299,22 @@ export async function getGitHubPullRequestHealth(
       healthPayload.baseRefName
     )
   ]);
+  const ciStatus = classifyGitHubPullRequestCiStatus(healthPayload.statusCheckRollup);
+  const ciRetryTargets = getGitHubCiRetryTargets(healthPayload.statusCheckRollup);
+  const ciIssueFingerprints =
+    ciStatus === "failure"
+      ? ciRetryTargets.length > 0
+        ? ciRetryTargets.map((target) => `ci:${target.provider}:${target.id}`)
+        : ["ci:failure"]
+      : [];
+
   return {
     status: classifyGitHubPullRequestStatus(healthPayload.state, healthPayload.isDraft),
-    unresolvedCommentCount: reviewThreadCounts.unresolvedCommentCount,
-    unrepliedCommentCount: reviewThreadCounts.unrepliedCommentCount,
-    ciStatus: classifyGitHubPullRequestCiStatus(healthPayload.statusCheckRollup),
-    ciRetryTargets: getGitHubCiRetryTargets(healthPayload.statusCheckRollup),
+    unresolvedCommentCount: reviewThreadHealth.unresolvedCommentCount,
+    unrepliedCommentCount: reviewThreadHealth.unrepliedCommentCount,
+    issueFingerprints: [...new Set([...reviewThreadHealth.issueFingerprints, ...ciIssueFingerprints])],
+    ciStatus,
+    ciRetryTargets,
     approvalStatus: approval.status,
     requiredReviewPartyCount: approval.requiredPartyCount,
     approvedReviewPartyCount: approval.approvedPartyCount
@@ -748,24 +763,23 @@ export function countUnrepliedGitHubReviewThreads(
     return 0;
   }
 
-  return threads.filter((thread) => {
-    let lastViewerComment = -1;
-    let lastOtherComment = -1;
+  return threads.filter((thread) => isUnrepliedGitHubReviewThread(thread, normalizedViewerLogin))
+    .length;
+}
 
-    thread.comments.forEach((comment, index) => {
-      const authorLogin = comment.authorLogin?.trim().toLowerCase();
-      if (!authorLogin) {
-        return;
-      }
-      if (authorLogin === normalizedViewerLogin) {
-        lastViewerComment = index;
-      } else {
-        lastOtherComment = index;
-      }
-    });
-
-    return lastOtherComment > lastViewerComment;
-  }).length;
+export function getGitHubReviewThreadIssueFingerprints(
+  threads: readonly GitHubReviewThreadWithId[],
+  viewerLogin: string
+): string[] {
+  const normalizedViewerLogin = viewerLogin.trim().toLowerCase();
+  return threads
+    .filter(
+      (thread) =>
+        !thread.isResolved ||
+        (Boolean(normalizedViewerLogin) &&
+          isUnrepliedGitHubReviewThread(thread, normalizedViewerLogin))
+    )
+    .map((thread) => `review-thread:${thread.id}`);
 }
 
 function githubRemotePathFromUrl(remote: string): string | null {
@@ -777,14 +791,18 @@ function githubRemotePathFromUrl(remote: string): string | null {
   }
 }
 
-async function getReviewThreadCounts(
+async function getReviewThreadHealth(
   owner: string,
   repository: string,
   number: number
-): Promise<{ unresolvedCommentCount: number; unrepliedCommentCount: number }> {
+): Promise<{
+  unresolvedCommentCount: number;
+  unrepliedCommentCount: number;
+  issueFingerprints: string[];
+}> {
   let after: string | null = null;
   let viewerLogin: string | null = null;
-  const threads: Array<GitHubReviewThread & { id: string; hasMoreComments: boolean }> = [];
+  const threads: Array<GitHubReviewThreadWithId & { hasMoreComments: boolean }> = [];
 
   do {
     const result = parseReviewThreadsPayload(
@@ -823,8 +841,31 @@ async function getReviewThreadCounts(
 
   return {
     unresolvedCommentCount: threads.filter((thread) => !thread.isResolved).length,
-    unrepliedCommentCount: countUnrepliedGitHubReviewThreads(threads, viewerLogin)
+    unrepliedCommentCount: countUnrepliedGitHubReviewThreads(threads, viewerLogin),
+    issueFingerprints: getGitHubReviewThreadIssueFingerprints(threads, viewerLogin)
   };
+}
+
+function isUnrepliedGitHubReviewThread(
+  thread: GitHubReviewThread,
+  normalizedViewerLogin: string
+): boolean {
+  let lastViewerComment = -1;
+  let lastOtherComment = -1;
+
+  thread.comments.forEach((comment, index) => {
+    const authorLogin = comment.authorLogin?.trim().toLowerCase();
+    if (!authorLogin) {
+      return;
+    }
+    if (authorLogin === normalizedViewerLogin) {
+      lastViewerComment = index;
+    } else {
+      lastOtherComment = index;
+    }
+  });
+
+  return lastOtherComment > lastViewerComment;
 }
 
 async function getAdditionalReviewThreadComments(

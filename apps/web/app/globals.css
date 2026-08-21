@@ -3379,6 +3379,7 @@ code {
 
 .pull-request-health {
   display: flex;
+  grid-column: 1 / -1;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
