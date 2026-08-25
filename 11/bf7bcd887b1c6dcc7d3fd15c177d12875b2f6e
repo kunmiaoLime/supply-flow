@@ -1,0 +1,30 @@
+apps/web/app/ai-session-chat.tsx
+  s_efadced9d3cd16::t_4ec1c0fb506e1b 549
+  s_efadced9d3cd16::t_0a8851d3226996 100,153,640-643,650-705,709,742-745,764-765,804-807
+apps/web/app/globals.css
+  s_cc8385010f3208::t_0912b0f9826845 1709,1715-1719,1826-1829,1960
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "11bf7bcd887b1c6dcc7d3fd15c177d12875b2f6e",
+  "prompts": {},
+  "sessions": {
+    "s_cc8385010f3208": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a01582-343f-7090-94b8-6ee68ba37a4f",
+        "model": "unknown"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    },
+    "s_efadced9d3cd16": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a03988-47a1-7d40-afbb-903ac9fb549e",
+        "model": "openai.gpt-5.6-terra"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    }
+  }
+}
