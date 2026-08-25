@@ -1,0 +1,45 @@
+apps/runner/src/index.ts
+  s_cc8385010f3208::t_cfbf6e31228a62 84-85,116-121,145
+apps/web/app/api/projects/[projectId]/sessions/[sessionId]/interrupt/route.ts
+  s_cc8385010f3208::t_f1e44d4a767bb1 1-46
+apps/web/app/api/projects/[projectId]/sessions/[sessionId]/prompt/route.ts
+  s_cc8385010f3208::t_b4425dd491fd78 50
+apps/web/app/api/projects/[projectId]/sessions/[sessionId]/route.ts
+  s_cc8385010f3208::t_bf2a467c588141 5,44,49-56,58-59,115-140
+apps/web/app/api/projects/[projectId]/sessions/session-service.ts
+  s_cc8385010f3208::t_af8e54b49eb1a9 129-130,182-187
+apps/web/app/api/session-prompt-service.ts
+  s_cc8385010f3208::t_b3b1f0c1282bbf 31,124-129,134,146
+apps/web/app/api/settings/ai-interfaces/interface-session-service.ts
+  s_cc8385010f3208::t_b8b57066f31628 23,118-119,165-170,339-364
+apps/web/app/api/settings/ai-interfaces/sessions/[sessionId]/interrupt/route.ts
+  s_cc8385010f3208::t_dd159568ddbec8 1-46
+apps/web/app/api/settings/ai-interfaces/sessions/[sessionId]/prompt/route.ts
+  s_cc8385010f3208::t_32aa038712232b 50
+apps/web/app/api/settings/ai-interfaces/sessions/[sessionId]/route.ts
+  s_cc8385010f3208::t_0dbe96dde4232d 7,28,32,34-37
+packages/core/src/file-session-store.test.ts
+  s_cc8385010f3208::t_de3b3ff1ba3b11 7,40-42,66-67,135-142
+packages/core/src/session.ts
+  s_cc8385010f3208::t_84cd43cef639a5 5,8,21-22,33-48,78-81
+packages/core/src/tmux.test.ts
+  s_cc8385010f3208::t_35f5e1b7fc8f1e 88-99
+packages/core/src/tmux.ts
+  s_cc8385010f3208::t_55b84e5e46035a 88-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "c3799e22cf2022e7333ca6c36c43d76ec06680d2",
+  "prompts": {},
+  "sessions": {
+    "s_cc8385010f3208": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a01582-343f-7090-94b8-6ee68ba37a4f",
+        "model": "unknown"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    }
+  }
+}
