@@ -15,13 +15,14 @@ import {
   ListPlus,
   ListTodo,
   Pencil,
+  Play,
   Plus,
   Trash2,
   WandSparkles
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { workspaceTabUrl } from "./workspace-url";
+import { codeImplementationUrl, workspaceTabUrl } from "./workspace-url";
 
 type TaskDialogMode = "add" | "edit" | "from-plan" | "track" | null;
 
@@ -575,6 +576,10 @@ export function TaskPlanSection({
     }
   }
 
+  function openCodeImplementation(task: ProjectTask) {
+    router.push(codeImplementationUrl(project.project_id, task.jira_ticket));
+  }
+
   return (
     <>
       <section aria-labelledby="project-tasks-heading" className="task-plan-section">
@@ -719,6 +724,15 @@ export function TaskPlanSection({
                     </a>
                   </div>
                   <div className="repository-actions">
+                    <button
+                      aria-label={`Implement ${task.title}`}
+                      className="repository-icon-button"
+                      onClick={() => openCodeImplementation(task)}
+                      title={`Open Code implementation with ${task.title} selected`}
+                      type="button"
+                    >
+                      <Play aria-hidden="true" />
+                    </button>
                     <button
                       aria-label={`Copy Jira ticket link for ${task.title}`}
                       className={`repository-icon-button${

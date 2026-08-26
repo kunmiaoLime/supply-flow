@@ -18,6 +18,11 @@ import { sendAiSessionPrompt } from "@supply-flow/core/session-prompt";
 import { TmuxAdapter } from "@supply-flow/core/tmux";
 import { NextResponse } from "next/server";
 import {
+  createJiraClient,
+  parseLimeJiraIssue,
+  type JiraIssue
+} from "../../tasks/jira";
+import {
   createProjectSession,
   dataDirectory,
   projectDirectory,
@@ -28,8 +33,6 @@ import { findActiveImplementationSession } from "../../../../../branch-review-wo
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const JIRA_HOSTNAME = "limebike.atlassian.net";
-const JIRA_ORIGIN = "https://limebike.atlassian.net";
 const CONTEXT_FILE = "context.md";
 const projectRoot = path.resolve(process.cwd(), "../..");
 const pullRequestPromptPath = path.join(projectRoot, "prompts", "create_pull_request.md");
@@ -43,11 +46,6 @@ interface ProjectRouteContext {
 interface TrackPullRequestInput {
   repositoryLocal: string;
   name: string;
-}
-
-interface JiraIssue {
-  key: string;
-  link: string;
 }
 
 class PullRequestWorkflowError extends Error {
@@ -100,6 +98,7 @@ export async function POST(request: Request, context: ProjectRouteContext) {
 
     try {
       const pullRequest = await findGitHubPullRequestForBranch(repository.remote, branch.name);
+      await moveAssociatedTaskToInReview(project, branch);
       const trackedPullRequest = await new FilePullRequestStore(
         projectDirectory(project.project_id)
       ).add({
@@ -117,7 +116,7 @@ export async function POST(request: Request, context: ProjectRouteContext) {
     }
 
     const task = taskForBranch(project, branch);
-    const issue = parseJiraIssueLink(task.jira_ticket);
+    const issue = parseLimeJiraIssue(task.jira_ticket);
     if (!issue) {
       throw new PullRequestWorkflowError(
         "The branch's Jira task must use a Lime Jira ticket link before a pull request can be created.",
@@ -247,25 +246,6 @@ function taskForBranch(project: ProjectRecord, branch: ProjectBranch): ProjectTa
   return task;
 }
 
-function parseJiraIssueLink(value: string): JiraIssue | null {
-  try {
-    const url = new URL(value);
-    const match = /^\/browse\/([A-Za-z][A-Za-z0-9_]*-\d+)\/?$/.exec(url.pathname);
-    const issueKey = match?.[1];
-    if (url.protocol !== "https:" || url.hostname !== JIRA_HOSTNAME || !issueKey) {
-      return null;
-    }
-
-    const key = issueKey.toUpperCase();
-    return {
-      key,
-      link: new URL(`/browse/${key}`, JIRA_ORIGIN).toString()
-    };
-  } catch {
-    return null;
-  }
-}
-
 async function requireProjectContext(projectId: string): Promise<void> {
   try {
     const metadata = await stat(path.join(projectDirectory(projectId), CONTEXT_FILE));
@@ -302,6 +282,24 @@ async function rememberLastSession(
   });
 }
 
+async function moveAssociatedTaskToInReview(
+  project: ProjectRecord,
+  branch: ProjectBranch
+): Promise<void> {
+  if (!branch.jira_ticket) {
+    return;
+  }
+
+  const task = project.tasks.find((currentTask) => currentTask.jira_ticket === branch.jira_ticket);
+  const issue = task ? parseLimeJiraIssue(task.jira_ticket) : null;
+  if (!issue) {
+    return;
+  }
+
+  const jira = await createJiraClient();
+  await jira.transitionIssueToStatus(issue.key, "In Review");
+}
+
 async function pullRequestCreationPrompt(
   project: ProjectRecord,
   task: ProjectTask,
@@ -322,7 +320,9 @@ async function pullRequestCreationPrompt(
     "--repository-local",
     JSON.stringify(repository.local),
     "--branch",
-    JSON.stringify(branch.name)
+    JSON.stringify(branch.name),
+    "--jira-ticket",
+    JSON.stringify(issue.link)
   ].join(" ");
 
   return template

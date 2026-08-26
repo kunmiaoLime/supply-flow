@@ -40,6 +40,19 @@ export function workspaceTabUrl(
   return query ? `${pathname}?${query}` : pathname;
 }
 
+export function codeImplementationUrl(projectId?: string, jiraTicket?: string): string {
+  const searchParams = new URLSearchParams();
+  if (projectId) {
+    searchParams.set("project", projectId);
+  }
+  if (jiraTicket) {
+    searchParams.set("task", jiraTicket);
+  }
+
+  const query = searchParams.toString();
+  return query ? `/code_implementation?${query}` : "/code_implementation";
+}
+
 export function settingsTabUrl(tab: SettingsTab, projectId?: string): string {
   return workspaceTabUrl(`/settings/${tab}`, projectId);
 }

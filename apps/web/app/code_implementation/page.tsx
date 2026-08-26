@@ -1,14 +1,15 @@
 import { WorkspaceShell } from "../workspace-shell";
-import { projectIdFromSearchParam } from "../workspace-url";
+import { projectIdFromSearchParam, queryParamValue } from "../workspace-url";
 
 export default async function CodeImplementationPage({
   searchParams
 }: {
-  searchParams: Promise<{ project?: string | string[] }>;
+  searchParams: Promise<{ project?: string | string[]; task?: string | string[] }>;
 }) {
-  const { project } = await searchParams;
+  const { project, task } = await searchParams;
   return (
     <WorkspaceShell
+      implementationTaskTicket={queryParamValue(task)}
       projectId={projectIdFromSearchParam(project)}
       tab="code-implementation"
     />

@@ -1,12 +1,15 @@
 import { redirect } from "next/navigation";
-import { workspaceTabUrl } from "../../workspace-url";
+import { codeImplementationUrl, queryParamValue } from "../../workspace-url";
 
 export default async function CodeImplementationPage({
-  params
+  params,
+  searchParams
 }: {
   params: Promise<{ projectId: string }>;
+  searchParams: Promise<{ task?: string | string[] }>;
 }) {
   const { projectId } = await params;
+  const { task } = await searchParams;
 
-  redirect(workspaceTabUrl("/code_implementation", projectId));
+  redirect(codeImplementationUrl(projectId, queryParamValue(task)));
 }

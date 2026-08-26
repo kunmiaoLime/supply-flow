@@ -134,6 +134,26 @@ export class JiraClient {
     });
   }
 
+  public async transitionIssueToStatus(issueKey: string, statusName: string): Promise<JiraStatus> {
+    const issue = await this.getIssueStatus(issueKey);
+    if (sameJiraStatusName(issue.status.name, statusName)) {
+      return issue.status;
+    }
+
+    const transition = issue.transitions.find((candidate) =>
+      sameJiraStatusName(candidate.to.name, statusName)
+    );
+    if (!transition) {
+      throw new JiraRequestError(
+        `Lime Jira cannot move this ticket from ${issue.status.name} to ${statusName}.`,
+        409
+      );
+    }
+
+    await this.transitionIssue(issueKey, transition.id);
+    return this.getIssueCurrentStatus(issueKey);
+  }
+
   private async requestJson(path: string, init?: RequestInit): Promise<unknown> {
     const response = await this.request(path, init);
     return response.json().catch(() => {
@@ -232,6 +252,10 @@ function jiraStatus(value: unknown): JiraStatus | null {
     category: categoryName,
     ...(colorName ? { colorName } : {})
   };
+}
+
+function sameJiraStatusName(first: string, second: string): boolean {
+  return first.trim().toLowerCase() === second.trim().toLowerCase();
 }
 
 async function readKeychainValue(service: string): Promise<string> {

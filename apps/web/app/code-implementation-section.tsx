@@ -20,9 +20,17 @@ interface AiModelSettingsResponse {
   error?: string;
 }
 
-export function CodeImplementationSection({ project }: { project: ProjectRecord }) {
+export function CodeImplementationSection({
+  project,
+  selectedTaskTicket
+}: {
+  project: ProjectRecord;
+  selectedTaskTicket?: string;
+}) {
   const router = useRouter();
-  const [jiraTicket, setJiraTicket] = useState("");
+  const [jiraTicket, setJiraTicket] = useState(() =>
+    trackedTaskTicket(project, selectedTaskTicket)
+  );
   const [repositoryLocal, setRepositoryLocal] = useState("");
   const [parentBranch, setParentBranch] = useState("master");
   const [instructions, setInstructions] = useState("");
@@ -52,6 +60,10 @@ export function CodeImplementationSection({ project }: { project: ProjectRecord 
     setReviewSessionConfiguration(null);
     setSessionConfigurationError("");
   }, [project.project_id]);
+
+  useEffect(() => {
+    setJiraTicket(trackedTaskTicket(project, selectedTaskTicket));
+  }, [project.project_id, project.tasks, selectedTaskTicket]);
 
   useEffect(() => {
     let ignoreResult = false;
@@ -395,4 +407,11 @@ function selectParentBranch(branches: string[], currentBranch: string): string {
 
 function implementationSessionUrl(projectId: string): string {
   return `/api/projects/${encodeURIComponent(projectId)}/implementation-sessions`;
+}
+
+function trackedTaskTicket(project: ProjectRecord, selectedTaskTicket?: string): string {
+  return selectedTaskTicket &&
+    project.tasks.some((task) => task.jira_ticket === selectedTaskTicket)
+    ? selectedTaskTicket
+    : "";
 }

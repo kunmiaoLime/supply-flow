@@ -181,11 +181,13 @@ const tabHeadings: Record<TabId, { eyebrow: string; title: string; description: 
 };
 
 export function WorkspaceShell({
+  implementationTaskTicket,
   initialPrTemplates,
   projectId,
   settingsTab,
   tab
 }: {
+  implementationTaskTicket?: string;
   initialPrTemplates?: PullRequestTemplate[];
   projectId?: string;
   settingsTab?: SettingsTab;
@@ -1617,6 +1619,7 @@ export function WorkspaceShell({
             </div>
           ) : null}
           <PanelContent
+            implementationTaskTicket={implementationTaskTicket}
             initialPrTemplates={initialPrTemplates}
             isSavingRepositories={isSavingRepository}
             isSavingRequirements={isSavingRequirement}
@@ -2399,6 +2402,7 @@ export function WorkspaceShell({
 }
 
 function PanelContent({
+  implementationTaskTicket,
   initialPrTemplates,
   isSavingRepositories,
   isSavingRequirements,
@@ -2425,6 +2429,7 @@ function PanelContent({
   tab,
   updatingRfcDraftLink
 }: {
+  implementationTaskTicket?: string;
   initialPrTemplates?: PullRequestTemplate[];
   isSavingRepositories: boolean;
   isSavingRequirements: boolean;
@@ -2518,7 +2523,9 @@ function PanelContent({
     case "task-plan":
       return <TaskPlanSection onProjectUpdated={onProjectUpdated} project={project} />;
     case "code-implementation":
-      return <CodeImplementationSection project={project} />;
+      return (
+        <CodeImplementationSection project={project} selectedTaskTicket={implementationTaskTicket} />
+      );
     case "pr":
       return (
         <>
