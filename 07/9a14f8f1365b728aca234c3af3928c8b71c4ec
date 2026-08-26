@@ -1,0 +1,22 @@
+apps/web/app/ai-session-chat.tsx
+  s_efadced9d3cd16::t_d278ccda42ccaa 430-437,439,1074-1160
+  s_efadced9d3cd16::t_2bae56bae9316f 72,289-290,293,323,326,333-334,456
+  s_efadced9d3cd16::t_35163cf8660598 335
+  s_efadced9d3cd16::t_7f14c7fa08eb88 1161
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "079a14f8f1365b728aca234c3af3928c8b71c4ec",
+  "prompts": {},
+  "sessions": {
+    "s_efadced9d3cd16": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a03988-47a1-7d40-afbb-903ac9fb549e",
+        "model": "openai.gpt-5.6-terra"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    }
+  }
+}
