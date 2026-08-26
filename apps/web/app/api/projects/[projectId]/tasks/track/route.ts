@@ -1,13 +1,15 @@
-import { execFile } from "node:child_process";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
 import { NextResponse } from "next/server";
+import {
+  createJiraClient,
+  JiraRequestError,
+  parseLimeJiraIssue,
+  toJiraStatusCache
+} from "../jira";
 import { dataDirectory } from "../../sessions/session-service";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-const JIRA_ORIGIN = "https://limebike.atlassian.net";
-const JIRA_HOSTNAME = "limebike.atlassian.net";
 
 interface ProjectRouteContext {
   params: Promise<{ projectId: string }>;
@@ -15,21 +17,6 @@ interface ProjectRouteContext {
 
 interface TrackTaskInput {
   jiraTicket: string;
-}
-
-interface JiraIssue {
-  key: string;
-  link: string;
-}
-
-class JiraTrackingError extends Error {
-  public constructor(
-    message: string,
-    public readonly status: number
-  ) {
-    super(message);
-    this.name = "JiraTrackingError";
-  }
 }
 
 export async function POST(request: Request, context: ProjectRouteContext) {
@@ -41,7 +28,7 @@ export async function POST(request: Request, context: ProjectRouteContext) {
     );
   }
 
-  const issue = parseJiraIssueLink(input.jiraTicket);
+  const issue = parseLimeJiraIssue(input.jiraTicket);
   if (!issue) {
     return NextResponse.json(
       { error: "Enter a Lime Jira ticket link in the form https://limebike.atlassian.net/browse/KEY-123." },
@@ -65,13 +52,24 @@ export async function POST(request: Request, context: ProjectRouteContext) {
       );
     }
 
-    const title = await getJiraIssueTitle(issue.key);
+    const client = await createJiraClient();
+    const [title, status] = await Promise.all([
+      client.getIssueTitle(issue.key),
+      client.getIssueCurrentStatus(issue.key)
+    ]);
     const updatedProject = await store.update(project.project_id, {
-      tasks: [...project.tasks, { title, jira_ticket: issue.link }]
+      tasks: [
+        ...project.tasks,
+        {
+          title,
+          jira_ticket: issue.link,
+          jira_status: toJiraStatusCache(status)
+        }
+      ]
     });
     return NextResponse.json({ project: updatedProject }, { status: 201 });
   } catch (error) {
-    if (error instanceof JiraTrackingError) {
+    if (error instanceof JiraRequestError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
 
@@ -101,124 +99,6 @@ async function parseTrackTaskInput(request: Request): Promise<TrackTaskInput | n
   }
 }
 
-function parseJiraIssueLink(value: string): JiraIssue | null {
-  try {
-    const url = new URL(value);
-    const match = /^\/browse\/([A-Za-z][A-Za-z0-9_]*-\d+)\/?$/.exec(url.pathname);
-    const issueKey = match?.[1];
-    if (url.protocol !== "https:" || url.hostname !== JIRA_HOSTNAME || !issueKey) {
-      return null;
-    }
-
-    const key = issueKey.toUpperCase();
-    return {
-      key,
-      link: new URL(`/browse/${key}`, JIRA_ORIGIN).toString()
-    };
-  } catch {
-    return null;
-  }
-}
-
 function jiraTicketKey(value: string): string | null {
-  return parseJiraIssueLink(value)?.key ?? null;
-}
-
-async function getJiraIssueTitle(issueKey: string): Promise<string> {
-  const [email, token] = await Promise.all([
-    readKeychainValue("confluence-api-email"),
-    readKeychainValue("confluence-api-token")
-  ]);
-  const authorization = Buffer.from(`${email}:${token}`).toString("base64");
-
-  let response: Response;
-  try {
-    response = await fetch(
-      `${JIRA_ORIGIN}/rest/api/3/issue/${encodeURIComponent(issueKey)}?fields=summary`,
-      {
-        cache: "no-store",
-        headers: {
-          Accept: "application/json",
-          Authorization: `Basic ${authorization}`
-        },
-        redirect: "error"
-      }
-    );
-  } catch {
-    throw new JiraTrackingError("Unable to reach Lime Jira. Try again shortly.", 502);
-  }
-
-  if (response.status === 401) {
-    throw new JiraTrackingError(
-      "Lime Jira credentials were rejected. Restore or renew the Keychain credentials.",
-      401
-    );
-  }
-  if (response.status === 403) {
-    throw new JiraTrackingError(
-      "The authenticated account cannot access this Jira ticket.",
-      403
-    );
-  }
-  if (response.status === 404) {
-    throw new JiraTrackingError(
-      "The Jira ticket was not found or is not accessible to the authenticated account.",
-      404
-    );
-  }
-  if (!response.ok) {
-    throw new JiraTrackingError("Lime Jira could not retrieve this ticket. Try again shortly.", 502);
-  }
-
-  const payload: unknown = await response.json().catch(() => null);
-  const title = jiraSummary(payload);
-  if (!title) {
-    throw new JiraTrackingError("Lime Jira returned a ticket without a valid title.", 502);
-  }
-  if (title.length > 255) {
-    throw new JiraTrackingError("The Jira ticket title is longer than 255 characters.", 422);
-  }
-
-  return title;
-}
-
-async function readKeychainValue(service: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    execFile(
-      "security",
-      ["find-generic-password", "-s", service, "-w"],
-      { encoding: "utf8", maxBuffer: 8_192 },
-      (error, stdout) => {
-        const value = stdout.trim();
-        if (error || !value) {
-          reject(
-            new JiraTrackingError(
-              "Lime Jira credentials are unavailable. Restore confluence-api-email and confluence-api-token in the macOS Keychain.",
-              503
-            )
-          );
-          return;
-        }
-
-        resolve(value);
-      }
-    );
-  });
-}
-
-function jiraSummary(value: unknown): string | null {
-  if (
-    typeof value !== "object" ||
-    value === null ||
-    !("fields" in value) ||
-    typeof value.fields !== "object" ||
-    value.fields === null ||
-    !("summary" in value.fields) ||
-    typeof value.fields.summary !== "string"
-  ) {
-    return null;
-  }
-
-  const summary = value.fields.summary.trim();
-  return summary || null;
+  return parseLimeJiraIssue(value)?.key ?? null;
 }

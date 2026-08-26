@@ -41,7 +41,13 @@ test("stores project records beneath the local projects directory", async () => 
     };
     const task = {
       title: "Implement project context",
-      jira_ticket: "https://limebike.atlassian.net/browse/SUP-123"
+      jira_ticket: "https://limebike.atlassian.net/browse/SUP-123",
+      jira_status: {
+        id: "12580",
+        name: "Develop",
+        category: "In Progress",
+        color_name: "yellow"
+      }
     };
     const updated = await store.update("first-project", {
       repos: [repository],

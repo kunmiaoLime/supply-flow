@@ -106,9 +106,17 @@ export const DocumentSourceSchema = z
 
 export const ProjectDocumentsSchema = z.array(DocumentSourceSchema);
 
+export const ProjectTaskStatusSchema = z.object({
+  id: z.string().trim().min(1).max(255),
+  name: z.string().trim().min(1).max(255),
+  category: z.string().trim().min(1).max(255),
+  color_name: z.string().trim().min(1).max(255).optional()
+});
+
 export const ProjectTaskSchema = z.object({
   title: z.string().trim().min(1).max(255),
-  jira_ticket: z.string().trim().url().max(2_048)
+  jira_ticket: z.string().trim().url().max(2_048),
+  jira_status: ProjectTaskStatusSchema.optional()
 });
 
 export const ProjectTasksSchema = z.array(ProjectTaskSchema);
@@ -133,6 +141,7 @@ export type ProjectRepository = z.infer<typeof ProjectRepositorySchema>;
 export type DocumentSource = z.infer<typeof DocumentSourceSchema>;
 export type DocumentSourceType = z.infer<typeof DocumentSourceTypeSchema>;
 export type ProjectTask = z.infer<typeof ProjectTaskSchema>;
+export type ProjectTaskStatus = z.infer<typeof ProjectTaskStatusSchema>;
 
 export const ProjectUpdateSchema = z
   .object({

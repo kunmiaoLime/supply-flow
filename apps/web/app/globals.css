@@ -2433,10 +2433,144 @@ code {
   min-width: 0;
 }
 
+.project-task-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
 .project-task-details strong {
   display: block;
+  min-width: 0;
   color: var(--ink);
   font-size: 14px;
+}
+
+.project-task-status-control {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.project-task-status {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 7px;
+  border: 1px solid var(--jira-status-border);
+  border-radius: 4px;
+  background: var(--jira-status-background);
+  color: var(--jira-status-ink);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.project-task-status[data-jira-color="blue-gray"],
+.project-task-status-menu button[data-jira-color="blue-gray"] {
+  --jira-status-background: #f1f2f4;
+  --jira-status-border: #d9dde3;
+  --jira-status-ink: #42526e;
+}
+
+.project-task-status[data-jira-color="yellow"],
+.project-task-status-menu button[data-jira-color="yellow"] {
+  --jira-status-background: #fffae6;
+  --jira-status-border: #ffe380;
+  --jira-status-ink: #7a5d00;
+}
+
+.project-task-status[data-jira-color="green"],
+.project-task-status-menu button[data-jira-color="green"] {
+  --jira-status-background: #e3fcef;
+  --jira-status-border: #abf5d1;
+  --jira-status-ink: #006644;
+}
+
+.project-task-status:hover:not(:disabled),
+.project-task-status[aria-expanded="true"] {
+  border-color: var(--jira-status-ink);
+}
+
+.project-task-status:focus-visible,
+.project-task-status-menu button:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+
+.project-task-status:disabled {
+  cursor: default;
+}
+
+.project-task-status svg {
+  width: 13px;
+  height: 13px;
+}
+
+.project-task-status-menu {
+  position: absolute;
+  z-index: 4;
+  top: calc(100% + 6px);
+  left: 0;
+  display: grid;
+  min-width: 176px;
+  padding: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 10px 24px rgba(24, 33, 29, 0.16);
+}
+
+.project-task-status-menu p {
+  margin: 3px 6px 5px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.project-task-status-menu button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--jira-status-ink);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+  text-align: left;
+}
+
+.project-task-status-menu button:hover:not(:disabled) {
+  background: var(--jira-status-background);
+}
+
+.project-task-status-menu button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.project-task-status-menu-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border: 1px solid var(--jira-status-border);
+  border-radius: 50%;
+  background: var(--jira-status-background);
+}
+
+.project-task-status-menu-empty {
+  padding: 7px 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .project-task-details a {

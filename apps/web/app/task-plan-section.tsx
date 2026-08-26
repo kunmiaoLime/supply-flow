@@ -1,9 +1,15 @@
 "use client";
 
-import type { DocumentSource, ProjectRecord, ProjectTask } from "@supply-flow/core/project";
+import type {
+  DocumentSource,
+  ProjectRecord,
+  ProjectTask,
+  ProjectTaskStatus
+} from "@supply-flow/core/project";
 import type { SessionRecord } from "@supply-flow/core/session";
 import {
   Check,
+  ChevronDown,
   Copy,
   ExternalLink,
   ListPlus,
@@ -25,6 +31,26 @@ interface TaskForm {
   jira_ticket: string;
   parent_ticket: string;
   goal: string;
+}
+
+interface JiraTaskStatus {
+  id: string;
+  name: string;
+  category: string;
+  colorName?: string;
+}
+
+interface JiraTaskTransition {
+  id: string;
+  name: string;
+  to: JiraTaskStatus;
+}
+
+interface TaskStatusResult {
+  jiraTicket: string;
+  status?: JiraTaskStatus;
+  transitions?: readonly JiraTaskTransition[];
+  error?: string;
 }
 
 const emptyTaskForm: TaskForm = {
@@ -51,6 +77,15 @@ export function TaskPlanSection({
   const [listError, setListError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [copiedTicketUrl, setCopiedTicketUrl] = useState<string | null>(null);
+  const [isLoadingTaskStatuses, setIsLoadingTaskStatuses] = useState(false);
+  const [isLoadingTaskTransitionsTicket, setIsLoadingTaskTransitionsTicket] = useState<
+    string | null
+  >(null);
+  const [openStatusMenuTicket, setOpenStatusMenuTicket] = useState<string | null>(null);
+  const [taskStatuses, setTaskStatuses] = useState<Record<string, TaskStatusResult>>(() =>
+    cachedTaskStatuses(project.tasks)
+  );
+  const [updatingTaskStatusTicket, setUpdatingTaskStatusTicket] = useState<string | null>(null);
   const taskDocumentInput = useRef<HTMLSelectElement>(null);
   const taskTitleInput = useRef<HTMLInputElement>(null);
   const taskTicketInput = useRef<HTMLInputElement>(null);
@@ -59,7 +94,102 @@ export function TaskPlanSection({
   useEffect(() => {
     setTasks(project.tasks);
     setCopiedTicketUrl(null);
+    setOpenStatusMenuTicket(null);
+    setTaskStatuses(cachedTaskStatuses(project.tasks));
   }, [project.project_id, project.tasks]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+
+    async function loadTaskStatuses() {
+      if (project.tasks.length === 0) {
+        setTaskStatuses({});
+        setIsLoadingTaskStatuses(false);
+        return;
+      }
+
+      setIsLoadingTaskStatuses(true);
+      try {
+        const response = await fetch(taskStatusesUrl(project.project_id), {
+          cache: "no-store",
+          signal: controller.signal
+        });
+        const data = (await response.json()) as {
+          error?: string;
+          taskStatuses?: readonly TaskStatusResult[];
+        };
+        const refreshedTaskStatuses = data.taskStatuses;
+        if (!response.ok || !refreshedTaskStatuses) {
+          throw new Error(data.error ?? "Unable to load Jira task statuses.");
+        }
+        if (cancelled) {
+          return;
+        }
+
+        setTaskStatuses((currentStatuses) => {
+          const nextStatuses = { ...currentStatuses };
+          for (const status of refreshedTaskStatuses) {
+            const currentStatus = currentStatuses[status.jiraTicket];
+            if (
+              currentStatus?.status?.id === status.status?.id &&
+              currentStatus?.transitions
+            ) {
+              nextStatuses[status.jiraTicket] = {
+                ...status,
+                transitions: currentStatus.transitions
+              };
+            } else {
+              nextStatuses[status.jiraTicket] = status;
+            }
+          }
+          return nextStatuses;
+        });
+      } catch (error) {
+        if (!cancelled && !(error instanceof DOMException && error.name === "AbortError")) {
+          setListError(
+            error instanceof Error ? error.message : "Unable to load Jira task statuses."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingTaskStatuses(false);
+        }
+      }
+    }
+
+    void loadTaskStatuses();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [project.project_id, project.tasks]);
+
+  useEffect(() => {
+    if (!openStatusMenuTicket) {
+      return;
+    }
+
+    function closeStatusMenu(event: MouseEvent) {
+      if (event.target instanceof Element && event.target.closest("[data-task-status-control]")) {
+        return;
+      }
+      setOpenStatusMenuTicket(null);
+    }
+
+    function closeStatusMenuOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpenStatusMenuTicket(null);
+      }
+    }
+
+    window.addEventListener("mousedown", closeStatusMenu);
+    window.addEventListener("keydown", closeStatusMenuOnEscape);
+    return () => {
+      window.removeEventListener("mousedown", closeStatusMenu);
+      window.removeEventListener("keydown", closeStatusMenuOnEscape);
+    };
+  }, [openStatusMenuTicket]);
 
   useEffect(
     () => () => {
@@ -199,7 +329,14 @@ export function TaskPlanSection({
     try {
       await persistTasks(
         tasks.map((currentTask, index) =>
-          index === editingTaskIndex ? task : currentTask
+          index === editingTaskIndex
+            ? {
+                ...task,
+                ...(currentTask.jira_ticket === task.jira_ticket && currentTask.jira_status
+                  ? { jira_status: currentTask.jira_status }
+                  : {})
+              }
+            : currentTask
         )
       );
       setDialogMode(null);
@@ -357,6 +494,87 @@ export function TaskPlanSection({
     }
   }
 
+  async function updateTaskStatus(task: ProjectTask, transition: JiraTaskTransition) {
+    if (updatingTaskStatusTicket || !taskStatuses[task.jira_ticket]?.status) {
+      return;
+    }
+
+    setUpdatingTaskStatusTicket(task.jira_ticket);
+    setListError("");
+    try {
+      const response = await fetch(taskStatusesUrl(project.project_id), {
+        body: JSON.stringify({
+          jiraTicket: task.jira_ticket,
+          transitionId: transition.id
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      });
+      const data = (await response.json()) as {
+        error?: string;
+        taskStatus?: TaskStatusResult;
+      };
+      const updatedTaskStatus = data.taskStatus;
+      if (!response.ok || !updatedTaskStatus) {
+        throw new Error(data.error ?? "Unable to update the Jira task status.");
+      }
+
+      setTaskStatuses((currentStatuses) => ({
+        ...currentStatuses,
+        [updatedTaskStatus.jiraTicket]: updatedTaskStatus
+      }));
+      setOpenStatusMenuTicket(null);
+    } catch (error) {
+      setListError(
+        error instanceof Error ? error.message : "Unable to update the Jira task status."
+      );
+    } finally {
+      setUpdatingTaskStatusTicket(null);
+    }
+  }
+
+  async function toggleTaskStatusMenu(task: ProjectTask) {
+    const taskTicket = task.jira_ticket;
+    if (openStatusMenuTicket === taskTicket) {
+      setOpenStatusMenuTicket(null);
+      return;
+    }
+
+    setOpenStatusMenuTicket(taskTicket);
+    if (taskStatuses[taskTicket]?.transitions !== undefined) {
+      return;
+    }
+
+    setIsLoadingTaskTransitionsTicket(taskTicket);
+    setListError("");
+    try {
+      const response = await fetch(taskStatusesUrl(project.project_id), {
+        body: JSON.stringify({ jiraTicket: taskTicket }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      });
+      const data = (await response.json()) as {
+        error?: string;
+        taskStatus?: TaskStatusResult;
+      };
+      const taskStatus = data.taskStatus;
+      if (!response.ok || !taskStatus) {
+        throw new Error(data.error ?? "Unable to load Jira status changes.");
+      }
+      setTaskStatuses((currentStatuses) => ({
+        ...currentStatuses,
+        [taskStatus.jiraTicket]: taskStatus
+      }));
+    } catch (error) {
+      setOpenStatusMenuTicket(null);
+      setListError(
+        error instanceof Error ? error.message : "Unable to load Jira status changes."
+      );
+    } finally {
+      setIsLoadingTaskTransitionsTicket(null);
+    }
+  }
+
   return (
     <>
       <section aria-labelledby="project-tasks-heading" className="task-plan-section">
@@ -418,58 +636,132 @@ export function TaskPlanSection({
           </div>
         ) : (
           <ul className="project-task-list">
-            {tasks.map((task, index) => (
-              <li key={`${task.title}-${task.jira_ticket}-${index}`}>
-                <div className="project-task-details">
-                  <strong>{task.title}</strong>
-                  <a href={task.jira_ticket} rel="noreferrer" target="_blank">
-                    <ExternalLink aria-hidden="true" />
-                    <code>{task.jira_ticket}</code>
-                  </a>
-                </div>
-                <div className="repository-actions">
-                  <button
-                    aria-label={`Copy Jira ticket link for ${task.title}`}
-                    className={`repository-icon-button${
-                      copiedTicketUrl === task.jira_ticket ? " is-copied" : ""
-                    }`}
-                    onClick={() => void copyTicketUrl(task)}
-                    title={
-                      copiedTicketUrl === task.jira_ticket
-                        ? "Copied Jira ticket link"
-                        : "Copy Jira ticket link"
-                    }
-                    type="button"
-                  >
-                    {copiedTicketUrl === task.jira_ticket ? (
-                      <Check aria-hidden="true" />
-                    ) : (
-                      <Copy aria-hidden="true" />
-                    )}
-                  </button>
-                  <button
-                    aria-label={`Edit ${task.title}`}
-                    className="repository-icon-button"
-                    disabled={isSaving}
-                    onClick={() => openEditDialog(index)}
-                    title={`Edit ${task.title}`}
-                    type="button"
-                  >
-                    <Pencil aria-hidden="true" />
-                  </button>
-                  <button
-                    aria-label={`Remove ${task.title}`}
-                    className="repository-icon-button is-danger"
-                    disabled={isSaving}
-                    onClick={() => void removeTask(index)}
-                    title={`Remove ${task.title}`}
-                    type="button"
-                  >
-                    <Trash2 aria-hidden="true" />
-                  </button>
-                </div>
-              </li>
-            ))}
+            {tasks.map((task, index) => {
+              const taskStatus = taskStatuses[task.jira_ticket];
+              const currentStatus = taskStatus?.status;
+              const transitions = taskStatus?.transitions;
+              const isStatusMenuOpen = openStatusMenuTicket === task.jira_ticket;
+              const isUpdatingStatus = updatingTaskStatusTicket === task.jira_ticket;
+              const isLoadingTransitions =
+                isLoadingTaskTransitionsTicket === task.jira_ticket;
+              const statusLabel = currentStatus
+                ? currentStatus.name
+                : isLoadingTaskStatuses
+                  ? "Loading"
+                  : "Unavailable";
+
+              return (
+                <li key={`${task.title}-${task.jira_ticket}-${index}`}>
+                  <div className="project-task-details">
+                    <div className="project-task-heading">
+                      <div className="project-task-status-control" data-task-status-control>
+                        <button
+                          aria-controls={`task-status-menu-${index}`}
+                          aria-expanded={isStatusMenuOpen}
+                          aria-label={
+                            currentStatus
+                              ? `Change Jira status for ${task.title}. Current status: ${currentStatus.name}.`
+                              : `Jira status unavailable for ${task.title}.`
+                          }
+                          className="project-task-status"
+                          data-jira-color={jiraStatusColor(currentStatus?.colorName)}
+                          disabled={!currentStatus || isUpdatingStatus}
+                          onClick={() => void toggleTaskStatusMenu(task)}
+                          title={
+                            currentStatus
+                              ? `Jira status: ${currentStatus.name}`
+                              : taskStatus?.error ?? "Loading Jira status"
+                          }
+                          type="button"
+                        >
+                          <span>{isUpdatingStatus ? "Updating" : statusLabel}</span>
+                          {currentStatus ? <ChevronDown aria-hidden="true" /> : null}
+                        </button>
+                        {isStatusMenuOpen && currentStatus ? (
+                          <div
+                            aria-label={`Available status changes for ${task.title}`}
+                            className="project-task-status-menu"
+                            id={`task-status-menu-${index}`}
+                            role="menu"
+                          >
+                            <p>Move to</p>
+                            {isLoadingTransitions ? (
+                              <span className="project-task-status-menu-empty">
+                                Loading status changes...
+                              </span>
+                            ) : transitions && transitions.length > 0 ? (
+                              transitions.map((transition) => (
+                                <button
+                                  data-jira-color={jiraStatusColor(transition.to.colorName)}
+                                  disabled={isUpdatingStatus}
+                                  key={transition.id}
+                                  onClick={() => void updateTaskStatus(task, transition)}
+                                  role="menuitem"
+                                  type="button"
+                                >
+                                  <span className="project-task-status-menu-dot" />
+                                  <span>{transition.to.name}</span>
+                                </button>
+                              ))
+                            ) : transitions ? (
+                              <span className="project-task-status-menu-empty">
+                                No status changes are available.
+                              </span>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                      <strong>{task.title}</strong>
+                    </div>
+                    <a href={task.jira_ticket} rel="noreferrer" target="_blank">
+                      <ExternalLink aria-hidden="true" />
+                      <code>{task.jira_ticket}</code>
+                    </a>
+                  </div>
+                  <div className="repository-actions">
+                    <button
+                      aria-label={`Copy Jira ticket link for ${task.title}`}
+                      className={`repository-icon-button${
+                        copiedTicketUrl === task.jira_ticket ? " is-copied" : ""
+                      }`}
+                      onClick={() => void copyTicketUrl(task)}
+                      title={
+                        copiedTicketUrl === task.jira_ticket
+                          ? "Copied Jira ticket link"
+                          : "Copy Jira ticket link"
+                      }
+                      type="button"
+                    >
+                      {copiedTicketUrl === task.jira_ticket ? (
+                        <Check aria-hidden="true" />
+                      ) : (
+                        <Copy aria-hidden="true" />
+                      )}
+                    </button>
+                    <button
+                      aria-label={`Edit ${task.title}`}
+                      className="repository-icon-button"
+                      disabled={isSaving}
+                      onClick={() => openEditDialog(index)}
+                      title={`Edit ${task.title}`}
+                      type="button"
+                    >
+                      <Pencil aria-hidden="true" />
+                    </button>
+                    <button
+                      aria-label={`Remove ${task.title}`}
+                      className="repository-icon-button is-danger"
+                      disabled={isSaving}
+                      onClick={() => void removeTask(index)}
+                      title={`Remove ${task.title}`}
+                      type="button"
+                    >
+                      <Trash2 aria-hidden="true" />
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
@@ -678,6 +970,48 @@ function trackTaskUrl(projectId: string): string {
 
 function taskFromPlanSessionUrl(projectId: string): string {
   return `/api/projects/${encodeURIComponent(projectId)}/tasks/from-plan`;
+}
+
+function taskStatusesUrl(projectId: string): string {
+  return `/api/projects/${encodeURIComponent(projectId)}/tasks/statuses`;
+}
+
+function jiraStatusColor(colorName: string | undefined): string {
+  switch (colorName) {
+    case "green":
+    case "yellow":
+    case "blue-gray":
+      return colorName;
+    default:
+      return "blue-gray";
+  }
+}
+
+function cachedTaskStatuses(tasks: readonly ProjectTask[]): Record<string, TaskStatusResult> {
+  return Object.fromEntries(
+    tasks.flatMap((task) =>
+      task.jira_status
+        ? [
+            [
+              task.jira_ticket,
+              {
+                jiraTicket: task.jira_ticket,
+                status: jiraStatusFromCache(task.jira_status)
+              } satisfies TaskStatusResult
+            ]
+          ]
+        : []
+    )
+  );
+}
+
+function jiraStatusFromCache(status: ProjectTaskStatus): JiraTaskStatus {
+  return {
+    id: status.id,
+    name: status.name,
+    category: status.category,
+    ...(status.color_name ? { colorName: status.color_name } : {})
+  };
 }
 
 function documentLabel(document: DocumentSource): string {
