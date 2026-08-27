@@ -1,10 +1,10 @@
-import { open } from "node:fs/promises";
 import path from "node:path";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
 import { FileSessionStore } from "@supply-flow/core/file-session-store";
 import type { SessionRecord } from "@supply-flow/core/session";
 import { TmuxAdapter } from "@supply-flow/core/tmux";
 import { NextResponse } from "next/server";
+import { readSessionTranscript } from "../../../../../terminal-transcript";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -12,7 +12,6 @@ export const runtime = "nodejs";
 const projectRoot = path.resolve(process.cwd(), "../..");
 const dataDirectory = process.env.SUPPLY_FLOW_DATA_DIR ?? path.join(projectRoot, ".supply-flow");
 const tmux = new TmuxAdapter();
-const TERMINAL_OUTPUT_LIMIT = 64 * 1_024;
 const TERMINAL_SNAPSHOT_LINES = 200;
 
 interface SessionRouteContext {
@@ -41,16 +40,13 @@ export async function GET(request: Request, context: SessionRouteContext) {
         { status: 404 }
       );
     }
-    const output = await readTerminalOutput(
-      terminalLogPath(project.project_id, session.id),
-      outputOffsetFromRequest(request)
-    );
+    const [output, transcript] = await Promise.all([
+      readTmuxSnapshot(session.tmuxSessionName),
+      transcriptRequested(request) ? readSessionTranscript(session) : undefined
+    ]);
     return NextResponse.json({
-      ...(await replaceOutputWithTmuxSnapshot(
-        output,
-        session.tmuxSessionName,
-        tmuxRefreshRequested(request)
-      )),
+      ...output,
+      ...(transcript === undefined ? {} : { transcript }),
       session
     });
   } catch (error) {
@@ -107,99 +103,41 @@ async function reconcileSession(
     : store.update(session.id, { lastError: undefined, status: "running" });
 }
 
-async function readTerminalOutput(
-  filePath: string,
-  requestedOffset: number | undefined
-): Promise<{
+async function readTmuxSnapshot(sessionName: string): Promise<{
   output: string;
   outputOffset: number;
   outputSize: number;
   outputTruncated: boolean;
+  terminalSnapshot: boolean;
 }> {
-  let handle: Awaited<ReturnType<typeof open>> | undefined;
-
-  try {
-    handle = await open(filePath, "r");
-    const size = (await handle.stat()).size;
-    let start = requestedOffset ?? Math.max(0, size - TERMINAL_OUTPUT_LIMIT);
-    let outputTruncated = false;
-
-    if (start > size || size - start > TERMINAL_OUTPUT_LIMIT) {
-      start = Math.max(0, size - TERMINAL_OUTPUT_LIMIT);
-      outputTruncated = true;
-    }
-
-    const output = Buffer.alloc(size - start);
-    await handle.read(output, 0, output.length, start);
-    return {
-      output: output.toString("utf8").replaceAll("\u0000", ""),
-      outputOffset: start,
-      outputSize: size,
-      outputTruncated
-    };
-  } catch (error) {
-    if (isMissingFileError(error)) {
-      return {
-        output: "",
-        outputOffset: 0,
-        outputSize: 0,
-        outputTruncated: false
-      };
-    }
-
-    throw error;
-  } finally {
-    await handle?.close();
-  }
-}
-
-async function replaceOutputWithTmuxSnapshot(
-  output: Awaited<ReturnType<typeof readTerminalOutput>>,
-  tmuxSessionName: string,
-  refreshFromTmux: boolean
-): Promise<Awaited<ReturnType<typeof readTerminalOutput>>> {
-  if (!refreshFromTmux && !output.outputTruncated) {
-    return output;
-  }
-
   try {
     return {
-      ...output,
-      output: toTerminalLines(await tmux.captureOutput(tmuxSessionName, TERMINAL_SNAPSHOT_LINES)),
-      outputTruncated: true
+      output: toTerminalLines(await tmux.captureOutput(sessionName, TERMINAL_SNAPSHOT_LINES)),
+      outputOffset: 0,
+      outputSize: 0,
+      outputTruncated: true,
+      terminalSnapshot: true
     };
   } catch {
-    // The session can exit after it is reconciled. Reset to the raw terminal log as a fallback.
-    return refreshFromTmux ? { ...output, outputTruncated: true } : output;
+    // Keep the prior visible screen if the process exits between reconciliation and capture.
+    return {
+      output: "",
+      outputOffset: 0,
+      outputSize: 0,
+      outputTruncated: true,
+      terminalSnapshot: true
+    };
   }
 }
 
 function toTerminalLines(value: string): string {
-  return value.replace(/\r?\n/g, "\r\n");
+  return value.replace(/(?:\r?\n)+$/, "").replace(/\r?\n/g, "\r\n");
 }
 
-function outputOffsetFromRequest(request: Request): number | undefined {
-  const offset = new URL(request.url).searchParams.get("offset");
-  if (offset === null || !/^\d+$/.test(offset)) {
-    return undefined;
-  }
-
-  const parsedOffset = Number(offset);
-  return Number.isSafeInteger(parsedOffset) ? parsedOffset : undefined;
-}
-
-function tmuxRefreshRequested(request: Request): boolean {
-  return new URL(request.url).searchParams.get("refresh") === "tmux";
+function transcriptRequested(request: Request): boolean {
+  return new URL(request.url).searchParams.get("transcript") === "1";
 }
 
 function projectDirectory(projectId: string): string {
   return path.join(dataDirectory, "projects", projectId);
-}
-
-function terminalLogPath(projectId: string, sessionId: string): string {
-  return path.join(projectDirectory(projectId), "sessions", sessionId, "terminal.log");
-}
-
-function isMissingFileError(error: unknown): error is NodeJS.ErrnoException {
-  return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
 }

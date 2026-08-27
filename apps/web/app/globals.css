@@ -1705,6 +1705,22 @@ code {
   background: #111412;
 }
 
+.tmux-terminal-transcript {
+  margin: 0 0 14px;
+  color: #dbe7df;
+  font-family: "SF Mono", SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  tab-size: 2;
+  white-space: pre-wrap;
+}
+
+.tmux-terminal-live {
+  min-height: 100%;
+  height: 100%;
+}
+
 .tmux-terminal-canvas,
 .tmux-terminal-canvas .xterm {
   width: 100%;

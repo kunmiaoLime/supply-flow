@@ -1,6 +1,6 @@
 import { execFile as execFileCallback } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { open, readFile, stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import {
@@ -27,12 +27,12 @@ import {
   loadCompletionNotificationCancellationPrompt,
   loadCompletionNotificationPrompt
 } from "../../../completion-notification";
+import { readSessionTranscript } from "../../../terminal-transcript";
 
 const execFile = promisify(execFileCallback);
 const SETUP_SESSION_DIRECTORY = "ai-interface-sessions";
 const SETUP_PROMPT_PATH = path.join(projectRoot, "prompts", "setup_ai_interfaces.md");
 const READ_ONLY_PROMPT_PATH = path.join(projectRoot, "prompts", "read_only.md");
-const TERMINAL_OUTPUT_LIMIT = 64 * 1_024;
 const TERMINAL_SNAPSHOT_LINES = 200;
 const MAX_SESSION_GOAL_LENGTH = 16_000;
 const AUTHENTICATION_TIMEOUT_MS = 10 * 60 * 1_000;
@@ -296,51 +296,40 @@ export async function resizeAiInterfaceTerminal(
 }
 
 export async function readAiInterfaceTerminalOutput(
-  sessionId: string,
-  requestedOffset: number | undefined,
-  refreshFromTmux = false
+  session: SessionRecord,
+  includeTranscript = false
 ): Promise<{
   output: string;
   outputOffset: number;
   outputSize: number;
   outputTruncated: boolean;
+  terminalSnapshot: boolean;
+  transcript?: string;
 }> {
-  const output = await readTerminalOutput(terminalLogPath(sessionId), requestedOffset);
-  if (!refreshFromTmux && !output.outputTruncated) {
-    return output;
-  }
-
-  const session = await getAiInterfaceSession(sessionId);
-  if (!session) {
-    return output;
-  }
-
   try {
     return {
-      ...output,
       output: toTerminalLines(
         await new TmuxAdapter().captureOutput(session.tmuxSessionName, TERMINAL_SNAPSHOT_LINES)
       ),
-      outputTruncated: true
+      outputOffset: 0,
+      outputSize: 0,
+      outputTruncated: true,
+      terminalSnapshot: true,
+      ...(includeTranscript
+        ? { transcript: await readSessionTranscript(session) ?? "" }
+        : {})
     };
   } catch {
-    // The session can exit between the metadata lookup and terminal capture.
-    return refreshFromTmux ? { ...output, outputTruncated: true } : output;
+    // Keep the prior visible screen if the process exits between reconciliation and capture.
+    return {
+      output: "",
+      outputOffset: 0,
+      outputSize: 0,
+      outputTruncated: true,
+      terminalSnapshot: true,
+      ...(includeTranscript ? { transcript: "" } : {})
+    };
   }
-}
-
-export function outputOffsetFromRequest(request: Request): number | undefined {
-  const offset = new URL(request.url).searchParams.get("offset");
-  if (offset === null || !/^\d+$/.test(offset)) {
-    return undefined;
-  }
-
-  const parsedOffset = Number(offset);
-  return Number.isSafeInteger(parsedOffset) ? parsedOffset : undefined;
-}
-
-export function tmuxRefreshRequested(request: Request): boolean {
-  return new URL(request.url).searchParams.get("refresh") === "tmux";
 }
 
 async function findActiveSession(store: FileSessionStore): Promise<SessionRecord | null> {
@@ -546,56 +535,6 @@ function terminalLogPath(sessionId: string): string {
   return path.join(aiInterfaceSessionDirectory(), "sessions", sessionId, "terminal.log");
 }
 
-async function readTerminalOutput(
-  filePath: string,
-  requestedOffset: number | undefined
-): Promise<{
-  output: string;
-  outputOffset: number;
-  outputSize: number;
-  outputTruncated: boolean;
-}> {
-  let handle: Awaited<ReturnType<typeof open>> | undefined;
-
-  try {
-    handle = await open(filePath, "r");
-    const size = (await handle.stat()).size;
-    let start = requestedOffset ?? Math.max(0, size - TERMINAL_OUTPUT_LIMIT);
-    let outputTruncated = false;
-
-    if (start > size || size - start > TERMINAL_OUTPUT_LIMIT) {
-      start = Math.max(0, size - TERMINAL_OUTPUT_LIMIT);
-      outputTruncated = true;
-    }
-
-    const output = Buffer.alloc(size - start);
-    await handle.read(output, 0, output.length, start);
-    return {
-      output: output.toString("utf8").replaceAll("\u0000", ""),
-      outputOffset: start,
-      outputSize: size,
-      outputTruncated
-    };
-  } catch (error) {
-    if (isMissingFileError(error)) {
-      return {
-        output: "",
-        outputOffset: 0,
-        outputSize: 0,
-        outputTruncated: false
-      };
-    }
-
-    throw error;
-  } finally {
-    await handle?.close();
-  }
-}
-
 function toTerminalLines(value: string): string {
-  return value.replace(/\r?\n/g, "\r\n");
-}
-
-function isMissingFileError(error: unknown): error is NodeJS.ErrnoException {
-  return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
+  return value.replace(/(?:\r?\n)+$/, "").replace(/\r?\n/g, "\r\n");
 }

@@ -2,9 +2,7 @@ import { NextResponse } from "next/server";
 import {
   AiInterfaceSessionError,
   getAiInterfaceSession,
-  outputOffsetFromRequest,
   readAiInterfaceTerminalOutput,
-  tmuxRefreshRequested,
   terminateAiInterfaceSession
 } from "../../interface-session-service";
 
@@ -25,9 +23,8 @@ export async function GET(request: Request, context: SessionRouteContext) {
     }
 
     const output = await readAiInterfaceTerminalOutput(
-      session.id,
-      outputOffsetFromRequest(request),
-      tmuxRefreshRequested(request)
+      session,
+      new URL(request.url).searchParams.get("transcript") === "1"
     );
     return NextResponse.json({ ...output, session });
   } catch (error) {

@@ -9,13 +9,12 @@ import { useEffect, useRef, useState } from "react";
 interface SessionDetailResponse {
   session?: SessionRecord;
   output?: string;
-  outputOffset?: number;
-  outputSize?: number;
-  outputTruncated?: boolean;
+  terminalSnapshot?: boolean;
+  transcript?: string;
   error?: string;
 }
 
-const OUTPUT_POLL_INTERVAL_MS = 100;
+const OUTPUT_POLL_INTERVAL_MS = 500;
 const OUTPUT_RETRY_INTERVAL_MS = 1_500;
 
 export function TmuxTerminal({
@@ -44,7 +43,10 @@ export function TmuxTerminal({
   const onSessionRemovedRef = useRef(onSessionRemoved);
   const onTerminalErrorRef = useRef(onTerminalError);
   const onTerminalRefreshCompleteRef = useRef(onTerminalRefreshComplete);
+  const liveViewportRef = useRef<HTMLDivElement>(null);
+  const wheelRemainderRef = useRef(0);
   const [isReady, setIsReady] = useState(false);
+  const [transcript, setTranscript] = useState<string | null>(null);
 
   useEffect(() => {
     sessionStatusRef.current = session.status;
@@ -90,7 +92,7 @@ export function TmuxTerminal({
         cursorBlink: true,
         fontFamily: '"SF Mono", SFMono-Regular, Consolas, monospace',
         fontSize: 12,
-        scrollback: 5_000,
+        scrollback: 0,
         theme: {
           background: "#111412",
           black: "#111412",
@@ -154,7 +156,7 @@ export function TmuxTerminal({
   }, [session.id, sessionEndpoint]);
 
   useEffect(() => {
-    if (!isReady || !wrapperRef.current) {
+    if (!isReady || !liveViewportRef.current) {
       return;
     }
 
@@ -181,7 +183,7 @@ export function TmuxTerminal({
     }
 
     const observer = new ResizeObserver(resizeTerminal);
-    observer.observe(wrapperRef.current);
+    observer.observe(liveViewportRef.current);
     resizeTerminal();
 
     return () => {
@@ -199,8 +201,8 @@ export function TmuxTerminal({
 
     let cancelled = false;
     let pollTimer: number | undefined;
-    let outputOffset = 0;
     let refreshFromTmux = refreshRequestId !== null;
+    let transcriptLoaded = false;
 
     function schedulePoll(delay: number) {
       if (!cancelled) {
@@ -218,14 +220,11 @@ export function TmuxTerminal({
 
       const requestedTmuxRefresh = refreshFromTmux;
       refreshFromTmux = false;
+      const includeTranscript = !transcriptLoaded || requestedTmuxRefresh;
 
       try {
-        const response = await fetch(
-          requestedTmuxRefresh
-            ? `${sessionEndpoint}?refresh=tmux`
-            : `${sessionEndpoint}?offset=${outputOffset}`,
-          { cache: "no-store" }
-        );
+        const query = includeTranscript ? "?transcript=1" : "";
+        const response = await fetch(`${sessionEndpoint}${query}`, { cache: "no-store" });
         const data = (await response.json()) as SessionDetailResponse;
         if (response.status === 404) {
           onSessionRemovedRef.current();
@@ -239,16 +238,16 @@ export function TmuxTerminal({
           return;
         }
 
-        if (data.outputTruncated) {
-          terminal.reset();
+        if (includeTranscript && data.transcript !== undefined) {
+          setTranscript(data.transcript || null);
+          transcriptLoaded = true;
         }
-        if (data.output) {
-          await writeTerminalOutput(terminal, data.output);
+        if (data.terminalSnapshot) {
+          await replaceLiveScreen(terminal, data.output ?? "");
         }
         if (cancelled) {
           return;
         }
-        outputOffset = data.outputSize ?? outputOffset;
         onSessionUpdatedRef.current(data.session);
 
         if (isInteractiveStatus(data.session.status)) {
@@ -280,8 +279,37 @@ export function TmuxTerminal({
   }, [isReady, refreshRequestId, session.id, sessionEndpoint]);
 
   return (
-    <div className="tmux-terminal-viewport" onMouseDown={() => terminalRef.current?.focus()} ref={wrapperRef}>
-      <div className="tmux-terminal-canvas" ref={containerRef} />
+    <div
+      className="tmux-terminal-viewport"
+      onWheelCapture={(event) => {
+        const viewport = wrapperRef.current;
+        if (!viewport) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        wheelRemainderRef.current += wheelPixels(
+          event.deltaY,
+          event.deltaMode,
+          viewport.clientHeight
+        );
+        const pixels = Math.trunc(wheelRemainderRef.current);
+        if (pixels !== 0) {
+          viewport.scrollBy({ top: pixels });
+          wheelRemainderRef.current -= pixels;
+        }
+      }}
+      ref={wrapperRef}
+    >
+      {transcript ? <pre className="tmux-terminal-transcript">{transcript}</pre> : null}
+      <div
+        className="tmux-terminal-live"
+        onMouseDown={() => terminalRef.current?.focus()}
+        ref={liveViewportRef}
+      >
+        <div className="tmux-terminal-canvas" ref={containerRef} />
+      </div>
     </div>
   );
 }
@@ -294,6 +322,23 @@ function writeTerminalOutput(terminal: Terminal, output: string): Promise<void> 
   return new Promise((resolve) => {
     terminal.write(output, resolve);
   });
+}
+
+async function replaceLiveScreen(terminal: Terminal, output: string): Promise<void> {
+  terminal.reset();
+  if (output) {
+    await writeTerminalOutput(terminal, output);
+  }
+}
+
+function wheelPixels(deltaY: number, deltaMode: number, viewportHeight: number): number {
+  if (deltaMode === 1) {
+    return deltaY * 18;
+  }
+  if (deltaMode === 2) {
+    return deltaY * viewportHeight;
+  }
+  return deltaY;
 }
 
 async function sendTerminalInput(sessionEndpoint: string, input: string): Promise<void> {
