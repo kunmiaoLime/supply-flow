@@ -16,6 +16,7 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [pullRequestUrl, setPullRequestUrl] = useState("");
   const [dialogError, setDialogError] = useState("");
+  const [showActiveOnly, setShowActiveOnly] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [removingPullRequest, setRemovingPullRequest] = useState<ProjectPullRequest | null>(
     null
@@ -65,6 +66,9 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
   const hasMonitoredPullRequests = pullRequests.some(
     (pullRequest) => pullRequest.monitoring_enabled
   );
+  const visiblePullRequests = showActiveOnly
+    ? pullRequests.filter((pullRequest) => !isInactivePullRequest(pullRequest))
+    : pullRequests;
 
   useEffect(() => {
     if (!hasMonitoredPullRequests) {
@@ -363,15 +367,28 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
             <p>GitHub review</p>
             <h2 id="pull-requests-heading">Pull requests</h2>
           </div>
-          <button
-            className="import-pull-request-button"
-            disabled={isLoading || Boolean(removingPullRequest)}
-            onClick={openImportDialog}
-            type="button"
-          >
-            <ListPlus aria-hidden="true" />
-            <span>Import PR</span>
-          </button>
+          <div className="pull-requests-section-actions">
+            <label
+              className="pull-request-filter-control"
+              title="Hide merged and closed pull requests"
+            >
+              <input
+                checked={showActiveOnly}
+                onChange={(event) => setShowActiveOnly(event.target.checked)}
+                type="checkbox"
+              />
+              <span>Active only</span>
+            </label>
+            <button
+              className="import-pull-request-button"
+              disabled={isLoading || Boolean(removingPullRequest)}
+              onClick={openImportDialog}
+              type="button"
+            >
+              <ListPlus aria-hidden="true" />
+              <span>Import PR</span>
+            </button>
+          </div>
         </div>
 
         {listError ? (
@@ -395,16 +412,24 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
               <span>Import a GitHub pull request for an associated repository.</span>
             </div>
           </div>
+        ) : visiblePullRequests.length === 0 ? (
+          <div className="pull-request-empty-state">
+            <GitPullRequest aria-hidden="true" />
+            <div>
+              <strong>No active pull requests</strong>
+              <span>All tracked pull requests are merged or closed.</span>
+            </div>
+          </div>
         ) : (
           <ul className="pull-request-list">
-            {pullRequests.map((pullRequest) => {
+            {visiblePullRequests.map((pullRequest) => {
               const repository = project.repos.find(
                 (currentRepository) => currentRepository.local === pullRequest.repository_local
               );
               const isRemoving = removingPullRequest?.url === pullRequest.url;
               const isUpdatingMonitoring = updatingMonitoringUrl === pullRequest.url;
               const isAddressing = addressingPullRequestUrl === pullRequest.url;
-              const isClosed = pullRequest.status === "closed" || pullRequest.status === "merged";
+              const isClosed = isInactivePullRequest(pullRequest);
 
               return (
                 <li key={pullRequest.url}>
@@ -678,6 +703,10 @@ function formatApprovalStatus(pullRequest: ProjectPullRequest): string {
 function formatTime(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.valueOf()) ? "recently" : date.toLocaleTimeString();
+}
+
+function isInactivePullRequest(pullRequest: ProjectPullRequest): boolean {
+  return pullRequest.status === "closed" || pullRequest.status === "merged";
 }
 
 function sortPullRequests(pullRequests: ProjectPullRequest[]): ProjectPullRequest[] {

@@ -3382,6 +3382,13 @@ code {
   line-height: 1.2;
 }
 
+.pull-requests-section-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
 .import-pull-request-button {
   display: inline-flex;
   min-height: 36px;
@@ -3585,6 +3592,7 @@ code {
   color: #ab3429;
 }
 
+.pull-request-filter-control,
 .pull-request-monitor-control {
   display: inline-flex;
   min-height: 32px;
@@ -3598,6 +3606,11 @@ code {
   white-space: nowrap;
 }
 
+.pull-request-filter-control {
+  min-height: 36px;
+}
+
+.pull-request-filter-control input,
 .pull-request-monitor-control input {
   position: relative;
   width: 30px;
@@ -3611,6 +3624,7 @@ code {
   transition: background 120ms ease, border-color 120ms ease;
 }
 
+.pull-request-filter-control input::after,
 .pull-request-monitor-control input::after {
   position: absolute;
   top: 2px;
@@ -3623,20 +3637,24 @@ code {
   transition: transform 120ms ease;
 }
 
+.pull-request-filter-control input:checked,
 .pull-request-monitor-control input:checked {
   border-color: var(--teal);
   background: var(--teal);
 }
 
+.pull-request-filter-control input:checked::after,
 .pull-request-monitor-control input:checked::after {
   transform: translateX(13px);
 }
 
+.pull-request-filter-control input:focus-visible,
 .pull-request-monitor-control input:focus-visible {
   outline: 3px solid rgba(8, 124, 105, 0.25);
   outline-offset: 2px;
 }
 
+.pull-request-filter-control input:disabled,
 .pull-request-monitor-control input:disabled {
   cursor: wait;
   opacity: 0.6;
