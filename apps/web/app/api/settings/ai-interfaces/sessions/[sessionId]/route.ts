@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   AiInterfaceSessionError,
   getAiInterfaceSession,
+  outputOffsetFromRequest,
   readAiInterfaceTerminalOutput,
   terminateAiInterfaceSession
 } from "../../interface-session-service";
@@ -24,6 +25,7 @@ export async function GET(request: Request, context: SessionRouteContext) {
 
     const output = await readAiInterfaceTerminalOutput(
       session,
+      outputOffsetFromRequest(request),
       new URL(request.url).searchParams.get("transcript") === "1"
     );
     return NextResponse.json({ ...output, session });

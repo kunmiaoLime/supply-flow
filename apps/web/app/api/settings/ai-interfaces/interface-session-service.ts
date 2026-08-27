@@ -1,6 +1,6 @@
 import { execFile as execFileCallback } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readFile, stat } from "node:fs/promises";
+import { open, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import {
@@ -33,7 +33,7 @@ const execFile = promisify(execFileCallback);
 const SETUP_SESSION_DIRECTORY = "ai-interface-sessions";
 const SETUP_PROMPT_PATH = path.join(projectRoot, "prompts", "setup_ai_interfaces.md");
 const READ_ONLY_PROMPT_PATH = path.join(projectRoot, "prompts", "read_only.md");
-const TERMINAL_SNAPSHOT_LINES = 200;
+const TERMINAL_OUTPUT_LIMIT = 16 * 1_024 * 1_024;
 const MAX_SESSION_GOAL_LENGTH = 16_000;
 const AUTHENTICATION_TIMEOUT_MS = 10 * 60 * 1_000;
 
@@ -297,39 +297,35 @@ export async function resizeAiInterfaceTerminal(
 
 export async function readAiInterfaceTerminalOutput(
   session: SessionRecord,
+  requestedOffset: number | undefined,
   includeTranscript = false
 ): Promise<{
   output: string;
   outputOffset: number;
   outputSize: number;
   outputTruncated: boolean;
-  terminalSnapshot: boolean;
   transcript?: string;
 }> {
-  try {
-    return {
-      output: toTerminalLines(
-        await new TmuxAdapter().captureOutput(session.tmuxSessionName, TERMINAL_SNAPSHOT_LINES)
-      ),
-      outputOffset: 0,
-      outputSize: 0,
-      outputTruncated: true,
-      terminalSnapshot: true,
-      ...(includeTranscript
-        ? { transcript: await readSessionTranscript(session, terminalLogPath(session.id)) ?? "" }
-        : {})
-    };
-  } catch {
-    // Keep the prior visible screen if the process exits between reconciliation and capture.
-    return {
-      output: "",
-      outputOffset: 0,
-      outputSize: 0,
-      outputTruncated: true,
-      terminalSnapshot: true,
-      ...(includeTranscript ? { transcript: "" } : {})
-    };
+  const [output, transcript] = await Promise.all([
+    readTerminalOutput(terminalLogPath(session.id), requestedOffset),
+    includeTranscript
+      ? readSessionTranscript(session, terminalLogPath(session.id))
+      : undefined
+  ]);
+  return {
+    ...output,
+    ...(transcript === undefined ? {} : { transcript })
+  };
+}
+
+export function outputOffsetFromRequest(request: Request): number | undefined {
+  const offset = new URL(request.url).searchParams.get("offset");
+  if (offset === null || !/^\d+$/.test(offset)) {
+    return undefined;
   }
+
+  const parsedOffset = Number(offset);
+  return Number.isSafeInteger(parsedOffset) ? parsedOffset : undefined;
 }
 
 async function findActiveSession(store: FileSessionStore): Promise<SessionRecord | null> {
@@ -535,6 +531,60 @@ function terminalLogPath(sessionId: string): string {
   return path.join(aiInterfaceSessionDirectory(), "sessions", sessionId, "terminal.log");
 }
 
-function toTerminalLines(value: string): string {
-  return value.replace(/(?:\r?\n)+$/, "").replace(/\r?\n/g, "\r\n");
+async function readTerminalOutput(
+  filePath: string,
+  requestedOffset: number | undefined
+): Promise<{
+  output: string;
+  outputOffset: number;
+  outputSize: number;
+  outputTruncated: boolean;
+}> {
+  let handle: Awaited<ReturnType<typeof open>> | undefined;
+
+  try {
+    handle = await open(filePath, "r");
+    const size = (await handle.stat()).size;
+    let start = requestedOffset ?? 0;
+    let outputTruncated = false;
+
+    if (start > size || size - start > TERMINAL_OUTPUT_LIMIT) {
+      start = Math.max(0, size - TERMINAL_OUTPUT_LIMIT);
+      outputTruncated = start > 0;
+    }
+
+    const output = Buffer.alloc(size - start);
+    let bytesRead = 0;
+    while (bytesRead < output.length) {
+      const read = await handle.read(output, bytesRead, output.length - bytesRead, start + bytesRead);
+      if (read.bytesRead === 0) {
+        break;
+      }
+      bytesRead += read.bytesRead;
+    }
+
+    return {
+      output: output.subarray(0, bytesRead).toString("utf8").replaceAll("\u0000", ""),
+      outputOffset: start,
+      outputSize: size,
+      outputTruncated
+    };
+  } catch (error) {
+    if (isMissingFileError(error)) {
+      return {
+        output: "",
+        outputOffset: 0,
+        outputSize: 0,
+        outputTruncated: false
+      };
+    }
+
+    throw error;
+  } finally {
+    await handle?.close();
+  }
+}
+
+function isMissingFileError(error: unknown): error is NodeJS.ErrnoException {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
 }

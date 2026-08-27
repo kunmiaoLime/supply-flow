@@ -9,12 +9,14 @@ import { useEffect, useRef, useState } from "react";
 interface SessionDetailResponse {
   session?: SessionRecord;
   output?: string;
-  terminalSnapshot?: boolean;
+  outputOffset?: number;
+  outputSize?: number;
+  outputTruncated?: boolean;
   transcript?: string;
   error?: string;
 }
 
-const OUTPUT_POLL_INTERVAL_MS = 500;
+const OUTPUT_POLL_INTERVAL_MS = 100;
 const OUTPUT_RETRY_INTERVAL_MS = 1_500;
 
 export function TmuxTerminal({
@@ -201,6 +203,8 @@ export function TmuxTerminal({
 
     let cancelled = false;
     let pollTimer: number | undefined;
+    let outputOffset: number | undefined;
+    let resetLiveTerminal = true;
     let refreshFromTmux = refreshRequestId !== null;
     let transcriptLoaded = false;
 
@@ -233,9 +237,20 @@ export function TmuxTerminal({
       refreshFromTmux = false;
       const includeTranscript = !transcriptLoaded || requestedTmuxRefresh;
       const shouldScrollToBottom = includeTranscript;
+      if (requestedTmuxRefresh) {
+        outputOffset = undefined;
+        resetLiveTerminal = true;
+      }
 
       try {
-        const query = includeTranscript ? "?transcript=1" : "";
+        const parameters = new URLSearchParams();
+        if (outputOffset !== undefined) {
+          parameters.set("offset", String(outputOffset));
+        }
+        if (includeTranscript) {
+          parameters.set("transcript", "1");
+        }
+        const query = parameters.size ? `?${parameters}` : "";
         const response = await fetch(`${sessionEndpoint}${query}`, { cache: "no-store" });
         const data = (await response.json()) as SessionDetailResponse;
         if (response.status === 404) {
@@ -254,8 +269,12 @@ export function TmuxTerminal({
           setTranscript(data.transcript || null);
           transcriptLoaded = true;
         }
-        if (data.terminalSnapshot) {
-          await replaceLiveScreen(terminal, data.output ?? "");
+        if (resetLiveTerminal || data.outputTruncated) {
+          terminal.reset();
+          resetLiveTerminal = false;
+        }
+        if (data.output) {
+          await writeTerminalOutput(terminal, data.output);
         }
         if (shouldScrollToBottom) {
           scrollToBottomAfterRender();
@@ -263,6 +282,7 @@ export function TmuxTerminal({
         if (cancelled) {
           return;
         }
+        outputOffset = data.outputSize ?? outputOffset;
         onSessionUpdatedRef.current(data.session);
 
         if (isInteractiveStatus(data.session.status)) {
@@ -337,13 +357,6 @@ function writeTerminalOutput(terminal: Terminal, output: string): Promise<void> 
   return new Promise((resolve) => {
     terminal.write(output, resolve);
   });
-}
-
-async function replaceLiveScreen(terminal: Terminal, output: string): Promise<void> {
-  terminal.reset();
-  if (output) {
-    await writeTerminalOutput(terminal, output);
-  }
 }
 
 function wheelPixels(deltaY: number, deltaMode: number, viewportHeight: number): number {

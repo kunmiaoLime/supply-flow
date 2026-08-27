@@ -1,3 +1,4 @@
+import { open } from "node:fs/promises";
 import path from "node:path";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
 import { FileSessionStore } from "@supply-flow/core/file-session-store";
@@ -13,7 +14,7 @@ export const runtime = "nodejs";
 const projectRoot = path.resolve(process.cwd(), "../..");
 const dataDirectory = process.env.SUPPLY_FLOW_DATA_DIR ?? path.join(projectRoot, ".supply-flow");
 const tmux = new TmuxAdapter();
-const TERMINAL_SNAPSHOT_LINES = 200;
+const TERMINAL_OUTPUT_LIMIT = 16 * 1_024 * 1_024;
 
 interface SessionRouteContext {
   params: Promise<{ projectId: string; sessionId: string }>;
@@ -42,7 +43,10 @@ export async function GET(request: Request, context: SessionRouteContext) {
       );
     }
     const [output, transcript] = await Promise.all([
-      readTmuxSnapshot(session.tmuxSessionName),
+      readTerminalOutput(
+        terminalLogPath(project.project_id, session.id),
+        outputOffsetFromRequest(request)
+      ),
       transcriptRequested(request)
         ? readSessionTranscript(session, terminalLogPath(project.project_id, session.id))
         : undefined
@@ -106,35 +110,68 @@ async function reconcileSession(
     : store.update(session.id, { lastError: undefined, status: "running" });
 }
 
-async function readTmuxSnapshot(sessionName: string): Promise<{
+async function readTerminalOutput(
+  filePath: string,
+  requestedOffset: number | undefined
+): Promise<{
   output: string;
   outputOffset: number;
   outputSize: number;
   outputTruncated: boolean;
-  terminalSnapshot: boolean;
 }> {
+  let handle: Awaited<ReturnType<typeof open>> | undefined;
+
   try {
+    handle = await open(filePath, "r");
+    const size = (await handle.stat()).size;
+    let start = requestedOffset ?? 0;
+    let outputTruncated = false;
+
+    if (start > size || size - start > TERMINAL_OUTPUT_LIMIT) {
+      start = Math.max(0, size - TERMINAL_OUTPUT_LIMIT);
+      outputTruncated = start > 0;
+    }
+
+    const output = Buffer.alloc(size - start);
+    let bytesRead = 0;
+    while (bytesRead < output.length) {
+      const read = await handle.read(output, bytesRead, output.length - bytesRead, start + bytesRead);
+      if (read.bytesRead === 0) {
+        break;
+      }
+      bytesRead += read.bytesRead;
+    }
+
     return {
-      output: toTerminalLines(await tmux.captureOutput(sessionName, TERMINAL_SNAPSHOT_LINES)),
-      outputOffset: 0,
-      outputSize: 0,
-      outputTruncated: true,
-      terminalSnapshot: true
+      output: output.subarray(0, bytesRead).toString("utf8").replaceAll("\u0000", ""),
+      outputOffset: start,
+      outputSize: size,
+      outputTruncated
     };
-  } catch {
-    // Keep the prior visible screen if the process exits between reconciliation and capture.
-    return {
-      output: "",
-      outputOffset: 0,
-      outputSize: 0,
-      outputTruncated: true,
-      terminalSnapshot: true
-    };
+  } catch (error) {
+    if (isMissingFileError(error)) {
+      return {
+        output: "",
+        outputOffset: 0,
+        outputSize: 0,
+        outputTruncated: false
+      };
+    }
+
+    throw error;
+  } finally {
+    await handle?.close();
   }
 }
 
-function toTerminalLines(value: string): string {
-  return value.replace(/(?:\r?\n)+$/, "").replace(/\r?\n/g, "\r\n");
+function outputOffsetFromRequest(request: Request): number | undefined {
+  const offset = new URL(request.url).searchParams.get("offset");
+  if (offset === null || !/^\d+$/.test(offset)) {
+    return undefined;
+  }
+
+  const parsedOffset = Number(offset);
+  return Number.isSafeInteger(parsedOffset) ? parsedOffset : undefined;
 }
 
 function transcriptRequested(request: Request): boolean {
@@ -143,4 +180,8 @@ function transcriptRequested(request: Request): boolean {
 
 function projectDirectory(projectId: string): string {
   return path.join(dataDirectory, "projects", projectId);
+}
+
+function isMissingFileError(error: unknown): error is NodeJS.ErrnoException {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
 }
