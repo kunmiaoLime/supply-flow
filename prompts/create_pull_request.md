@@ -59,11 +59,16 @@ Template source: <PR_TEMPLATE_SOURCE>
    items unchecked. Do not fabricate test results, screenshots, rollout
    details, or mitigation plans. If no local template is configured, use
    concise `## Summary`, `## Testing`, and `## Links` sections.
-5. Use Graphite only when the repository has a valid
-   `.graphite_repo_config`; otherwise push the branch and create the PR with
-   `gh pr create`. Do not run global Codex helpers. Use a concise title that
-   includes `<JIRA_TICKET_KEY>`, and include the Jira link in the PR body.
-   After creating the PR, confirm its URL with GitHub.
+5. Choose the submission workflow:
+   - When the repository has a valid `.graphite_repo_config`, Graphite must
+     create or update the pull request. Before running submission commands,
+     read `<GRAPHITE_PULL_REQUEST_PROMPT_PATH>` and follow its instructions.
+     Do not use `gh pr create`, `gh pr edit`, or direct `git push` for this
+     path.
+   - Otherwise push the branch and create the PR with `gh pr create`.
+   Do not run global Codex helpers. Use a concise title that includes
+   `<JIRA_TICKET_KEY>`, and include the Jira link in the PR body. After
+   creating the PR, confirm its URL with GitHub.
 6. After GitHub confirms the PR, add it to this project's PR tracking index:
 
    ```sh

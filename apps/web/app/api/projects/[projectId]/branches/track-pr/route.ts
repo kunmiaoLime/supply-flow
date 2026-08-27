@@ -36,6 +36,11 @@ export const runtime = "nodejs";
 const CONTEXT_FILE = "context.md";
 const projectRoot = path.resolve(process.cwd(), "../..");
 const pullRequestPromptPath = path.join(projectRoot, "prompts", "create_pull_request.md");
+const graphitePullRequestPromptPath = path.join(
+  projectRoot,
+  "prompts",
+  "create_pull_request_with_graphite.md"
+);
 const pullRequestTemplatesDirectory = path.join(projectRoot, "templates", "PR");
 const tmux = new TmuxAdapter();
 
@@ -336,6 +341,10 @@ async function pullRequestCreationPrompt(
     .replaceAll("<REPOSITORY_LOCAL>", JSON.stringify(repository.local))
     .replaceAll("<REPOSITORY_REMOTE>", repository.remote ? JSON.stringify(repository.remote) : "none")
     .replaceAll("<BRANCH_NAME>", JSON.stringify(branch.name))
+    .replaceAll(
+      "<GRAPHITE_PULL_REQUEST_PROMPT_PATH>",
+      JSON.stringify(graphitePullRequestPromptPath)
+    )
     .replaceAll(
       "<PR_TEMPLATE_SOURCE>",
       pullRequestTemplate
