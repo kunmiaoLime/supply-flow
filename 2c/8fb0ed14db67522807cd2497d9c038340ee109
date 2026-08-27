@@ -1,0 +1,23 @@
+apps/web/app/api/projects/[projectId]/branches/track-pr/route.ts
+  s_dd6d8dae5a12fe::t_dbeaef34161d1c 39-43,344-347
+prompts/create_pull_request.md
+  s_dd6d8dae5a12fe::t_dbeaef34161d1c 62-71
+prompts/create_pull_request_with_graphite.md
+  s_dd6d8dae5a12fe::t_dbeaef34161d1c 1-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "2c8fb0ed14db67522807cd2497d9c038340ee109",
+  "prompts": {},
+  "sessions": {
+    "s_dd6d8dae5a12fe": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0408b-b653-71a1-bb2b-b80ec53d777d",
+        "model": "openai.gpt-5.6-terra"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    }
+  }
+}
