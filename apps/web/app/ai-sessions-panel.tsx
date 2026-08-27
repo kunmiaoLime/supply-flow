@@ -13,6 +13,7 @@ import {
   Bot,
   Check,
   Circle,
+  Copy,
   KeyRound,
   Lock,
   Plus,
@@ -514,6 +515,14 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
     setRefreshingTerminalSessionKey(key);
   }
 
+  async function copyTmuxSessionName(tmuxSessionName: string) {
+    try {
+      await navigator.clipboard.writeText(tmuxSessionName);
+    } catch {
+      setSessionError("Unable to copy the tmux session ID. Check browser clipboard permissions.");
+    }
+  }
+
   function completeTerminalRefresh(requestId: number) {
     setRefreshingTerminalSessionKey((currentSessionKey) =>
       terminalRefreshRequest?.requestId === requestId ? null : currentSessionKey
@@ -637,9 +646,26 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
               <div className="ai-session-terminal-header">
                 <div>
                   <span
-                    className={activeSession.session.status === "running" ? "is-running" : ""}
+                    className={`terminal-status-dot${
+                      activeSession.session.status === "running" ? " is-running" : ""
+                    }`}
                   />
                   <strong>Terminal</strong>
+                  <span
+                    className="tmux-session-name"
+                    title={activeSession.session.tmuxSessionName}
+                  >
+                    {activeSession.session.tmuxSessionName}
+                  </span>
+                  <button
+                    aria-label={`Copy tmux session ID ${activeSession.session.tmuxSessionName}`}
+                    className="session-icon-button tmux-session-copy"
+                    onClick={() => void copyTmuxSessionName(activeSession.session.tmuxSessionName)}
+                    title="Copy tmux session ID"
+                    type="button"
+                  >
+                    <Copy aria-hidden="true" />
+                  </button>
                 </div>
                 <div className="ai-session-terminal-actions">
                   {activeSession.session.status === "starting" ||
