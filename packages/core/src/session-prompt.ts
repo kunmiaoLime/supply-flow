@@ -15,6 +15,12 @@ export function prependCodexWriteModeBootstrap(prompt: string): string {
   return `${codexWriteModeBootstrap}\n\n${requirePromptContent(prompt)}`;
 }
 
+export function withoutCodexWriteModeBootstrap(prompt: string): string {
+  const preparedPrompt = requirePromptContent(prompt);
+  const prefix = `${codexWriteModeBootstrap}\n\n`;
+  return preparedPrompt.startsWith(prefix) ? preparedPrompt.slice(prefix.length) : preparedPrompt;
+}
+
 export function prepareInitialAiSessionPrompt(
   prompt: string,
   options?: InitialAiSessionPromptOptions

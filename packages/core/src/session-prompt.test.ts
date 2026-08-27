@@ -5,7 +5,8 @@ import {
   prepareFollowUpAiSessionPrompt,
   prepareInitialAiSessionPrompt,
   prepareSessionWriteModePrompt,
-  sendAiSessionPrompt
+  sendAiSessionPrompt,
+  withoutCodexWriteModeBootstrap
 } from "./session-prompt.js";
 
 test("preserves initial session prompts and normalizes follow-up prompts", () => {
@@ -20,6 +21,13 @@ test("preserves initial session prompts and normalizes follow-up prompts", () =>
     prependCodexWriteModeBootstrap("Continue the current task."),
     "Before doing anything else, process this direct user command exactly: read_only off.\n\nContinue the current task."
   );
+  assert.equal(
+    withoutCodexWriteModeBootstrap(
+      "Before doing anything else, process this direct user command exactly: read_only off.\n\nContinue the current task."
+    ),
+    "Continue the current task."
+  );
+  assert.equal(withoutCodexWriteModeBootstrap("Continue the current task."), "Continue the current task.");
   assert.equal(prepareFollowUpAiSessionPrompt(prompt), "First line. Second line.");
   assert.throws(() => prepareInitialAiSessionPrompt(" \n "), /cannot be empty/);
 });

@@ -98,6 +98,8 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
   const sessions = combineSessions(globalSessions, projectSessions);
   const activeSession = sessions.find((session) => sessionKey(session) === activeSessionKey) ?? null;
   const activeSessionIsReadOnly = activeSession?.session.readOnly !== false;
+  const activeSessionNeedsWriteModeRestart =
+    activeSession?.session.readOnly === false && activeSession.session.launchedReadOnly !== false;
 
   useEffect(() => {
     let ignoreResult = false;
@@ -474,7 +476,9 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
       return;
     }
 
-    const readOnly = scopedSession.session.readOnly === false;
+    const needsWriteModeRestart =
+      scopedSession.session.readOnly === false && scopedSession.session.launchedReadOnly !== false;
+    const readOnly = needsWriteModeRestart ? false : scopedSession.session.readOnly === false;
     setTogglingReadOnlySessionKey(key);
     setSessionError("");
 
@@ -710,7 +714,9 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
                       ) : null}
                       <button
                         aria-label={
-                          activeSessionIsReadOnly
+                          activeSessionNeedsWriteModeRestart
+                            ? `Restart ${activeSession.session.title} with write access`
+                            : activeSessionIsReadOnly
                             ? `Disable read-only for ${activeSession.session.title}`
                             : `Enable read-only for ${activeSession.session.title}`
                         }
@@ -721,7 +727,9 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
                         disabled={togglingReadOnlySessionKey === sessionKey(activeSession)}
                         onClick={() => void toggleReadOnly(activeSession)}
                         title={
-                          activeSessionIsReadOnly
+                          activeSessionNeedsWriteModeRestart
+                            ? "Restart with write access"
+                            : activeSessionIsReadOnly
                             ? "Read-only is on. Disable read-only"
                             : "Read-only is off. Enable read-only"
                         }

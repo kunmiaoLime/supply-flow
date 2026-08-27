@@ -1,12 +1,9 @@
 import path from "node:path";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
 import { FileSessionStore } from "@supply-flow/core/file-session-store";
-import {
-  prependCodexWriteModeBootstrap,
-  sendAiSessionPrompt
-} from "@supply-flow/core/session-prompt";
 import { TmuxAdapter } from "@supply-flow/core/tmux";
 import { NextResponse } from "next/server";
+import { restartProjectSession } from "../../session-service";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -47,12 +44,7 @@ export async function POST(request: Request, context: SessionRouteContext) {
       );
     }
 
-    const updated = await store.update(session.id, { readOnly });
-    await sendAiSessionPrompt(
-      tmux,
-      updated.tmuxSessionName,
-      readOnlyModePrompt(readOnly, updated.providerId)
-    );
+    const updated = await restartProjectSession(project.project_id, session, readOnly);
     return NextResponse.json({ session: updated });
   } catch (error) {
     return NextResponse.json(
@@ -81,16 +73,6 @@ async function parseReadOnly(request: Request): Promise<boolean | null> {
   } catch {
     return null;
   }
-}
-
-function readOnlyModePrompt(readOnly: boolean, providerId: string): string {
-  const prompt = `Supply Flow changed this session's local read-only mode to ${
-    readOnly ? "on" : "off"
-  } and persisted it in the project session index. Reload the current session's readOnly value before any filesystem write and follow the repository-local write-mode policy.`;
-
-  return providerId === "codex" && !readOnly
-    ? prependCodexWriteModeBootstrap(prompt)
-    : prompt;
 }
 
 function projectDirectory(projectId: string): string {

@@ -14,7 +14,9 @@ export const SessionRecordSchema = z.object({
   model: z.string().trim().min(1).max(120).optional(),
   reasoningEffort: ReasoningEffortSchema.optional(),
   readOnly: z.boolean().optional(),
+  launchedReadOnly: z.boolean().optional(),
   yoloMode: z.boolean().optional(),
+  additionalWritableDirectories: z.array(z.string().min(1)).optional(),
   notifyWhenComplete: z.boolean().optional(),
   workspacePath: z.string().min(1),
   tmuxSessionName: z.string().min(1),
@@ -54,7 +56,7 @@ export const SessionEventSchema = z.object({
 export type SessionEvent = z.infer<typeof SessionEventSchema>;
 
 export type SessionUpdate = Partial<
-  Pick<SessionRecord, "status" | "readOnly" | "notifyWhenComplete">
+  Pick<SessionRecord, "status" | "readOnly" | "launchedReadOnly" | "notifyWhenComplete">
 > & {
   lastError?: string;
 };

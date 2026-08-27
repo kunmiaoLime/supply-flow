@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { readFile, stat } from "node:fs/promises";
+import { mkdir, readFile, stat } from "node:fs/promises";
+import { homedir } from "node:os";
 import path from "node:path";
 import {
   resolveAiModelDefault,
@@ -14,7 +15,8 @@ import { findProvider } from "@supply-flow/core/providers";
 import type { SessionRecord } from "@supply-flow/core/session";
 import {
   prepareInitialAiSessionPrompt,
-  prepareSessionWriteModePrompt
+  prepareSessionWriteModePrompt,
+  withoutCodexWriteModeBootstrap
 } from "@supply-flow/core/session-prompt";
 import { TmuxAdapter } from "@supply-flow/core/tmux";
 
@@ -24,6 +26,7 @@ export const projectRoot = path.resolve(
 const CONTEXT_FILE = "context.md";
 const READ_ONLY_PROMPT_PATH = path.join(projectRoot, "prompts", "read_only.md");
 const MAX_SESSION_GOAL_LENGTH = 16_000;
+const CODEX_THREAD_STATE_DIRECTORY = path.join(homedir(), ".codex", "read_only");
 
 export const dataDirectory =
   process.env.SUPPLY_FLOW_DATA_DIR ?? path.join(projectRoot, ".supply-flow");
@@ -87,6 +90,17 @@ export async function createProjectSession(
   }
 
   const id = `session_${randomUUID().replaceAll("-", "")}`;
+  const configuredWritableDirectories = Array.from(
+    new Set([
+      ...(input.additionalWritableDirectories ?? []),
+      projectDirectory(project.project_id)
+    ])
+  );
+  const launchWritableDirectories = await launchWritableDirectoriesFor(
+    configuredWritableDirectories,
+    provider.id,
+    sessionConfiguration.readOnly
+  );
   const contextGoal = input.loadProjectContext === false
     ? null
     : await withProjectContext(project.project_id, input.goal);
@@ -122,7 +136,9 @@ export async function createProjectSession(
       ? { reasoningEffort: sessionConfiguration.reasoningEffort }
       : {}),
     readOnly: sessionConfiguration.readOnly,
+    launchedReadOnly: sessionConfiguration.readOnly,
     yoloMode: sessionConfiguration.yoloMode,
+    additionalWritableDirectories: configuredWritableDirectories,
     workspacePath,
     tmuxSessionName,
     status: "starting",
@@ -146,12 +162,7 @@ export async function createProjectSession(
       launch: withManagedSessionEnvironment(
         provider.createLaunchSpec({
           initialPrompt: goal,
-          additionalWritableDirectories: Array.from(
-            new Set([
-              ...(input.additionalWritableDirectories ?? []),
-              projectDirectory(project.project_id)
-            ])
-          ),
+          additionalWritableDirectories: launchWritableDirectories,
           bypassApprovalsAndSandbox: sessionConfiguration.yoloMode,
           readOnly: sessionConfiguration.readOnly,
           model: sessionConfiguration.model,
@@ -181,6 +192,85 @@ export async function createProjectSession(
     await store.appendEvent({
       schemaVersion: 1,
       sessionId: id,
+      timestamp: new Date().toISOString(),
+      type: "failed",
+      message
+    });
+    throw error;
+  }
+}
+
+export async function restartProjectSession(
+  projectId: string,
+  session: SessionRecord,
+  readOnly: boolean
+): Promise<SessionRecord> {
+  if (session.readOnly === readOnly && session.launchedReadOnly === readOnly) {
+    return session;
+  }
+
+  const provider = findProvider(session.providerId);
+  if (!provider) {
+    throw new Error(`AI provider "${session.providerId}" is not configured.`);
+  }
+
+  const configuredWritableDirectories =
+    session.additionalWritableDirectories ?? [projectDirectory(projectId)];
+  const launchWritableDirectories = await launchWritableDirectoriesFor(
+    configuredWritableDirectories,
+    provider.id,
+    readOnly
+  );
+  const goal = prepareInitialAiSessionPrompt(restartedSessionGoal(projectId, session, readOnly), {
+    bootstrapCodexWriteMode: provider.id === "codex" && !readOnly
+  });
+  if (goal.length > MAX_SESSION_GOAL_LENGTH) {
+    throw new ProjectSessionError(
+      "The session goal is too long to restart after changing write mode.",
+      400
+    );
+  }
+
+  const store = new FileSessionStore(projectDirectory(projectId));
+  const restarting = await store.update(session.id, {
+    readOnly,
+    launchedReadOnly: readOnly,
+    status: "starting"
+  });
+  const tmux = new TmuxAdapter();
+
+  try {
+    await tmux.terminateSession(session.tmuxSessionName);
+    await tmux.createSession({
+      sessionName: session.tmuxSessionName,
+      workspacePath: session.workspacePath,
+      outputPath: terminalLogPath(projectId, session.id),
+      launch: withManagedSessionEnvironment(
+        provider.createLaunchSpec({
+          initialPrompt: goal,
+          additionalWritableDirectories: launchWritableDirectories,
+          bypassApprovalsAndSandbox: session.yoloMode,
+          readOnly,
+          model: session.model,
+          reasoningEffort: session.reasoningEffort
+        })
+      )
+    });
+    const restarted = await store.update(restarting.id, { status: "running" });
+    await store.appendEvent({
+      schemaVersion: 1,
+      sessionId: restarted.id,
+      timestamp: new Date().toISOString(),
+      type: "started",
+      message: `Restarted ${provider.displayName} to apply write mode ${readOnly ? "on" : "off"}.`
+    });
+    return restarted;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to restart the AI session.";
+    await store.update(restarting.id, { status: "failed", lastError: message });
+    await store.appendEvent({
+      schemaVersion: 1,
+      sessionId: restarting.id,
       timestamp: new Date().toISOString(),
       type: "failed",
       message
@@ -245,6 +335,41 @@ async function getSessionWriteModePrompt(
       }`
     );
   }
+}
+
+async function launchWritableDirectoriesFor(
+  configuredDirectories: readonly string[],
+  providerId: string,
+  readOnly: boolean
+): Promise<string[]> {
+  const directories = Array.from(new Set(configuredDirectories));
+  if (providerId !== "codex" || readOnly) {
+    return directories;
+  }
+
+  await mkdir(CODEX_THREAD_STATE_DIRECTORY, { recursive: true });
+  return [...directories, CODEX_THREAD_STATE_DIRECTORY];
+}
+
+function restartedSessionGoal(
+  projectId: string,
+  session: SessionRecord,
+  readOnly: boolean
+): string {
+  const mode = readOnly ? "on" : "off";
+  const savedGoal = withoutCodexWriteModeBootstrap(session.goal).replace(
+    /Configured write mode: (?:on|off)\./,
+    `Configured write mode: ${mode}.`
+  );
+
+  return [
+    `Supply Flow restarted this session to apply write mode ${mode} to the provider sandbox.`,
+    `The prior model process cannot retain its conversation state. Read the recent terminal transcript at ${JSON.stringify(
+      terminalLogPath(projectId, session.id)
+    )} before continuing so completed work is not repeated.`,
+    "The current read-only value in the project session index is authoritative.",
+    savedGoal
+  ].join("\n\n");
 }
 
 function buildSessionWriteModeUpdaterCommand(projectId: string, sessionId: string): string {
