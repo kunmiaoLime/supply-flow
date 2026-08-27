@@ -212,6 +212,17 @@ export function TmuxTerminal({
       }
     }
 
+    function scrollToBottomAfterRender() {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          if (!cancelled) {
+            const viewport = wrapperRef.current;
+            viewport?.scrollTo({ top: viewport.scrollHeight });
+          }
+        });
+      });
+    }
+
     async function pollTerminal() {
       const terminal = terminalRef.current;
       if (!terminal || cancelled) {
@@ -221,6 +232,7 @@ export function TmuxTerminal({
       const requestedTmuxRefresh = refreshFromTmux;
       refreshFromTmux = false;
       const includeTranscript = !transcriptLoaded || requestedTmuxRefresh;
+      const shouldScrollToBottom = includeTranscript;
 
       try {
         const query = includeTranscript ? "?transcript=1" : "";
@@ -244,6 +256,9 @@ export function TmuxTerminal({
         }
         if (data.terminalSnapshot) {
           await replaceLiveScreen(terminal, data.output ?? "");
+        }
+        if (shouldScrollToBottom) {
+          scrollToBottomAfterRender();
         }
         if (cancelled) {
           return;

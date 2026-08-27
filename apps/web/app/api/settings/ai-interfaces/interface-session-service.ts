@@ -316,7 +316,7 @@ export async function readAiInterfaceTerminalOutput(
       outputTruncated: true,
       terminalSnapshot: true,
       ...(includeTranscript
-        ? { transcript: await readSessionTranscript(session) ?? "" }
+        ? { transcript: await readSessionTranscript(session, terminalLogPath(session.id)) ?? "" }
         : {})
     };
   } catch {

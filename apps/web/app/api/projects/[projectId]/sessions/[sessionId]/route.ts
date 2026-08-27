@@ -5,6 +5,7 @@ import type { SessionRecord } from "@supply-flow/core/session";
 import { TmuxAdapter } from "@supply-flow/core/tmux";
 import { NextResponse } from "next/server";
 import { readSessionTranscript } from "../../../../../terminal-transcript";
+import { terminalLogPath } from "../session-service";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -42,7 +43,9 @@ export async function GET(request: Request, context: SessionRouteContext) {
     }
     const [output, transcript] = await Promise.all([
       readTmuxSnapshot(session.tmuxSessionName),
-      transcriptRequested(request) ? readSessionTranscript(session) : undefined
+      transcriptRequested(request)
+        ? readSessionTranscript(session, terminalLogPath(project.project_id, session.id))
+        : undefined
     ]);
     return NextResponse.json({
       ...output,

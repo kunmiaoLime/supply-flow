@@ -12,12 +12,18 @@ interface ClaudeJournalEntry {
   };
 }
 
-export async function readSessionTranscript(session: SessionRecord): Promise<string | undefined> {
-  if (session.providerId !== "claude-code") {
-    return undefined;
+export async function readSessionTranscript(
+  session: SessionRecord,
+  terminalLogPath?: string
+): Promise<string | undefined> {
+  if (session.providerId === "claude-code") {
+    const transcript = await readClaudeTranscript(session);
+    if (transcript !== undefined) {
+      return transcript;
+    }
   }
 
-  return readClaudeTranscript(session);
+  return terminalLogPath ? readPlainTerminalTranscript(terminalLogPath) : undefined;
 }
 
 async function readClaudeTranscript(session: SessionRecord): Promise<string | undefined> {
@@ -117,6 +123,38 @@ function isManagedInitialPrompt(content: string, sessionId: string): boolean {
 
 function toTerminalText(value: string): string {
   return value.replaceAll("\u001b", "").replace(/\r?\n/g, "\r\n");
+}
+
+async function readPlainTerminalTranscript(filePath: string): Promise<string | undefined> {
+  try {
+    const output = await readFile(filePath, "utf8");
+    if (usesAlternateScreen(output)) {
+      return undefined;
+    }
+
+    return trimTranscript(toPlainTerminalText(output));
+  } catch (error) {
+    if (isMissingFileError(error)) {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+function usesAlternateScreen(value: string): boolean {
+  return /\u001b\[\?(?:47|1047|1049)h/.test(value);
+}
+
+function toPlainTerminalText(value: string): string {
+  return value
+    .replace(/\u001b\][\s\S]*?(?:\u0007|\u001b\\)/g, "")
+    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "")
+    .replace(/\u001b[()][0-?]/g, "")
+    .replace(/\u001b[=><]/g, "")
+    .replaceAll("\u0000", "")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[\u0001-\u0008\u000b-\u001f\u007f-\u009f]/g, "")
+    .replace(/\n/g, "\r\n");
 }
 
 function trimTranscript(value: string): string {
