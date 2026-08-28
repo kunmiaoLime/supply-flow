@@ -1814,6 +1814,32 @@ code {
   flex-wrap: wrap;
 }
 
+.branch-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.branch-merge-state {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.branch-statuses {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .add-repository-button,
 .add-requirement-button,
 .write-rfc-button,
@@ -3640,6 +3666,7 @@ code {
   color: #ab3429;
 }
 
+.branch-filter-control,
 .pull-request-filter-control,
 .pull-request-monitor-control {
   display: inline-flex;
@@ -3654,10 +3681,12 @@ code {
   white-space: nowrap;
 }
 
+.branch-filter-control,
 .pull-request-filter-control {
   min-height: 36px;
 }
 
+.branch-filter-control input,
 .pull-request-filter-control input,
 .pull-request-monitor-control input {
   position: relative;
@@ -3672,6 +3701,7 @@ code {
   transition: background 120ms ease, border-color 120ms ease;
 }
 
+.branch-filter-control input::after,
 .pull-request-filter-control input::after,
 .pull-request-monitor-control input::after {
   position: absolute;
@@ -3685,23 +3715,27 @@ code {
   transition: transform 120ms ease;
 }
 
+.branch-filter-control input:checked,
 .pull-request-filter-control input:checked,
 .pull-request-monitor-control input:checked {
   border-color: var(--teal);
   background: var(--teal);
 }
 
+.branch-filter-control input:checked::after,
 .pull-request-filter-control input:checked::after,
 .pull-request-monitor-control input:checked::after {
   transform: translateX(13px);
 }
 
+.branch-filter-control input:focus-visible,
 .pull-request-filter-control input:focus-visible,
 .pull-request-monitor-control input:focus-visible {
   outline: 3px solid rgba(8, 124, 105, 0.25);
   outline-offset: 2px;
 }
 
+.branch-filter-control input:disabled,
 .pull-request-filter-control input:disabled,
 .pull-request-monitor-control input:disabled {
   cursor: wait;

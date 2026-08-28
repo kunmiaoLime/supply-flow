@@ -44,7 +44,7 @@ export class FileBranchStore {
   }
 
   public async add(branch: ProjectBranch): Promise<ProjectBranch> {
-    const parsedBranch = ProjectBranchSchema.parse(branch);
+    const parsedBranch = assignBranchCreationTime(ProjectBranchSchema.parse(branch));
     assertTrackableBranch(parsedBranch);
     const branches = await this.list();
     if (branches.some((currentBranch) => isSameBranch(currentBranch, parsedBranch))) {
@@ -56,7 +56,7 @@ export class FileBranchStore {
   }
 
   public async ensure(branch: ProjectBranch): Promise<{ branch: ProjectBranch; created: boolean }> {
-    const parsedBranch = ProjectBranchSchema.parse(branch);
+    const parsedBranch = assignBranchCreationTime(ProjectBranchSchema.parse(branch));
     assertTrackableBranch(parsedBranch);
     const branches = await this.list();
     const existingBranch = branches.find((currentBranch) => isSameBranch(currentBranch, parsedBranch));
@@ -70,7 +70,7 @@ export class FileBranchStore {
 
   public async update(current: ProjectBranch, next: ProjectBranch): Promise<ProjectBranch> {
     const parsedCurrent = ProjectBranchSchema.parse(current);
-    const parsedNext = ProjectBranchSchema.parse(next);
+    const parsedNext = preserveBranchCreationTime(parsedCurrent, ProjectBranchSchema.parse(next));
     assertTrackableBranch(parsedNext);
     const branches = await this.list();
     const index = branches.findIndex((branch) => isSameBranch(branch, parsedCurrent));
@@ -147,8 +147,21 @@ function assertTrackableBranch(branch: ProjectBranch): void {
 function sortBranches(branches: ProjectBranch[]): ProjectBranch[] {
   return [...branches].sort(
     (first, second) =>
-      first.repository_local.localeCompare(second.repository_local) || first.name.localeCompare(second.name)
+      first.repository_local.localeCompare(second.repository_local) ||
+      (second.created_at ?? "").localeCompare(first.created_at ?? "") ||
+      second.name.localeCompare(first.name)
   );
+}
+
+function assignBranchCreationTime(branch: ProjectBranch): ProjectBranch {
+  return branch.created_at ? branch : { ...branch, created_at: new Date().toISOString() };
+}
+
+function preserveBranchCreationTime(
+  current: ProjectBranch,
+  next: ProjectBranch
+): ProjectBranch {
+  return current.created_at ? { ...next, created_at: current.created_at } : next;
 }
 
 function isSameBranch(first: ProjectBranch, second: ProjectBranch): boolean {
@@ -176,7 +189,8 @@ function hasMissingOrchestrationFields(value: unknown): boolean {
         !("review_session_id" in branch) ||
         !("review_session_configuration" in branch) ||
         !("review_state" in branch) ||
-        !("auto_resolve" in branch))
+        !("auto_resolve" in branch) ||
+        !("merged" in branch))
   );
 }
 

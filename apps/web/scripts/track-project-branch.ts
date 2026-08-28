@@ -24,6 +24,7 @@ async function main(): Promise<void> {
   const trackedBranch = {
     name: arguments_.branch,
     repository_local: arguments_.repositoryLocal,
+    merged: false,
     jira_ticket: arguments_.jiraTicket,
     implementation_session_id: arguments_.sessionId,
     implementation_session_configuration: arguments_.implementationSessionConfiguration,

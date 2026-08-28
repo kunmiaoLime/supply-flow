@@ -67,6 +67,7 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
   const [branches, setBranches] = useState<ProjectBranch[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [listError, setListError] = useState("");
+  const [showActiveOnly, setShowActiveOnly] = useState(true);
   const [dialogMode, setDialogMode] = useState<BranchDialogMode>(null);
   const [branchForm, setBranchForm] = useState<BranchForm>(emptyBranchForm);
   const [originalBranch, setOriginalBranch] = useState<ProjectBranch | null>(null);
@@ -96,6 +97,7 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
   const [isReviewConfigurationExpanded, setIsReviewConfigurationExpanded] = useState(false);
   const repositoryInput = useRef<HTMLSelectElement>(null);
   const hasRepositories = project.repos.length > 0;
+  const visibleBranches = showActiveOnly ? branches.filter((branch) => !branch.merged) : branches;
 
   useEffect(() => {
     let ignoreResult = false;
@@ -667,15 +669,25 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
             <p>Repository scopes</p>
             <h2 id="branches-heading">Branches</h2>
           </div>
-          <button
-            className="import-branch-button"
-            disabled={!hasRepositories || isLoading}
-            onClick={openImportDialog}
-            type="button"
-          >
-            <ListPlus aria-hidden="true" />
-            <span>Import branch</span>
-          </button>
+          <div className="branch-section-actions">
+            <label className="branch-filter-control" title="Hide merged branches">
+              <input
+                checked={showActiveOnly}
+                onChange={(event) => setShowActiveOnly(event.target.checked)}
+                type="checkbox"
+              />
+              <span>Active only</span>
+            </label>
+            <button
+              className="import-branch-button"
+              disabled={!hasRepositories || isLoading}
+              onClick={openImportDialog}
+              type="button"
+            >
+              <ListPlus aria-hidden="true" />
+              <span>Import branch</span>
+            </button>
+          </div>
         </div>
 
         {listError ? (
@@ -699,9 +711,17 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
               <span>Import a local branch from an associated repository.</span>
             </div>
           </div>
+        ) : visibleBranches.length === 0 ? (
+          <div className="branch-empty-state">
+            <GitBranch aria-hidden="true" />
+            <div>
+              <strong>No active branches</strong>
+              <span>All tracked branches are merged.</span>
+            </div>
+          </div>
         ) : (
           <ul className="branch-list">
-            {branches.map((branch) => {
+            {visibleBranches.map((branch) => {
               const repository = project.repos.find(
                 (currentRepository) => currentRepository.local === branch.repository_local
               );
@@ -721,9 +741,12 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
                     <strong>{branch.name}</strong>
                     <span>{repository?.name ?? "Removed repository"}</span>
                     <span>{task?.title ?? (branch.jira_ticket ? "Removed task" : "No Jira task")}</span>
-                    <span className={`branch-review-state is-${branch.review_state}`}>
-                      {reviewStateLabel(branch.review_state)}
-                    </span>
+                    <div className="branch-statuses">
+                      <span className={`branch-review-state is-${branch.review_state}`}>
+                        {reviewStateLabel(branch.review_state)}
+                      </span>
+                      {branch.merged ? <span className="branch-merge-state">Merged</span> : null}
+                    </div>
                     <code>{branch.repository_local}</code>
                   </div>
                   <div className="repository-actions">
@@ -1209,7 +1232,9 @@ function isSameBranch(first: ProjectBranch | null, second: ProjectBranch): boole
 function sortBranches(branches: ProjectBranch[]): ProjectBranch[] {
   return [...branches].sort(
     (first, second) =>
-      first.repository_local.localeCompare(second.repository_local) || first.name.localeCompare(second.name)
+      first.repository_local.localeCompare(second.repository_local) ||
+      (second.created_at ?? "").localeCompare(first.created_at ?? "") ||
+      second.name.localeCompare(first.name)
   );
 }
 

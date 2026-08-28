@@ -11,6 +11,8 @@ test("tracks feature branches by repository path in branches.json", async () => 
   const feature = {
     name: "kun/SXP-123-ride-validation",
     repository_local: "/Users/example/code/ios/Apps/Supply",
+    created_at: "2026-08-20T00:00:00.000Z",
+    merged: false,
     jira_ticket: "https://limebike.atlassian.net/browse/SXP-123",
     implementation_session_id: "session_implementation",
     implementation_session_configuration: {
@@ -47,10 +49,34 @@ test("tracks feature branches by repository path in branches.json", async () => 
         branches: [feature]
       }
     );
+    const newerFeature = {
+      ...feature,
+      name: "kun/SXP-122-ride-validation-follow-up",
+      created_at: "2026-08-21T00:00:00.000Z"
+    };
+    await store.add(newerFeature);
+    assert.deepEqual(await store.list(), [newerFeature, feature]);
+    assert.deepEqual(
+      JSON.parse(await readFile(path.join(rootDirectory, "branches.json"), "utf8")),
+      {
+        schemaVersion: 1,
+        branches: [newerFeature, feature]
+      }
+    );
+    const mergedFeature = await store.update(feature, { ...feature, merged: true });
+    assert.deepEqual(await store.list(), [newerFeature, mergedFeature]);
+    assert.deepEqual(
+      JSON.parse(await readFile(path.join(rootDirectory, "branches.json"), "utf8")),
+      {
+        schemaVersion: 1,
+        branches: [newerFeature, mergedFeature]
+      }
+    );
     await assert.rejects(
       store.add({
         name: "master",
         repository_local: feature.repository_local,
+        merged: false,
         jira_ticket: null,
         implementation_session_id: null,
         implementation_session_configuration: null,
@@ -67,6 +93,7 @@ test("tracks feature branches by repository path in branches.json", async () => 
       store.ensure({
         name: "main",
         repository_local: "/Users/example/code/limebike-web",
+        merged: false,
         jira_ticket: null,
         implementation_session_id: null,
         implementation_session_configuration: null,
@@ -83,6 +110,8 @@ test("tracks feature branches by repository path in branches.json", async () => 
     const renamed = {
       name: "kun/SXP-123-validated-ride",
       repository_local: feature.repository_local,
+      created_at: feature.created_at,
+      merged: mergedFeature.merged,
       jira_ticket: feature.jira_ticket,
       implementation_session_id: feature.implementation_session_id,
       implementation_session_configuration: feature.implementation_session_configuration,
@@ -93,12 +122,12 @@ test("tracks feature branches by repository path in branches.json", async () => 
       review_state: feature.review_state,
       auto_resolve: feature.auto_resolve
     };
-    assert.deepEqual(await store.update(feature, renamed), renamed);
+    assert.deepEqual(await store.update(mergedFeature, renamed), renamed);
     await assert.rejects(
       store.update(renamed, { ...renamed, name: "main" }),
       /main and master branches cannot be tracked/
     );
-    assert.deepEqual(await store.list(), [renamed]);
+    assert.deepEqual(await store.list(), [newerFeature, renamed]);
     await assert.rejects(store.add(renamed), /already tracked/);
   } finally {
     await rm(rootDirectory, { force: true, recursive: true });
@@ -139,6 +168,7 @@ test("removes default branches from legacy branch records", async () => {
     const feature = {
       name: "feature/legacy",
       repository_local: "/Users/example/code/supply-flow",
+      merged: false,
       jira_ticket: null,
       implementation_session_id: null,
       implementation_session_configuration: null,
@@ -182,6 +212,7 @@ test("migrates legacy branches with no review orchestration fields", async () =>
     const store = new FileBranchStore(rootDirectory);
     const migratedBranch = {
       ...legacyBranch,
+      merged: false,
       implementation_session_id: null,
       implementation_session_configuration: null,
       review_session_id: null,

@@ -70,6 +70,11 @@ interface GitHubPullRequestDescriptionPayload {
   body: string;
 }
 
+interface GitHubPullRequestStatusPayload {
+  state: string;
+  isDraft: boolean;
+}
+
 interface GitHubPullRequestHealthPayload {
   state: string;
   isDraft: boolean;
@@ -188,6 +193,15 @@ export async function getGitHubPullRequest(
     title: payload.title,
     branch: payload.headRefName
   };
+}
+
+export async function getGitHubPullRequestStatus(
+  reference: GitHubPullRequestReference
+): Promise<ProjectPullRequestStatus> {
+  const payload = parseGitHubPullRequestStatusPayload(
+    await runGh(["pr", "view", reference.url, "--json", "state,isDraft"])
+  );
+  return classifyGitHubPullRequestStatus(payload.state, payload.isDraft);
 }
 
 export async function getGitHubPullRequestDescription(
@@ -1172,6 +1186,24 @@ function parseGitHubPullRequestHealthPayload(value: unknown): GitHubPullRequestH
     isDraft: value.isDraft,
     baseRefName: value.baseRefName,
     statusCheckRollup: value.statusCheckRollup
+  };
+}
+
+function parseGitHubPullRequestStatusPayload(value: unknown): GitHubPullRequestStatusPayload {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("state" in value) ||
+    !("isDraft" in value) ||
+    typeof value.state !== "string" ||
+    typeof value.isDraft !== "boolean"
+  ) {
+    throw new GitHubPullRequestError("GitHub returned invalid pull request status.", 502);
+  }
+
+  return {
+    state: value.state,
+    isDraft: value.isDraft
   };
 }
 

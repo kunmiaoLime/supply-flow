@@ -247,6 +247,7 @@ function toProjectBranch(input: BranchMutationInput): ProjectBranch {
   return {
     name: input.name,
     repository_local: input.repositoryLocal,
+    merged: false,
     jira_ticket: input.jiraTicket,
     implementation_session_id: null,
     implementation_session_configuration: null,

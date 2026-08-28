@@ -63,6 +63,13 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
     };
   }, [project.project_id]);
 
+  useEffect(() => {
+    void fetch(branchMergeStatusUrl(project.project_id), {
+      cache: "no-store",
+      method: "POST"
+    }).catch(() => undefined);
+  }, [project.project_id]);
+
   const hasMonitoredPullRequests = pullRequests.some(
     (pullRequest) => pullRequest.monitoring_enabled
   );
@@ -672,6 +679,10 @@ function removePullRequestUrl(projectId: string, pullRequestUrl: string): string
 
 function scanPullRequestsUrl(projectId: string): string {
   return `${pullRequestsUrl(projectId)}/scan`;
+}
+
+function branchMergeStatusUrl(projectId: string): string {
+  return `/api/projects/${encodeURIComponent(projectId)}/branches/merge-status`;
 }
 
 function addressPullRequestUrl(projectId: string): string {
