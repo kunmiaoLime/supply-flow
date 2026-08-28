@@ -1,0 +1,56 @@
+packages/core/src/branch.ts
+  s_cd25ff61a4f52a::t_3d28c0239379c7 48
+  s_cd25ff61a4f52a::t_a5f9647228b326 47
+packages/core/src/github-pull-request.ts
+  s_cd25ff61a4f52a::t_f413639ea43cd6 73-77,198-206,1192-1206,1208
+  s_cd25ff61a4f52a::t_b30a9521efaa22 1207
+  s_cd25ff61a4f52a::t_1a96e9e5e83771 1209
+packages/core/src/file-branch-store.test.ts
+  s_cd25ff61a4f52a::t_a5f9647228b326 14,54-55,113
+  s_cd25ff61a4f52a::t_3d28c0239379c7 15,79,96,171,215
+  s_cd25ff61a4f52a::t_04b4f35900d111 66-74,114,125
+  s_cd25ff61a4f52a::t_25333ae61bdf89 52-53,56-65,130
+apps/web/scripts/track-project-branch.ts
+  s_cd25ff61a4f52a::t_3d28c0239379c7 27
+apps/web/app/pull-requests-section.tsx
+  s_cd25ff61a4f52a::t_f413639ea43cd6 66-72,684-685
+  s_cd25ff61a4f52a::t_feee88f73998dd 686-687
+packages/core/src/file-branch-store.ts
+  s_cd25ff61a4f52a::t_3d28c0239379c7 192-193
+  s_cd25ff61a4f52a::t_a5f9647228b326 47,59,73,150-152,156-165
+  s_cd25ff61a4f52a::t_6f34b0de726970 166
+apps/web/app/branches-section.tsx
+  s_cd25ff61a4f52a::t_a5f9647228b326 1235-1237
+  s_cd25ff61a4f52a::t_f413639ea43cd6 70,100,672-690,714-721,724
+  s_cd25ff61a4f52a::t_62dfd9e3d2af73 744-749
+apps/web/app/api/projects/[projectId]/branches/route.ts
+  s_cd25ff61a4f52a::t_3d28c0239379c7 250
+apps/web/app/api/projects/[projectId]/branches/track-pr/route.ts
+  s_cd25ff61a4f52a::t_3d28c0239379c7 215
+apps/web/app/api/projects/[projectId]/branches/branch-merge-status.ts
+  s_cd25ff61a4f52a::t_34cf661526ff95 10
+  s_cd25ff61a4f52a::t_0186adf7b6afe0 40
+  s_cd25ff61a4f52a::t_f413639ea43cd6 1-9,11-39,41-75
+apps/web/app/api/projects/[projectId]/branches/merge-status/route.ts
+  s_cd25ff61a4f52a::t_f413639ea43cd6 1-29
+apps/web/app/globals.css
+  s_cd25ff61a4f52a::t_f413639ea43cd6 1817-1822,3669,3684,3689,3704,3718,3725,3731,3738
+  s_cd25ff61a4f52a::t_04b4f35900d111 1823-1835
+  s_cd25ff61a4f52a::t_62dfd9e3d2af73 1836-1842
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "17bdaa304ac8c5d9533b03eedba389e418b40ad9",
+  "prompts": {},
+  "sessions": {
+    "s_cd25ff61a4f52a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a043de-0d7b-77f0-8de5-ef9ca4ae9014",
+        "model": "openai.gpt-5.6-terra"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    }
+  }
+}
