@@ -211,7 +211,7 @@ export async function requestReviewSession(
   } else {
     session = await createProjectSession(context.project, {
       action: "review-code",
-      title: `Review: ${context.task.title}`.slice(0, 120),
+      title: `[${context.issue.key}] Review ${context.task.title}`.slice(0, 120),
       goal,
       workspacePath: context.repository.local,
       additionalWritableDirectories: [projectDirectory(context.project.project_id)],

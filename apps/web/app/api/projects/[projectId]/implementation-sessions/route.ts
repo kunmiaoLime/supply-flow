@@ -134,7 +134,7 @@ export async function POST(request: Request, context: ProjectRouteContext) {
       input.reviewSessionConfiguration ?? resolveAiModelDefault(aiModelSettings, "review-code");
     const session = await createProjectSession(project, {
       action: "implement-code",
-      title: implementationSessionTitle(task),
+      title: implementationSessionTitle(task, issue),
       goal: await buildImplementationGoal(
         project,
         task,
@@ -273,8 +273,8 @@ function parseJiraIssueLink(value: string): JiraIssue | null {
   }
 }
 
-function implementationSessionTitle(task: ProjectTask): string {
-  const prefix = "Implement: ";
+function implementationSessionTitle(task: ProjectTask, issue: JiraIssue): string {
+  const prefix = `[${issue.key}] Implement `;
   return `${prefix}${task.title}`.slice(0, 120);
 }
 

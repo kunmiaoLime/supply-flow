@@ -85,7 +85,10 @@ async function main(): Promise<void> {
       ? activeImplementationSession
       : await createProjectSession(project, {
           action: "implement-code",
-          title: `Resolve review: ${context.task.title}`.slice(0, 120),
+          title: `[${context.issue.key}] Implement resolve review: ${context.task.title}`.slice(
+            0,
+            120
+          ),
           goal: prompt,
           workspacePath: context.repository.local,
           additionalWritableDirectories: [projectDirectory(projectId)],

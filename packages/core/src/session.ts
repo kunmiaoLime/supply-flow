@@ -56,7 +56,10 @@ export const SessionEventSchema = z.object({
 export type SessionEvent = z.infer<typeof SessionEventSchema>;
 
 export type SessionUpdate = Partial<
-  Pick<SessionRecord, "status" | "readOnly" | "launchedReadOnly" | "notifyWhenComplete">
+  Pick<
+    SessionRecord,
+    "status" | "title" | "readOnly" | "launchedReadOnly" | "notifyWhenComplete"
+  >
 > & {
   lastError?: string;
 };

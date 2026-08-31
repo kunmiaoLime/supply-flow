@@ -35,6 +35,7 @@ test("stores session metadata and append-only events", async () => {
 
     const updated = await store.update("session_01", {
       status: "running",
+      title: "[SXP-123] Review repository",
       readOnly: false,
       notifyWhenComplete: true
     });
@@ -58,6 +59,7 @@ test("stores session metadata and append-only events", async () => {
     const events = await store.readEvents("session_01");
 
     assert.equal(notificationCanceled.status, "running");
+    assert.equal(notificationCanceled.title, "[SXP-123] Review repository");
     assert.equal(notificationCanceled.readOnly, false);
     assert.equal(updated.notifyWhenComplete, true);
     assert.equal(notificationCanceled.notifyWhenComplete, false);
