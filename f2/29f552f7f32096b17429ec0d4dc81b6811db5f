@@ -1,0 +1,27 @@
+packages/core/src/session.ts
+  s_f7f0fceb69359c::t_1910c5d54a9661 59-62
+apps/web/scripts/advance-project-branch-review.ts
+  s_f7f0fceb69359c::t_f669889bb3bb7c 88-91
+packages/core/src/file-session-store.test.ts
+  s_f7f0fceb69359c::t_1910c5d54a9661 38,62
+apps/web/app/branch-review-workflow.ts
+  s_f7f0fceb69359c::t_f669889bb3bb7c 214
+apps/web/app/api/projects/[projectId]/implementation-sessions/route.ts
+  s_f7f0fceb69359c::t_f669889bb3bb7c 137,276-277
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "f229f552f7f32096b17429ec0d4dc81b6811db5f",
+  "prompts": {},
+  "sessions": {
+    "s_f7f0fceb69359c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a04a12-94ee-7a32-9a45-8e704961cbaa",
+        "model": "openai.gpt-5.6-terra"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    }
+  }
+}
