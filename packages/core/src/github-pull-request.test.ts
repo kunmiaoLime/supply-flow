@@ -13,6 +13,7 @@ import {
   getApprovedGitHubReviewerLogins,
   getGitHubCiRetryTargets,
   githubRepositoryFromRemote,
+  hasGitHubPullRequestMergeConflict,
   parseGitHubPullRequestUrl
 } from "./github-pull-request.js";
 
@@ -82,6 +83,14 @@ test("summarizes GitHub CI checks", () => {
     "pending"
   );
   assert.equal(classifyGitHubPullRequestCiStatus(null), "unknown");
+});
+
+test("identifies GitHub pull request merge conflicts", () => {
+  assert.equal(hasGitHubPullRequestMergeConflict("CONFLICTING", "DIRTY"), true);
+  assert.equal(hasGitHubPullRequestMergeConflict("MERGEABLE", "DIRTY"), true);
+  assert.equal(hasGitHubPullRequestMergeConflict("CONFLICTING", "CLEAN"), true);
+  assert.equal(hasGitHubPullRequestMergeConflict("MERGEABLE", "CLEAN"), false);
+  assert.equal(hasGitHubPullRequestMergeConflict("UNKNOWN", "UNKNOWN"), false);
 });
 
 test("finds retryable CircleCI workflows and GitHub Actions runs", () => {

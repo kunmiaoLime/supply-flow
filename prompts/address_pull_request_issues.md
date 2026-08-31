@@ -28,6 +28,7 @@ Read the shared context document before editing files.
 - Unresolved review comments: <UNRESOLVED_COMMENT_COUNT>
 - Review threads awaiting a reply: <UNREPLIED_COMMENT_COUNT>
 - CI status: <CI_STATUS>
+- Merge conflict with the target branch: <HAS_MERGE_CONFLICT>
 
 ## Selected Repository
 
@@ -55,10 +56,12 @@ Read the shared context document before editing files.
    `confluence-api-token` from the macOS Keychain into shell variables only.
    Use them in memory, never print, log, export, or write either credential to
    disk.
-4. Address only actionable review feedback and CI failures that belong to this
-   pull request. Make the required code, test, or configuration changes. Do
-   not broaden the ticket scope, create a duplicate PR, or rewrite unrelated
-   work.
+4. Address only actionable review feedback, CI failures, and merge conflicts
+   that belong to this pull request. When a merge conflict is reported,
+   integrate the current target branch using the repository's existing
+   workflow, resolve only the resulting conflict, and keep both intended
+   changes. Do not broaden the ticket scope, create a duplicate PR, or
+   rewrite unrelated work.
 5. Reply to every addressed review thread before resolving it. A review thread
    needs a reply when its latest reviewer-authored comment has no later reply
    from the authenticated GitHub login. Do not duplicate an existing

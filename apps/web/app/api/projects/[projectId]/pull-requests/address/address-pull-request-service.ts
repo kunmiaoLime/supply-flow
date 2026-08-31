@@ -105,10 +105,11 @@ function assertActionablePullRequest(pullRequest: ProjectPullRequest): void {
   if (
     pullRequest.unresolved_comment_count === 0 &&
     pullRequest.unreplied_comment_count === 0 &&
-    pullRequest.ci_status !== "failure"
+    pullRequest.ci_status !== "failure" &&
+    !pullRequest.has_merge_conflict
   ) {
     throw new PullRequestAddressError(
-      "GitHub did not report unresolved or unreplied review comments, or failing CI checks, for this pull request.",
+      "GitHub did not report unresolved or unreplied review comments, failing CI checks, or merge conflicts for this pull request.",
       409
     );
   }
@@ -192,6 +193,7 @@ async function buildAddressPullRequestPrompt(
     .replaceAll("<UNRESOLVED_COMMENT_COUNT>", String(pullRequest.unresolved_comment_count))
     .replaceAll("<UNREPLIED_COMMENT_COUNT>", String(pullRequest.unreplied_comment_count))
     .replaceAll("<CI_STATUS>", pullRequest.ci_status)
+    .replaceAll("<HAS_MERGE_CONFLICT>", pullRequest.has_merge_conflict ? "Yes" : "No")
     .replaceAll("<REPOSITORY_NAME>", JSON.stringify(repository.name))
     .replaceAll("<REPOSITORY_LOCAL>", JSON.stringify(repository.local))
     .replaceAll("<REPOSITORY_REMOTE>", repository.remote ? JSON.stringify(repository.remote) : "none")

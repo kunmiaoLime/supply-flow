@@ -34,6 +34,7 @@ export interface GitHubPullRequestHealth {
   unrepliedCommentCount: number;
   issueFingerprints: readonly string[];
   ciStatus: ProjectPullRequestCiStatus;
+  hasMergeConflict: boolean;
   ciRetryTargets: readonly GitHubCiRetryTarget[];
   approvalStatus: ProjectPullRequestApprovalStatus;
   requiredReviewPartyCount: number;
@@ -79,6 +80,8 @@ interface GitHubPullRequestHealthPayload {
   state: string;
   isDraft: boolean;
   baseRefName: string;
+  mergeable: string;
+  mergeStateStatus: string;
   statusCheckRollup: unknown;
 }
 
@@ -295,7 +298,7 @@ export async function getGitHubPullRequestHealth(
       "view",
       reference.url,
       "--json",
-      "state,isDraft,baseRefName,statusCheckRollup"
+      "state,isDraft,baseRefName,mergeable,mergeStateStatus,statusCheckRollup"
     ])
   );
 
@@ -321,13 +324,26 @@ export async function getGitHubPullRequestHealth(
         ? ciRetryTargets.map((target) => `ci:${target.provider}:${target.id}`)
         : ["ci:failure"]
       : [];
+  const mergeConflictIssueFingerprints = hasGitHubPullRequestMergeConflict(
+    healthPayload.mergeable,
+    healthPayload.mergeStateStatus
+  )
+    ? ["merge-conflict"]
+    : [];
 
   return {
     status: classifyGitHubPullRequestStatus(healthPayload.state, healthPayload.isDraft),
     unresolvedCommentCount: reviewThreadHealth.unresolvedCommentCount,
     unrepliedCommentCount: reviewThreadHealth.unrepliedCommentCount,
-    issueFingerprints: [...new Set([...reviewThreadHealth.issueFingerprints, ...ciIssueFingerprints])],
+    issueFingerprints: [
+      ...new Set([
+        ...reviewThreadHealth.issueFingerprints,
+        ...ciIssueFingerprints,
+        ...mergeConflictIssueFingerprints
+      ])
+    ],
     ciStatus,
+    hasMergeConflict: mergeConflictIssueFingerprints.length > 0,
     ciRetryTargets,
     approvalStatus: approval.status,
     requiredReviewPartyCount: approval.requiredPartyCount,
@@ -674,6 +690,16 @@ export function classifyGitHubPullRequestCiStatus(
     return "unknown";
   }
   return "success";
+}
+
+export function hasGitHubPullRequestMergeConflict(
+  mergeable: string,
+  mergeStateStatus: string
+): boolean {
+  return (
+    mergeable.trim().toUpperCase() === "CONFLICTING" ||
+    mergeStateStatus.trim().toUpperCase() === "DIRTY"
+  );
 }
 
 export function getGitHubCiRetryTargets(
@@ -1172,10 +1198,14 @@ function parseGitHubPullRequestHealthPayload(value: unknown): GitHubPullRequestH
     !("state" in value) ||
     !("isDraft" in value) ||
     !("baseRefName" in value) ||
+    !("mergeable" in value) ||
+    !("mergeStateStatus" in value) ||
     !("statusCheckRollup" in value) ||
     typeof value.state !== "string" ||
     typeof value.isDraft !== "boolean" ||
     typeof value.baseRefName !== "string" ||
+    typeof value.mergeable !== "string" ||
+    typeof value.mergeStateStatus !== "string" ||
     !value.baseRefName.trim()
   ) {
     throw new GitHubPullRequestError("GitHub returned invalid pull request health data.", 502);
@@ -1185,6 +1215,8 @@ function parseGitHubPullRequestHealthPayload(value: unknown): GitHubPullRequestH
     state: value.state,
     isDraft: value.isDraft,
     baseRefName: value.baseRefName,
+    mergeable: value.mergeable,
+    mergeStateStatus: value.mergeStateStatus,
     statusCheckRollup: value.statusCheckRollup
   };
 }

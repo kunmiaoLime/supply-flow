@@ -80,6 +80,7 @@ async function scanPullRequest(
     unresolved_comment_count: health.unresolvedCommentCount,
     unreplied_comment_count: health.unrepliedCommentCount,
     ci_status: health.ciStatus,
+    has_merge_conflict: health.hasMergeConflict,
     approval_status: health.approvalStatus,
     required_review_party_count: health.requiredReviewPartyCount,
     approved_review_party_count: health.approvedReviewPartyCount,

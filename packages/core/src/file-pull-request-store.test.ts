@@ -21,6 +21,7 @@ test("tracks project pull requests in prs.json", async () => {
     unresolved_comment_count: 0,
     unreplied_comment_count: 0,
     ci_status: "unknown" as const,
+    has_merge_conflict: false,
     approval_status: "unknown" as const,
     required_review_party_count: 0,
     approved_review_party_count: 0,
@@ -43,6 +44,7 @@ test("tracks project pull requests in prs.json", async () => {
     unresolved_comment_count: 2,
     unreplied_comment_count: 1,
     ci_status: "failure" as const,
+    has_merge_conflict: true,
     approval_status: "pending" as const,
     required_review_party_count: 3,
     approved_review_party_count: 1,
@@ -124,6 +126,7 @@ test("adds auto-resolution defaults to existing pull requests", async () => {
       {
         ...legacyPullRequest,
         auto_resolve_issues: false,
+        has_merge_conflict: false,
         active_issue_fingerprints: []
       }
     ]);

@@ -3638,6 +3638,12 @@ code {
   color: #ab3429;
 }
 
+.pull-request-health-chip.is-merge-conflict {
+  border-color: #e5aaa3;
+  background: #fff0ee;
+  color: #ab3429;
+}
+
 .pull-request-health-chip.is-ci-pending {
   border-color: #dfc483;
   background: #fff8e7;

@@ -46,6 +46,7 @@ export const ProjectPullRequestSchema = z.object({
   unresolved_comment_count: z.number().int().nonnegative().default(0),
   unreplied_comment_count: z.number().int().nonnegative().default(0),
   ci_status: ProjectPullRequestCiStatusSchema.default("unknown"),
+  has_merge_conflict: z.boolean().default(false),
   approval_status: ProjectPullRequestApprovalStatusSchema.default("unknown"),
   required_review_party_count: z.number().int().nonnegative().default(0),
   approved_review_party_count: z.number().int().nonnegative().default(0),

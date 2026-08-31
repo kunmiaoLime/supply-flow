@@ -498,7 +498,7 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
                       className="pull-request-monitor-control"
                       title={
                         pullRequest.monitoring_enabled
-                          ? "Start addressing newly detected review issues or failing CI"
+                          ? "Start addressing newly detected review issues, merge conflicts, or failing CI"
                           : "Enable monitoring before automatically addressing issues"
                       }
                     >
@@ -530,7 +530,7 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
                       title={
                         isClosed
                           ? "Only open pull requests can be addressed"
-                          : "Address unreplied comments, unresolved comments, or failing CI"
+                          : "Address unreplied comments, unresolved comments, merge conflicts, or failing CI"
                       }
                       type="button"
                     >
@@ -579,6 +579,14 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
                     <span className={`pull-request-health-chip is-ci-${pullRequest.ci_status}`}>
                       CI {pullRequest.ci_status}
                     </span>
+                    {pullRequest.has_merge_conflict ? (
+                      <span
+                        className="pull-request-health-chip is-merge-conflict"
+                        title="This pull request cannot be merged into its target branch until conflicts are resolved"
+                      >
+                        Merge conflict
+                      </span>
+                    ) : null}
                     <span className="pull-request-scan-time">
                       {formatLastScannedAt(pullRequest.last_scanned_at)}
                     </span>
