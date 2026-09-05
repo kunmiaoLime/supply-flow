@@ -1,0 +1,23 @@
+packages/core/src/ai-model-settings.ts
+  s_f14e56157e8366::t_e025d20727a5ea 71,73
+  s_f14e56157e8366::t_3a6eabd922f50a 85
+packages/core/src/providers.test.ts
+  s_f14e56157e8366::t_3a6eabd922f50a 19
+  s_f14e56157e8366::t_e025d20727a5ea 26-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "d4712cdd62ebe48ca3944c3599a2d9a0f2c770b6",
+  "prompts": {},
+  "sessions": {
+    "s_f14e56157e8366": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a06f2d-8f22-7cc0-96f7-11ca9f995792",
+        "model": "openai.gpt-5.6-terra"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    }
+  }
+}
