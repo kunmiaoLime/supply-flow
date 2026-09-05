@@ -16,9 +16,20 @@ test("lists versioned Claude model choices", () => {
       "claude-sonnet-5",
       "claude-sonnet-4-8",
       "fable",
+      "claude-fable-5-1",
       "claude-fable-5",
       "claude-fable-4-8"
     ]
+  );
+});
+
+test("lists GPT-5.6 Codex model choices", () => {
+  assert.deepEqual(
+    aiModelOptions
+      .filter((option) => option.providerId === "codex")
+      .map((option) => option.model)
+      .slice(0, 3),
+    ["openai.gpt-5.6-sol", "openai.gpt-5.6-terra", "openai.gpt-5.6-luna"]
   );
 });
 

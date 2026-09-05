@@ -68,7 +68,9 @@ export const aiModelOptions: readonly {
   model: string;
   providerId: AiProviderId;
 }[] = [
+  { label: "GPT-5.6 Sol", model: "openai.gpt-5.6-sol", providerId: "codex" },
   { label: "GPT-5.6 Terra", model: "openai.gpt-5.6-terra", providerId: "codex" },
+  { label: "GPT-5.6 Luna", model: "openai.gpt-5.6-luna", providerId: "codex" },
   { label: "GPT-5.3 Codex", model: "gpt-5.3-codex", providerId: "codex" },
   { label: "GPT-5.2 Codex", model: "gpt-5.2-codex", providerId: "codex" },
   { label: "GPT-5.1 Codex", model: "gpt-5.1-codex", providerId: "codex" },
@@ -80,6 +82,7 @@ export const aiModelOptions: readonly {
   { label: "Claude Sonnet 5.0", model: "claude-sonnet-5", providerId: "claude-code" },
   { label: "Claude Sonnet 4.8", model: "claude-sonnet-4-8", providerId: "claude-code" },
   { label: "Claude Fable (latest)", model: "fable", providerId: "claude-code" },
+  { label: "Claude Fable 5.1", model: "claude-fable-5-1", providerId: "claude-code" },
   { label: "Claude Fable 5.0", model: "claude-fable-5", providerId: "claude-code" },
   { label: "Claude Fable 4.8", model: "claude-fable-4-8", providerId: "claude-code" }
 ];
