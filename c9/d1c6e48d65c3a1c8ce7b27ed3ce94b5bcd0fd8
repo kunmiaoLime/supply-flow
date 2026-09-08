@@ -1,0 +1,29 @@
+packages/core/src/file-pull-request-store.ts
+  s_f14e56157e8366::t_ddb70e9df7cc8c 77-82
+  s_f14e56157e8366::t_d624626b5c6a3b 12,61-62,64-76,83-94,113-133
+packages/core/src/file-pull-request-store.test.ts
+  s_f14e56157e8366::t_8aa1ed160a2dce 137-192
+apps/web/app/api/projects/[projectId]/pull-requests/pull-request-monitor.ts
+  s_f14e56157e8366::t_d624626b5c6a3b 52-98,103-104,107,109-110,114
+apps/web/app/pull-requests-section.tsx
+  s_f14e56157e8366::t_02c5620d7b0b71 28,94,110-114,285
+apps/web/app/api/projects/[projectId]/pull-requests/route.ts
+  s_f14e56157e8366::t_02c5620d7b0b71 165-171
+  s_f14e56157e8366::t_d624626b5c6a3b 147-148,153-155,157-160
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "c9d1c6e48d65c3a1c8ce7b27ed3ce94b5bcd0fd8",
+  "prompts": {},
+  "sessions": {
+    "s_f14e56157e8366": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a06f2d-8f22-7cc0-96f7-11ca9f995792",
+        "model": "openai.gpt-5.6-terra"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    }
+  }
+}
