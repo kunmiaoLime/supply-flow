@@ -46,71 +46,72 @@ async function scanPullRequest(
 
   const health = await getGitHubPullRequestHealth(reference);
   const now = new Date();
-  const monitoringEnabled =
-    pullRequest.monitoring_enabled &&
-    health.status !== "closed" &&
-    health.status !== "merged";
-  const retryCiEnabled = monitoringEnabled && pullRequest.retry_ci_enabled;
-  const autoResolveIssues = monitoringEnabled && pullRequest.auto_resolve_issues;
-  const shouldRetryCi =
-    retryCiEnabled &&
-    health.ciStatus === "failure" &&
-    (health.status === "open" || health.status === "draft");
   const activeIssueFingerprints = [...new Set(health.issueFingerprints)].sort();
-  const hasLegacyActiveIssues =
-    pullRequest.active_issue_fingerprints.length === 0 &&
-    pullRequest.last_scanned_at !== null &&
-    (pullRequest.unresolved_comment_count > 0 ||
-      pullRequest.unreplied_comment_count > 0 ||
-      pullRequest.ci_status === "failure");
-  const newlyDetectedIssueFingerprints = activeIssueFingerprints.filter(
-    (fingerprint) =>
-      !hasLegacyActiveIssues && !pullRequest.active_issue_fingerprints.includes(fingerprint)
-  );
-  const shouldAutoResolve =
-    options.autoResolve !== false &&
-    autoResolveIssues &&
-    newlyDetectedIssueFingerprints.length > 0;
-  const updatedPullRequest: ProjectPullRequest = {
-    ...pullRequest,
-    monitoring_enabled: monitoringEnabled,
-    retry_ci_enabled: retryCiEnabled,
-    auto_resolve_issues: autoResolveIssues,
-    status: health.status,
-    unresolved_comment_count: health.unresolvedCommentCount,
-    unreplied_comment_count: health.unrepliedCommentCount,
-    ci_status: health.ciStatus,
-    has_merge_conflict: health.hasMergeConflict,
-    approval_status: health.approvalStatus,
-    required_review_party_count: health.requiredReviewPartyCount,
-    approved_review_party_count: health.approvedReviewPartyCount,
-    last_scanned_at: now.toISOString(),
-    last_ci_retry_at: shouldRetryCi ? pullRequest.last_ci_retry_at : null,
-    last_ci_retry_error: shouldRetryCi ? pullRequest.last_ci_retry_error : null,
-    active_issue_fingerprints: activeIssueFingerprints
-  };
 
   const store = new FilePullRequestStore(projectDirectory(project.project_id));
-  const savedPullRequest = await store.update(
-    pullRequest,
-    updatedPullRequest
-  );
+  let shouldRetryCi = false;
+  let shouldAutoResolve = false;
+  const savedPullRequest = await store.updateByUrl(pullRequest.url, (current) => {
+    const monitoringEnabled =
+      current.monitoring_enabled &&
+      health.status !== "closed" &&
+      health.status !== "merged";
+    const retryCiEnabled = monitoringEnabled && current.retry_ci_enabled;
+    const autoResolveIssues = monitoringEnabled && current.auto_resolve_issues;
+    shouldRetryCi =
+      retryCiEnabled &&
+      health.ciStatus === "failure" &&
+      (health.status === "open" || health.status === "draft");
+    const hasLegacyActiveIssues =
+      current.active_issue_fingerprints.length === 0 &&
+      current.last_scanned_at !== null &&
+      (current.unresolved_comment_count > 0 ||
+        current.unreplied_comment_count > 0 ||
+        current.ci_status === "failure");
+    const newlyDetectedIssueFingerprints = activeIssueFingerprints.filter(
+      (fingerprint) =>
+        !hasLegacyActiveIssues && !current.active_issue_fingerprints.includes(fingerprint)
+    );
+    shouldAutoResolve =
+      options.autoResolve !== false &&
+      autoResolveIssues &&
+      newlyDetectedIssueFingerprints.length > 0;
+
+    return {
+      ...current,
+      monitoring_enabled: monitoringEnabled,
+      retry_ci_enabled: retryCiEnabled,
+      auto_resolve_issues: autoResolveIssues,
+      status: health.status,
+      unresolved_comment_count: health.unresolvedCommentCount,
+      unreplied_comment_count: health.unrepliedCommentCount,
+      ci_status: health.ciStatus,
+      has_merge_conflict: health.hasMergeConflict,
+      approval_status: health.approvalStatus,
+      required_review_party_count: health.requiredReviewPartyCount,
+      approved_review_party_count: health.approvedReviewPartyCount,
+      last_scanned_at: now.toISOString(),
+      last_ci_retry_at: shouldRetryCi ? current.last_ci_retry_at : null,
+      last_ci_retry_error: shouldRetryCi ? current.last_ci_retry_error : null,
+      active_issue_fingerprints: activeIssueFingerprints
+    };
+  });
   let resolvedPullRequest = savedPullRequest;
   if (shouldRetryCi && isCiRetryDue(savedPullRequest.last_ci_retry_at, now)) {
     try {
       await retryGitHubPullRequestCi(reference, health.ciRetryTargets);
-      resolvedPullRequest = await store.update(savedPullRequest, {
-        ...savedPullRequest,
+      resolvedPullRequest = await store.updateByUrl(savedPullRequest.url, (current) => ({
+        ...current,
         last_ci_retry_at: now.toISOString(),
         last_ci_retry_error: null
-      });
+      }));
     } catch (error) {
-      resolvedPullRequest = await store.update(savedPullRequest, {
-        ...savedPullRequest,
+      resolvedPullRequest = await store.updateByUrl(savedPullRequest.url, (current) => ({
+        ...current,
         last_ci_retry_at: now.toISOString(),
         last_ci_retry_error:
           error instanceof Error ? error.message.slice(0, 4_000) : "Unable to retry failing CI."
-      });
+      }));
     }
   }
 

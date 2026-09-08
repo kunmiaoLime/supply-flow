@@ -144,21 +144,31 @@ export async function PATCH(request: Request, context: ProjectRouteContext) {
       );
     }
 
-    let pullRequest = await store.update(current, {
-      ...current,
+    let pullRequest = await store.updateByUrl(input.url, (latestPullRequest) => ({
+      ...latestPullRequest,
       monitoring_enabled: input.monitoringEnabled,
       retry_ci_enabled: input.monitoringEnabled && input.retryCiEnabled,
       auto_resolve_issues: input.monitoringEnabled && input.autoResolveIssues,
       last_ci_retry_at:
-        input.monitoringEnabled && input.retryCiEnabled ? current.last_ci_retry_at : null,
+        input.monitoringEnabled && input.retryCiEnabled
+          ? latestPullRequest.last_ci_retry_at
+          : null,
       last_ci_retry_error:
-        input.monitoringEnabled && input.retryCiEnabled ? current.last_ci_retry_error : null
-    });
+        input.monitoringEnabled && input.retryCiEnabled
+          ? latestPullRequest.last_ci_retry_error
+          : null
+    }));
     let scanError: string | undefined;
 
     if (input.monitoringEnabled) {
       try {
-        pullRequest = await scanTrackedPullRequest(project, pullRequest);
+        await scanTrackedPullRequest(project, pullRequest);
+        const refreshedPullRequest = (await store.list()).find(
+          (currentPullRequest) => currentPullRequest.url === input.url
+        );
+        if (refreshedPullRequest) {
+          pullRequest = refreshedPullRequest;
+        }
       } catch (error) {
         scanError = error instanceof Error ? error.message : "Unable to scan the pull request.";
       }

@@ -25,6 +25,7 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
   const [addressingPullRequestUrl, setAddressingPullRequestUrl] = useState<string | null>(null);
   const urlInput = useRef<HTMLInputElement>(null);
   const scanInFlight = useRef(false);
+  const pullRequestSettingsRevision = useRef(0);
 
   useEffect(() => {
     let ignoreResult = false;
@@ -90,6 +91,7 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
       }
 
       scanInFlight.current = true;
+      const settingsRevisionAtStart = pullRequestSettingsRevision.current;
       try {
         const response = await fetch(scanPullRequestsUrl(project.project_id), {
           body: JSON.stringify({}),
@@ -105,7 +107,11 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
           throw new Error(data.error ?? "Unable to scan pull requests.");
         }
 
-        if (!ignoreResult && data.prs) {
+        if (
+          !ignoreResult &&
+          data.prs &&
+          settingsRevisionAtStart === pullRequestSettingsRevision.current
+        ) {
           setPullRequests(data.prs);
         }
         if (!ignoreResult && data.errors?.[0]) {
@@ -276,6 +282,7 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
       return;
     }
 
+    pullRequestSettingsRevision.current += 1;
     setUpdatingMonitoringUrl(pullRequest.url);
     setListError("");
 

@@ -9,6 +9,7 @@ import {
 } from "@supply-flow/core/pull-request";
 
 const PULL_REQUEST_INDEX_FILE = "prs.json";
+const mutationQueues = new Map<string, Promise<void>>();
 
 export class FilePullRequestStore {
   public constructor(private readonly rootDirectory: string) {}
@@ -57,24 +58,40 @@ export class FilePullRequestStore {
   ): Promise<ProjectPullRequest> {
     const parsedCurrent = ProjectPullRequestSchema.parse(current);
     const parsedNext = ProjectPullRequestSchema.parse(next);
-    const pullRequests = await this.list();
-    const index = pullRequests.findIndex(
-      (pullRequest) => pullRequest.url === parsedCurrent.url
-    );
-    if (index === -1) {
-      throw new Error("The tracked pull request no longer exists.");
-    }
-    if (
-      parsedCurrent.url !== parsedNext.url &&
-      pullRequests.some((pullRequest) => pullRequest.url === parsedNext.url)
-    ) {
-      throw new Error("This pull request is already tracked for the project.");
-    }
+    return this.updateByUrl(parsedCurrent.url, () => parsedNext);
+  }
 
-    const updatedPullRequests = [...pullRequests];
-    updatedPullRequests[index] = parsedNext;
-    await this.write(updatedPullRequests);
-    return parsedNext;
+  public async updateByUrl(
+    url: string,
+    update: (
+      current: ProjectPullRequest
+    ) => ProjectPullRequest | Promise<ProjectPullRequest>
+  ): Promise<ProjectPullRequest> {
+    return this.withMutationLock(async () => {
+      const pullRequests = await this.list();
+      const index = pullRequests.findIndex((pullRequest) => pullRequest.url === url);
+      if (index === -1) {
+        throw new Error("The tracked pull request no longer exists.");
+      }
+
+      const current = pullRequests[index];
+      if (!current) {
+        throw new Error("The tracked pull request no longer exists.");
+      }
+
+      const next = ProjectPullRequestSchema.parse(await update(current));
+      if (
+        url !== next.url &&
+        pullRequests.some((pullRequest) => pullRequest.url === next.url)
+      ) {
+        throw new Error("This pull request is already tracked for the project.");
+      }
+
+      const updatedPullRequests = [...pullRequests];
+      updatedPullRequests[index] = next;
+      await this.write(updatedPullRequests);
+      return next;
+    });
   }
 
   public async remove(url: string): Promise<boolean> {
@@ -92,6 +109,27 @@ export class FilePullRequestStore {
 
   private indexPath(): string {
     return path.join(this.rootDirectory, PULL_REQUEST_INDEX_FILE);
+  }
+
+  private async withMutationLock<T>(operation: () => Promise<T>): Promise<T> {
+    const indexPath = this.indexPath();
+    const previousMutation = mutationQueues.get(indexPath) ?? Promise.resolve();
+    let releaseCurrentMutation!: () => void;
+    const currentMutation = new Promise<void>((resolve) => {
+      releaseCurrentMutation = resolve;
+    });
+    const queuedMutation = previousMutation.then(() => currentMutation);
+    mutationQueues.set(indexPath, queuedMutation);
+
+    await previousMutation;
+    try {
+      return await operation();
+    } finally {
+      releaseCurrentMutation();
+      if (mutationQueues.get(indexPath) === queuedMutation) {
+        mutationQueues.delete(indexPath);
+      }
+    }
   }
 
   private async write(pullRequests: ProjectPullRequest[]): Promise<void> {

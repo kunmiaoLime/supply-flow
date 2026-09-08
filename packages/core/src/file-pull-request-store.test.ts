@@ -134,3 +134,59 @@ test("adds auto-resolution defaults to existing pull requests", async () => {
     await rm(rootDirectory, { force: true, recursive: true });
   }
 });
+
+test("merges a delayed scan result with the latest pull request settings", async () => {
+  const rootDirectory = await mkdtemp(path.join(os.tmpdir(), "supply-flow-prs-"));
+  const settingsStore = new FilePullRequestStore(rootDirectory);
+  const scanStore = new FilePullRequestStore(rootDirectory);
+  const pullRequest = {
+    url: "https://github.com/lime/supply/pull/123",
+    title: "Validate ride eligibility",
+    number: 123,
+    branch: "kun/SUP-123-ride-eligibility",
+    repository_local: "/Users/example/code/ios/Apps/Supply",
+    monitoring_enabled: true,
+    retry_ci_enabled: false,
+    auto_resolve_issues: false,
+    status: "unknown" as const,
+    unresolved_comment_count: 0,
+    unreplied_comment_count: 0,
+    ci_status: "unknown" as const,
+    has_merge_conflict: false,
+    approval_status: "unknown" as const,
+    required_review_party_count: 0,
+    approved_review_party_count: 0,
+    last_scanned_at: null,
+    last_ci_retry_at: null,
+    last_ci_retry_error: null,
+    active_issue_fingerprints: [],
+    last_session_id: null
+  };
+
+  try {
+    await settingsStore.add(pullRequest);
+    const scanSnapshot = (await scanStore.list())[0];
+    assert.ok(scanSnapshot);
+
+    await settingsStore.updateByUrl(pullRequest.url, (current) => ({
+      ...current,
+      auto_resolve_issues: true
+    }));
+    await scanStore.updateByUrl(scanSnapshot.url, (current) => ({
+      ...current,
+      status: "open",
+      last_scanned_at: "2026-09-08T18:00:00.000Z"
+    }));
+
+    assert.deepEqual(await settingsStore.list(), [
+      {
+        ...pullRequest,
+        auto_resolve_issues: true,
+        status: "open",
+        last_scanned_at: "2026-09-08T18:00:00.000Z"
+      }
+    ]);
+  } finally {
+    await rm(rootDirectory, { force: true, recursive: true });
+  }
+});
