@@ -1,0 +1,27 @@
+packages/core/src/file-branch-store.test.ts
+  s_0374e283fa35a6::t_89c104ad498cba 6,237-259
+  s_0374e283fa35a6::t_86865d7b23c0f4 260
+apps/web/scripts/advance-project-branch-review.ts
+  s_0374e283fa35a6::t_89c104ad498cba 3-6,112,135
+apps/web/app/api/projects/[projectId]/pull-requests/address/address-pull-request-service.ts
+  s_0374e283fa35a6::t_89c104ad498cba 3,91-94
+  s_0374e283fa35a6::t_4f6e187b060f17 95-97
+packages/core/src/branch.ts
+  s_0374e283fa35a6::t_89c104ad498cba 75-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "c76415b5318005b436757bcaacfd446e32cf56d7",
+  "prompts": {},
+  "sessions": {
+    "s_0374e283fa35a6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a05a27-3f26-76c1-b770-82458fb77c59",
+        "model": "openai.gpt-5.6-terra"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    }
+  }
+}
