@@ -1,0 +1,57 @@
+README.md
+  s_f14e56157e8366::t_b833d78cdd22cc 273-277,280-282
+apps/web/app/globals.css
+  s_f14e56157e8366::t_f723abc7bdc134 1676-1705,3339,3361,3377
+apps/web/app/api/projects/[projectId]/sessions/[sessionId]/save-project-context/route.ts
+  s_f14e56157e8366::t_b833d78cdd22cc 5-8,11,34-35,55,57,71-75,78-81,84-112
+  s_f14e56157e8366::t_ee34f33afa81c4 48-51
+apps/web/app/ai-sessions-panel.tsx
+  s_f14e56157e8366::t_f723abc7bdc134 59,105,238,247,283,301,322-327,331-333,342-349,433-438,442,564-577,605-606,633-637,641,694-715,861-889,945-962,1017-1018
+  s_f14e56157e8366::t_5afdf15ec926aa 1019-1020
+apps/web/app/api/projects/[projectId]/pull-requests/address/address-pull-request-service.ts
+  s_f14e56157e8366::t_56498883b848f8 17-23,49,75-86,90,96-102,106-112,115-116,118,135
+prompts/save_project_context.md
+  s_f14e56157e8366::t_b833d78cdd22cc 13-16,29-34,37-39,42-43
+apps/web/app/api/projects/[projectId]/sessions/route.ts
+  s_f14e56157e8366::t_b833d78cdd22cc 6,37-38,94-95,98,121-147,166-171
+apps/web/app/persisted-session-reconciliation.ts
+  s_f14e56157e8366::t_b833d78cdd22cc 64-72
+apps/web/app/branch-review-workflow.ts
+  s_f14e56157e8366::t_bd79d53c5b829b 321-365,391-412
+  s_936f1c89ee57d8::t_ef53bce483dbdb 413
+packages/core/src/file-session-store.test.ts
+  s_f14e56157e8366::t_9fde88d8f57206 79-99,102
+packages/core/src/file-session-store.ts
+  s_f14e56157e8366::t_9fde88d8f57206 77-105,107-110,156-164
+  s_f14e56157e8366::t_30735ad38d8767 165
+packages/core/src/session.ts
+  s_f14e56157e8366::t_9fde88d8f57206 23,62-67,78-79
+apps/web/app/api/projects/[projectId]/branches/track-pr/route.ts
+  s_f14e56157e8366::t_d748d8567d6730 3,31-37,164-167,171-177,180-184,186-190,195
+apps/web/app/api/projects/[projectId]/sessions/[sessionId]/route.ts
+  s_f14e56157e8366::t_b833d78cdd22cc 88-95,112-117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "4e38e9efe15252a0b6b8c224bfbbc0fbf062d9da",
+  "prompts": {},
+  "sessions": {
+    "s_936f1c89ee57d8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08324-f1a6-7102-a4a2-dfbc17c1a5e6",
+        "model": "openai.gpt-5.6-terra"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    },
+    "s_f14e56157e8366": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a06f2d-8f22-7cc0-96f7-11ca9f995792",
+        "model": "openai.gpt-5.6-terra"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    }
+  }
+}
