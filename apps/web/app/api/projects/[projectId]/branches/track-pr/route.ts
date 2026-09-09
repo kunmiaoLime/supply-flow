@@ -1,6 +1,6 @@
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import type { ProjectBranch } from "@supply-flow/core/branch";
+import { startBranchCodingSession, type ProjectBranch } from "@supply-flow/core/branch";
 import { FileBranchStore } from "@supply-flow/core/file-branch-store";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
 import { FilePullRequestStore } from "@supply-flow/core/file-pull-request-store";
@@ -28,7 +28,13 @@ import {
   projectDirectory,
   ProjectSessionError
 } from "../../sessions/session-service";
-import { findActiveImplementationSession } from "../../../../../branch-review-workflow";
+import {
+  configurationForSession,
+  findActiveImplementationSession,
+  findSavedImplementationSession,
+  implementationSessionConfigurationForBranch,
+  resumeSavedImplementationSessionGoal
+} from "../../../../../branch-review-workflow";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -155,19 +161,38 @@ export async function POST(request: Request, context: ProjectRouteContext) {
       );
     }
 
+    const savedImplementationSession = await findSavedImplementationSession(
+      project.project_id,
+      branch
+    );
     const session = await createProjectSession(project, {
       action: "create-pull-request",
       title: pullRequestSessionTitle(task),
-      goal: prompt,
+      goal: savedImplementationSession
+        ? resumeSavedImplementationSessionGoal(
+            project.project_id,
+            savedImplementationSession,
+            prompt
+          )
+        : prompt,
       workspacePath: repository.local,
       additionalWritableDirectories: [projectDirectory(project.project_id)],
-      loadProjectContext: true
+      loadProjectContext: true,
+      sessionConfiguration: savedImplementationSession
+        ? (await configurationForSession(project.project_id, savedImplementationSession.id)) ??
+          implementationSessionConfigurationForBranch(branch)
+        : undefined
     });
-    await rememberLastSession(branchStore, branch, session.id);
+    if (savedImplementationSession) {
+      await branchStore.update(branch, startBranchCodingSession(branch, session.id));
+    } else {
+      await rememberLastSession(branchStore, branch, session.id);
+    }
     return NextResponse.json(
       {
         creationRequested: true,
         reusedSession: false,
+        resumedSession: Boolean(savedImplementationSession),
         session
       },
       { status: 202 }

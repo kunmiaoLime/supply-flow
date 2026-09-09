@@ -1673,6 +1673,36 @@ code {
   gap: 5px;
 }
 
+.ai-session-handoff {
+  display: grid;
+  gap: 8px;
+  padding: 22px;
+  color: #dce8df;
+}
+
+.ai-session-handoff strong {
+  font-size: 14px;
+}
+
+.ai-session-handoff p {
+  max-width: 580px;
+  margin: 0;
+  color: #aebcb4;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.ai-session-handoff code {
+  width: fit-content;
+  max-width: 100%;
+  overflow: hidden;
+  color: #a9d8c2;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .session-icon-button {
   display: grid;
   width: 28px;
@@ -3306,6 +3336,7 @@ code {
 .task-form-fields input,
 .task-form-fields textarea,
 .session-form-fields input,
+.session-form-fields select,
 .session-form-fields textarea,
 .session-configuration-fields select {
   min-height: 40px;
@@ -3327,6 +3358,7 @@ code {
 .task-form-fields input::placeholder,
 .task-form-fields textarea::placeholder,
 .session-form-fields input::placeholder,
+.session-form-fields select::placeholder,
 .session-form-fields textarea::placeholder,
 .session-configuration-fields select::placeholder {
   color: var(--muted);
@@ -3342,6 +3374,7 @@ code {
 .task-form-fields input:focus,
 .task-form-fields textarea:focus,
 .session-form-fields input:focus,
+.session-form-fields select:focus,
 .session-form-fields textarea:focus,
 .session-configuration-fields select:focus {
   outline: 3px solid rgba(8, 124, 105, 0.18);

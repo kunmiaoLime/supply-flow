@@ -61,6 +61,15 @@ export async function reconcileSessionStore(
 
   for (const session of await store.list()) {
     if (!activeTmuxSessions.has(session.tmuxSessionName)) {
+      if (session.contextFile) {
+        sessions.push(
+          session.status === "stopped"
+            ? session
+            : await store.update(session.id, { lastError: undefined, status: "stopped" })
+        );
+        continue;
+      }
+
       await store.remove(session.id);
       removedCount += 1;
       continue;

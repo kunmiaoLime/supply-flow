@@ -318,6 +318,51 @@ export async function findActiveImplementationSession(
   return legacySession && isImplementationSession(legacySession) ? legacySession : null;
 }
 
+export async function findSavedImplementationSession(
+  projectId: string,
+  branch: ProjectBranch
+): Promise<SessionRecord | null> {
+  const preferredSession = await findSavedSession(
+    projectId,
+    branch.implementation_session_id,
+    branch.repository_local
+  );
+  if (preferredSession) {
+    return preferredSession;
+  }
+
+  if (branch.implementation_session_id || !branch.last_session_id) {
+    return null;
+  }
+
+  const legacySession = await findSavedSession(
+    projectId,
+    branch.last_session_id,
+    branch.repository_local
+  );
+  return legacySession && isImplementationSession(legacySession) ? legacySession : null;
+}
+
+export function resumeSavedImplementationSessionGoal(
+  projectId: string,
+  session: SessionRecord,
+  goal: string
+): string {
+  if (!session.contextFile) {
+    throw new Error(`Implementation session "${session.id}" has no saved handoff.`);
+  }
+
+  const handoffPath = path.join(projectDirectory(projectId), session.contextFile);
+  return [
+    "Resume the prior code implementation session before completing this follow-up task.",
+    `First read the saved provider-neutral handoff at ${JSON.stringify(handoffPath)}.`,
+    "Treat the handoff as the authoritative summary of the prior session. Inspect the repository status, diff, and relevant files before acting because the prior process may have stopped immediately after saving.",
+    "",
+    "Follow-up task:",
+    goal
+  ].join("\n");
+}
+
 export async function findActiveReviewSession(
   projectId: string,
   branch: ProjectBranch
@@ -341,6 +386,29 @@ export async function findActiveReviewSession(
     branch.repository_local
   );
   return legacySession && isReviewSessionForBranch(legacySession, branch) ? legacySession : null;
+}
+
+async function findSavedSession(
+  projectId: string,
+  sessionId: string | null,
+  repositoryLocal: string
+): Promise<SessionRecord | null> {
+  if (!sessionId) {
+    return null;
+  }
+
+  const store = new FileSessionStore(projectDirectory(projectId));
+  const session = await store.get(sessionId);
+  if (
+    !session ||
+    session.workspacePath !== repositoryLocal ||
+    !session.contextFile ||
+    (await store.readContext(session.id)) === null
+  ) {
+    return null;
+  }
+
+  return session;
 }
 
 export async function configurationForSession(

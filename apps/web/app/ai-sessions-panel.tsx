@@ -56,6 +56,7 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
   const [isNewSessionDialogOpen, setIsNewSessionDialogOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [goal, setGoal] = useState("");
+  const [resumeSessionId, setResumeSessionId] = useState("");
   const [newSessionDefaults, setNewSessionDefaults] =
     useState<ResolvedAiSessionActionSettings | null>(null);
   const [newSessionConfiguration, setNewSessionConfiguration] =
@@ -101,6 +102,7 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
   const activeSessionIsReadOnly = activeSession?.session.readOnly !== false;
   const activeSessionNeedsWriteModeRestart =
     activeSession?.session.readOnly === false && activeSession.session.launchedReadOnly !== false;
+  const resumableProjectSessions = projectSessions.filter((session) => session.contextFile);
 
   useEffect(() => {
     let ignoreResult = false;
@@ -233,6 +235,7 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
   function openNewSessionDialog() {
     setTitle("");
     setGoal("");
+    setResumeSessionId("");
     setCreationError("");
     setNewSessionConfiguration(newSessionDefaults);
     setIsNewSessionDialogOpen(true);
@@ -241,6 +244,7 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
   function closeNewSessionDialog() {
     if (!isCreating) {
       setIsNewSessionDialogOpen(false);
+      setResumeSessionId("");
       setCreationError("");
     }
   }
@@ -276,6 +280,7 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
           providerId: newSessionConfiguration.providerId,
           reasoningEffort: newSessionConfiguration.reasoningEffort,
           readOnly: newSessionConfiguration.readOnly,
+          resumeSessionId: resumeSessionId || null,
           title: normalizedTitle,
           yoloMode: newSessionConfiguration.yoloMode
         }),
@@ -293,6 +298,7 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
       setIsNewSessionDialogOpen(false);
       setTitle("");
       setGoal("");
+      setResumeSessionId("");
     } catch (error) {
       setCreationError(
         error instanceof Error ? error.message : "Unable to create the AI session."
@@ -313,12 +319,18 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
 
     try {
       const response = await fetch(sessionUrl(scopedSession, project), { method: "DELETE" });
-      const data = (await response.json()) as { deleted?: boolean; error?: string };
-      if (!response.ok || !data.deleted) {
+      const data = (await response.json()) as {
+        deleted?: boolean;
+        session?: SessionRecord;
+        error?: string;
+      };
+      if (!response.ok || (!data.deleted && !data.session)) {
         throw new Error(data.error ?? "Unable to terminate the AI session.");
       }
 
-      if (scopedSession.scope === "global") {
+      if (data.session) {
+        updateSession(scopedSession.scope, data.session);
+      } else if (scopedSession.scope === "global") {
         setGlobalSessions((currentSessions) =>
           currentSessions.filter((session) => session.id !== scopedSession.session.id)
         );
@@ -327,10 +339,14 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
           currentSessions.filter((session) => session.id !== scopedSession.session.id)
         );
       }
-      const nextSession = sessions.find((session) => sessionKey(session) !== key) ?? null;
-      setActiveSessionKey((currentSessionKey) =>
-        currentSessionKey === key ? (nextSession ? sessionKey(nextSession) : null) : currentSessionKey
-      );
+      if (data.deleted) {
+        const nextSession = sessions.find((session) => sessionKey(session) !== key) ?? null;
+        setActiveSessionKey((currentSessionKey) =>
+          currentSessionKey === key
+            ? (nextSession ? sessionKey(nextSession) : null)
+            : currentSessionKey
+        );
+      }
     } catch (error) {
       setSessionError(
         error instanceof Error ? error.message : "Unable to terminate the AI session."
@@ -414,11 +430,16 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
       const response = await fetch(`${sessionUrl(scopedSession, project)}/save-project-context`, {
         method: "POST"
       });
-      const data = (await response.json()) as { sent?: boolean; error?: string };
-      if (!response.ok || !data.sent) {
+      const data = (await response.json()) as {
+        sent?: boolean;
+        session?: SessionRecord;
+        error?: string;
+      };
+      if (!response.ok || !data.sent || !data.session) {
         throw new Error(data.error ?? "Unable to send the project-context prompt.");
       }
 
+      updateSession(scopedSession.scope, data.session);
       setSavedProjectContextSessionKey(key);
       if (contextSaveResetTimeout.current) {
         clearTimeout(contextSaveResetTimeout.current);
@@ -540,6 +561,20 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
     }
   }
 
+  function selectSavedHandoff(sessionId: string) {
+    setResumeSessionId(sessionId);
+    const source = resumableProjectSessions.find((session) => session.id === sessionId);
+    if (!source) {
+      return;
+    }
+
+    setTitle((currentTitle) => currentTitle || `Continue ${source.title}`);
+    setGoal((currentGoal) =>
+      currentGoal ||
+      `Read the saved handoff for "${source.title}" and finish the remaining work.`
+    );
+  }
+
   function removeSessionFromUi(scopedSession: ScopedSession) {
     const key = sessionKey(scopedSession);
     setSessionError("");
@@ -567,6 +602,8 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
                 const key = sessionKey(scopedSession);
                 const isActive = key === activeSessionKey;
                 const isStopping = stoppingSessionKey === key;
+                const isSavedHandoff =
+                  scopedSession.session.status === "stopped" && !!scopedSession.session.contextFile;
 
                 return (
                   <div
@@ -593,11 +630,15 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
                       <span>{scopedSession.session.title}</span>
                     </button>
                     <button
-                      aria-label={`Terminate ${scopedSession.session.title}`}
+                      aria-label={
+                        isSavedHandoff
+                          ? `Delete saved handoff for ${scopedSession.session.title}`
+                          : `Terminate ${scopedSession.session.title}`
+                      }
                       className="ai-session-tab-close"
                       disabled={isStopping}
                       onClick={() => void stopSession(scopedSession)}
-                      title="Terminate session"
+                      title={isSavedHandoff ? "Delete saved handoff" : "Terminate session"}
                       type="button"
                     >
                       <X aria-hidden="true" />
@@ -650,22 +691,28 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
                       activeSession.session.status === "running" ? " is-running" : ""
                     }`}
                   />
-                  <strong>Terminal</strong>
-                  <span
-                    className="tmux-session-name"
-                    title={activeSession.session.tmuxSessionName}
-                  >
-                    {activeSession.session.tmuxSessionName}
-                  </span>
-                  <button
-                    aria-label={`Copy tmux session ID ${activeSession.session.tmuxSessionName}`}
-                    className="session-icon-button tmux-session-copy"
-                    onClick={() => void copyTmuxSessionName(activeSession.session.tmuxSessionName)}
-                    title="Copy tmux session ID"
-                    type="button"
-                  >
-                    <Copy aria-hidden="true" />
-                  </button>
+                  <strong>
+                    {isInteractiveSession(activeSession.session) ? "Terminal" : "Saved handoff"}
+                  </strong>
+                  {isInteractiveSession(activeSession.session) ? (
+                    <>
+                      <span
+                        className="tmux-session-name"
+                        title={activeSession.session.tmuxSessionName}
+                      >
+                        {activeSession.session.tmuxSessionName}
+                      </span>
+                      <button
+                        aria-label={`Copy tmux session ID ${activeSession.session.tmuxSessionName}`}
+                        className="session-icon-button tmux-session-copy"
+                        onClick={() => void copyTmuxSessionName(activeSession.session.tmuxSessionName)}
+                        title="Copy tmux session ID"
+                        type="button"
+                      >
+                        <Copy aria-hidden="true" />
+                      </button>
+                    </>
+                  ) : null}
                 </div>
                 <div className="ai-session-terminal-actions">
                   {activeSession.session.status === "starting" ||
@@ -811,22 +858,35 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
                   ) : null}
                 </div>
               </div>
-              <TmuxTerminal
-                key={sessionKey(activeSession)}
-                onSessionRemoved={() => removeSessionFromUi(activeSession)}
-                onSessionUpdated={(updatedSession) =>
-                  updateSession(activeSession.scope, updatedSession)
-                }
-                onTerminalError={setSessionError}
-                onTerminalRefreshComplete={completeTerminalRefresh}
-                refreshRequestId={
-                  terminalRefreshRequest?.sessionKey === sessionKey(activeSession)
-                    ? terminalRefreshRequest.requestId
-                    : null
-                }
-                session={activeSession.session}
-                sessionEndpoint={sessionUrl(activeSession, project)}
-              />
+              {isInteractiveSession(activeSession.session) ? (
+                <TmuxTerminal
+                  key={sessionKey(activeSession)}
+                  onSessionRemoved={() => removeSessionFromUi(activeSession)}
+                  onSessionUpdated={(updatedSession) =>
+                    updateSession(activeSession.scope, updatedSession)
+                  }
+                  onTerminalError={setSessionError}
+                  onTerminalRefreshComplete={completeTerminalRefresh}
+                  refreshRequestId={
+                    terminalRefreshRequest?.sessionKey === sessionKey(activeSession)
+                      ? terminalRefreshRequest.requestId
+                      : null
+                  }
+                  session={activeSession.session}
+                  sessionEndpoint={sessionUrl(activeSession, project)}
+                />
+              ) : (
+                <div className="ai-session-handoff">
+                  <strong>Ready for another AI provider</strong>
+                  <p>
+                    Start a new session and select this saved handoff to continue from where this
+                    session stopped.
+                  </p>
+                  {activeSession.session.contextFile ? (
+                    <code>{activeSession.session.contextFile}</code>
+                  ) : null}
+                </div>
+              )}
             </div>
 
             {activeSession.session.lastError ? (
@@ -882,6 +942,24 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
                     value={goal}
                   />
                 </label>
+                {resumableProjectSessions.length > 0 ? (
+                  <label htmlFor="resume-session">
+                    <span>Resume saved handoff</span>
+                    <select
+                      disabled={isCreating}
+                      id="resume-session"
+                      onChange={(event) => selectSavedHandoff(event.target.value)}
+                      value={resumeSessionId}
+                    >
+                      <option value="">Start without a saved handoff</option>
+                      {resumableProjectSessions.map((session) => (
+                        <option key={session.id} value={session.id}>
+                          {session.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
                 <AiSessionConfigurationFields
                   configuration={newSessionConfiguration}
                   disabled={isCreating || isLoadingNewSessionDefaults}
@@ -934,6 +1012,10 @@ function combineSessions(
 
 function sessionKey(scopedSession: ScopedSession): string {
   return `${scopedSession.scope}:${scopedSession.session.id}`;
+}
+
+function isInteractiveSession(session: SessionRecord): boolean {
+  return session.status === "starting" || session.status === "running";
 }
 
 async function loadSessionCollection(url: string): Promise<SessionRecord[]> {

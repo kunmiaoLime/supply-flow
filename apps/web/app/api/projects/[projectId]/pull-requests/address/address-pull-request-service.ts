@@ -14,6 +14,13 @@ import {
   projectDirectory,
   projectRoot
 } from "../../sessions/session-service";
+import {
+  configurationForSession,
+  findActiveImplementationSession,
+  findSavedImplementationSession,
+  implementationSessionConfigurationForBranch,
+  resumeSavedImplementationSessionGoal
+} from "../../../../../branch-review-workflow";
 
 const CONTEXT_FILE = "context.md";
 const addressPullRequestPromptPath = path.join(
@@ -39,6 +46,7 @@ export async function startAddressPullRequestSession(
 ): Promise<{
   pullRequest: ProjectPullRequest;
   reusedSession: boolean;
+  resumedSession: boolean;
   session: SessionRecord;
 }> {
   assertActionablePullRequest(pullRequest);
@@ -64,23 +72,50 @@ export async function startAddressPullRequestSession(
     ? project.tasks.find((candidate) => candidate.jira_ticket === branch.jira_ticket)
     : undefined;
   const prompt = await buildAddressPullRequestPrompt(project, pullRequest, repository, task);
-  const existingSession = await findOpenAssociatedSession(project.project_id, pullRequest, branch);
+  const activeImplementationSession = branch
+    ? await findActiveImplementationSession(project.project_id, branch)
+    : null;
+  const savedImplementationSession =
+    !activeImplementationSession && branch
+      ? await findSavedImplementationSession(project.project_id, branch)
+      : null;
+  const existingSession =
+    activeImplementationSession ??
+    (savedImplementationSession
+      ? null
+      : await findOpenAssociatedSession(project.project_id, pullRequest, branch));
 
   let session: SessionRecord;
   let reusedSession = false;
+  let resumedSession = false;
   if (existingSession) {
     await sendAiSessionPrompt(tmux, existingSession.tmuxSessionName, prompt);
     session = existingSession;
     reusedSession = true;
   } else {
+    const sessionConfiguration =
+      savedImplementationSession && branch
+        ? (await configurationForSession(
+            project.project_id,
+            savedImplementationSession.id
+          )) ?? implementationSessionConfigurationForBranch(branch)
+        : undefined;
     session = await createProjectSession(project, {
       action: "address-pull-request",
       title: `Address PR #${pullRequest.number}: ${pullRequest.title}`.slice(0, 120),
-      goal: prompt,
+      goal: savedImplementationSession
+        ? resumeSavedImplementationSessionGoal(
+            project.project_id,
+            savedImplementationSession,
+            prompt
+          )
+        : prompt,
       workspacePath: repository.local,
       additionalWritableDirectories: [projectDirectory(project.project_id)],
-      loadProjectContext: true
+      loadProjectContext: true,
+      sessionConfiguration
     });
+    resumedSession = Boolean(savedImplementationSession);
   }
 
   const pullRequestStore = new FilePullRequestStore(projectDirectory(project.project_id));
@@ -97,7 +132,7 @@ export async function startAddressPullRequestSession(
     await branchStore.update(branch, startBranchCodingSession(branch, session.id));
   }
 
-  return { pullRequest: updatedPullRequest, reusedSession, session };
+  return { pullRequest: updatedPullRequest, reusedSession, resumedSession, session };
 }
 
 function assertActionablePullRequest(pullRequest: ProjectPullRequest): void {

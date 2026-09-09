@@ -3,6 +3,7 @@ import { FileSessionStore } from "@supply-flow/core/file-session-store";
 import type { SessionRecord } from "@supply-flow/core/session";
 import { TmuxAdapter } from "@supply-flow/core/tmux";
 import { NextResponse } from "next/server";
+import path from "node:path";
 import {
   AiProviderIdSchema,
   ReasoningEffortSchema,
@@ -33,7 +34,8 @@ const NewSessionInputSchema = z
     model: z.string().trim().min(1).max(120).nullable(),
     reasoningEffort: ReasoningEffortSchema.nullable(),
     readOnly: z.boolean(),
-    yoloMode: z.boolean()
+    yoloMode: z.boolean(),
+    resumeSessionId: z.string().regex(/^[A-Za-z0-9_-]+$/).nullable().optional()
   })
   .superRefine((input, context) => {
     if (!supportsReasoningEffort(input.providerId, input.reasoningEffort)) {
@@ -89,9 +91,11 @@ export async function POST(request: Request, context: ProjectRouteContext) {
       return NextResponse.json({ error: `Unknown project "${projectId}".` }, { status: 404 });
     }
 
+    const store = new FileSessionStore(projectDirectory(project.project_id));
+    const goal = await goalWithSavedHandoff(store, project.project_id, input);
     const session = await createProjectSession(project, {
       action: "new-session",
-      goal: input.goal,
+      goal,
       sessionConfiguration: {
         providerId: input.providerId,
         model: input.model,
@@ -114,6 +118,33 @@ export async function POST(request: Request, context: ProjectRouteContext) {
   }
 }
 
+async function goalWithSavedHandoff(
+  store: FileSessionStore,
+  projectId: string,
+  input: NewSessionInput
+): Promise<string> {
+  if (!input.resumeSessionId) {
+    return input.goal;
+  }
+
+  const source = await store.get(input.resumeSessionId);
+  if (!source?.contextFile || (await store.readContext(source.id)) === null) {
+    throw new ProjectSessionError(
+      "The selected session does not have a saved handoff context.",
+      400
+    );
+  }
+
+  const handoffPath = path.join(projectDirectory(projectId), source.contextFile);
+  return [
+    `Resume the saved handoff from ${JSON.stringify(handoffPath)} before starting work.`,
+    "Treat it as the durable summary from the prior AI session. Inspect the repository status, diff, and relevant files before acting because the previous session may have stopped immediately after saving.",
+    "",
+    "New session goal:",
+    input.goal
+  ].join("\n");
+}
+
 async function parseNewSessionInput(request: Request): Promise<NewSessionInput | null> {
   try {
     return NewSessionInputSchema.parse(await request.json());
@@ -132,6 +163,12 @@ async function reconcileSession(
   tmuxSessionNames: Set<string>
 ): Promise<SessionRecord | null> {
   if (!tmuxSessionNames.has(session.tmuxSessionName)) {
+    if (session.contextFile) {
+      return session.status === "stopped"
+        ? session
+        : store.update(session.id, { lastError: undefined, status: "stopped" });
+    }
+
     await store.remove(session.id);
     return null;
   }

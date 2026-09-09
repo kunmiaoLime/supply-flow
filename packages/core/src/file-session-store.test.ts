@@ -76,8 +76,30 @@ test("stores session metadata and append-only events", async () => {
       }
     );
 
+    const context = await store.saveContext(
+      "session_01",
+      "# Session handoff\n\nThe next session should run the focused test suite.\n"
+    );
+    assert.equal(context.contextFile, "sessions/session_01.md");
+    assert.equal(
+      await store.readContext("session_01"),
+      "# Session handoff\n\nThe next session should run the focused test suite.\n"
+    );
+    assert.equal(
+      await readFile(path.join(rootDirectory, "sessions", "session_01.md"), "utf8"),
+      "# Session handoff\n\nThe next session should run the focused test suite.\n"
+    );
+    assert.deepEqual(
+      JSON.parse(await readFile(path.join(rootDirectory, "sessions.json"), "utf8")),
+      {
+        schemaVersion: 1,
+        sessions: [context]
+      }
+    );
+
     await store.remove("session_01");
     assert.equal(await store.get("session_01"), null);
+    assert.equal(await store.readContext("session_01"), null);
     assert.deepEqual(await store.list(), []);
     assert.deepEqual(
       JSON.parse(await readFile(path.join(rootDirectory, "sessions.json"), "utf8")),

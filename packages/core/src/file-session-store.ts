@@ -74,8 +74,40 @@ export class FileSessionStore implements SessionStore {
     return updated;
   }
 
+  public async saveContext(id: string, content: string): Promise<SessionRecord> {
+    const current = await this.get(id);
+    if (!current) {
+      throw new Error(`Unknown session "${id}".`);
+    }
+
+    const contextFile = this.sessionContextFile(id);
+    await mkdir(this.sessionsDirectory(), { recursive: true });
+    await writeFile(this.sessionContextPath(id), content, "utf8");
+    return this.update(id, { contextFile });
+  }
+
+  public async readContext(id: string): Promise<string | null> {
+    const session = await this.get(id);
+    if (!session?.contextFile) {
+      return null;
+    }
+
+    try {
+      return await readFile(this.sessionContextPath(id), "utf8");
+    } catch (error) {
+      if (isMissingFileError(error)) {
+        return null;
+      }
+
+      throw error;
+    }
+  }
+
   public async remove(id: string): Promise<void> {
-    await rm(this.sessionDirectory(id), { recursive: true, force: true });
+    await Promise.all([
+      rm(this.sessionDirectory(id), { recursive: true, force: true }),
+      rm(this.sessionContextPath(id), { force: true })
+    ]);
     const sessions = (await this.readSessionIndex()) ?? (await this.readSessionDirectories());
     await this.writeSessionIndex(sessions.filter((session) => session.id !== id));
   }
@@ -119,6 +151,16 @@ export class FileSessionStore implements SessionStore {
   private sessionDirectory(id: string): string {
     assertPathSegment(id, "session id");
     return path.join(this.sessionsDirectory(), id);
+  }
+
+  private sessionContextFile(id: string): string {
+    assertPathSegment(id, "session id");
+    return `sessions/${id}.md`;
+  }
+
+  private sessionContextPath(id: string): string {
+    assertPathSegment(id, "session id");
+    return path.join(this.sessionsDirectory(), `${id}.md`);
   }
 
   private async readSessionIndex(): Promise<SessionRecord[] | null> {

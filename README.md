@@ -270,12 +270,16 @@ committed with the application.
 
 `context.md` is created and updated by a dedicated AI session. It summarizes
 the configured document sources and repository scopes for future sessions.
-Any active AI session can also receive the `save_project_context.md` prompt,
-which merges its durable findings into the project's `context.md` rather than
-using the global Codex session archive.
+Any active AI session can also receive the `save_project_context.md` prompt.
+It merges durable findings into the project's `context.md` and writes a
+per-session handoff at `sessions/<session-id>.md`. The session index records
+that relative handoff path, so a later session can select it in **New session**
+and continue from the saved work.
 
 `sessions.json` is the project-level session index. It is updated whenever an
-AI session starts, changes status, or is terminated.
+AI session starts, changes status, saves a handoff, or is terminated. Stopped
+sessions with a saved handoff remain in the index until their saved context is
+deleted.
 
 No provider credentials are written to this directory. Provider authentication
 remains the responsibility of each CLI and its host environment.

@@ -85,6 +85,14 @@ export async function DELETE(_request: Request, context: SessionRouteContext) {
       // The terminal may have exited on its own before the stop request arrived.
     }
 
+    if (current.contextFile && current.status !== "stopped") {
+      const session = await store.update(current.id, {
+        lastError: undefined,
+        status: "stopped"
+      });
+      return NextResponse.json({ retainedContext: true, session });
+    }
+
     await store.remove(current.id);
     return NextResponse.json({ deleted: true });
   } catch (error) {
@@ -101,6 +109,12 @@ async function reconcileSession(
 ): Promise<SessionRecord | null> {
   const activeSessions = await tmux.listSessions();
   if (!activeSessions.includes(session.tmuxSessionName)) {
+    if (session.contextFile) {
+      return session.status === "stopped"
+        ? session
+        : store.update(session.id, { lastError: undefined, status: "stopped" });
+    }
+
     await store.remove(session.id);
     return null;
   }

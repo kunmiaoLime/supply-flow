@@ -20,6 +20,7 @@ export const SessionRecordSchema = z.object({
   notifyWhenComplete: z.boolean().optional(),
   workspacePath: z.string().min(1),
   tmuxSessionName: z.string().min(1),
+  contextFile: z.string().regex(/^sessions\/[A-Za-z0-9_-]+\.md$/).optional(),
   status: SessionStatusSchema,
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
@@ -58,7 +59,12 @@ export type SessionEvent = z.infer<typeof SessionEventSchema>;
 export type SessionUpdate = Partial<
   Pick<
     SessionRecord,
-    "status" | "title" | "readOnly" | "launchedReadOnly" | "notifyWhenComplete"
+    | "status"
+    | "title"
+    | "readOnly"
+    | "launchedReadOnly"
+    | "notifyWhenComplete"
+    | "contextFile"
   >
 > & {
   lastError?: string;
@@ -69,6 +75,8 @@ export interface SessionStore {
   get(id: string): Promise<SessionRecord | null>;
   list(): Promise<SessionRecord[]>;
   update(id: string, update: SessionUpdate): Promise<SessionRecord>;
+  saveContext(id: string, content: string): Promise<SessionRecord>;
+  readContext(id: string): Promise<string | null>;
   remove(id: string): Promise<void>;
   appendEvent(event: SessionEvent): Promise<void>;
   readEvents(id: string): Promise<SessionEvent[]>;
