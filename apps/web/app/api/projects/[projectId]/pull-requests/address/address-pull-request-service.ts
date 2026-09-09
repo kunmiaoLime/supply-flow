@@ -1,6 +1,6 @@
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import type { ProjectBranch } from "@supply-flow/core/branch";
+import { startBranchCodingSession, type ProjectBranch } from "@supply-flow/core/branch";
 import { FileBranchStore } from "@supply-flow/core/file-branch-store";
 import { FilePullRequestStore } from "@supply-flow/core/file-pull-request-store";
 import type { ProjectRecord, ProjectRepository, ProjectTask } from "@supply-flow/core/project";
@@ -88,11 +88,13 @@ export async function startAddressPullRequestSession(
     ...pullRequest,
     last_session_id: session.id
   });
-  if (branch && branch.last_session_id !== session.id) {
-    await branchStore.update(branch, {
-      ...branch,
-      last_session_id: session.id
-    });
+  if (
+    branch &&
+    (branch.implementation_session_id !== session.id ||
+      branch.last_session_id !== session.id ||
+      branch.review_state !== "coding")
+  ) {
+    await branchStore.update(branch, startBranchCodingSession(branch, session.id));
   }
 
   return { pullRequest: updatedPullRequest, reusedSession, session };

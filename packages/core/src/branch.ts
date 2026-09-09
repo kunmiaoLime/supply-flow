@@ -72,3 +72,15 @@ export type BranchIndex = z.infer<typeof BranchIndexSchema>;
 export function isTrackableProjectBranchName(name: string): boolean {
   return !untrackableBranchNames.has(name.trim().toLowerCase());
 }
+
+export function startBranchCodingSession(
+  branch: ProjectBranch,
+  sessionId: string
+): ProjectBranch {
+  return {
+    ...branch,
+    implementation_session_id: sessionId,
+    last_session_id: sessionId,
+    review_state: "coding"
+  };
+}

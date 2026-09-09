@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { startBranchCodingSession } from "./branch.js";
 import { FileBranchStore } from "./file-branch-store.js";
 
 test("tracks feature branches by repository path in branches.json", async () => {
@@ -232,4 +233,28 @@ test("migrates legacy branches with no review orchestration fields", async () =>
   } finally {
     await rm(rootDirectory, { force: true, recursive: true });
   }
+});
+
+test("starts coding with the active implementation session", () => {
+  const branch = {
+    name: "feature/review",
+    repository_local: "/Users/example/code/supply-flow",
+    merged: false,
+    jira_ticket: "https://limebike.atlassian.net/browse/SXP-456",
+    implementation_session_id: "session_previous",
+    implementation_session_configuration: null,
+    review_session_id: "session_review",
+    review_session_configuration: null,
+    last_session_id: "session_review",
+    review_result: "review-feature.md",
+    review_state: "review_passed" as const,
+    auto_resolve: true
+  };
+
+  assert.deepEqual(startBranchCodingSession(branch, "session_address"), {
+    ...branch,
+    implementation_session_id: "session_address",
+    last_session_id: "session_address",
+    review_state: "coding"
+  });
 });

@@ -1,5 +1,9 @@
 import { stat } from "node:fs/promises";
 import path from "node:path";
+import {
+  startBranchCodingSession,
+  type ProjectBranch
+} from "@supply-flow/core/branch";
 import { FileBranchStore } from "@supply-flow/core/file-branch-store";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
 import { sendAiSessionPrompt } from "@supply-flow/core/session-prompt";
@@ -105,12 +109,7 @@ async function main(): Promise<void> {
       await sendAiSessionPrompt(tmux, session.tmuxSessionName, prompt);
     }
 
-    await branchStore.update(reviewedBranch, {
-      ...reviewedBranch,
-      implementation_session_id: session.id,
-      last_session_id: session.id,
-      review_state: "coding"
-    });
+    await branchStore.update(reviewedBranch, startBranchCodingSession(reviewedBranch, session.id));
     console.log(`Started resolver session ${session.id} for ${reviewedBranch.name}.`);
     return;
   }
@@ -133,7 +132,7 @@ async function main(): Promise<void> {
 
 async function completeReview(
   store: FileBranchStore,
-  branch: Awaited<ReturnType<FileBranchStore["list"]>>[number],
+  branch: ProjectBranch,
   arguments_: Arguments,
   reviewState: "review_issue_found" | "review_passed"
 ) {
