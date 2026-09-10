@@ -1,3 +1,5 @@
+import type { ProjectBranch } from "@supply-flow/core/branch";
+import { FileBranchStore } from "@supply-flow/core/file-branch-store";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
 import { FileSessionStore } from "@supply-flow/core/file-session-store";
 import type { SessionRecord } from "@supply-flow/core/session";
@@ -61,8 +63,9 @@ export async function GET(_request: Request, context: ProjectRouteContext) {
     const store = new FileSessionStore(projectDirectory(project.project_id));
     const tmuxSessionNames = await getTmuxSessionNames();
     const sessions = await reconcileSessions(store, tmuxSessionNames);
+    const branches = await new FileBranchStore(projectDirectory(project.project_id)).list();
 
-    return NextResponse.json({ sessions });
+    return NextResponse.json({ sessions: orderProjectSessions(sessions, branches) });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unable to load AI sessions." },
@@ -192,4 +195,48 @@ async function reconcileSessions(
   }
 
   return sessions;
+}
+
+function orderProjectSessions(
+  sessions: SessionRecord[],
+  branches: ProjectBranch[]
+): SessionRecord[] {
+  const sessionsById = new Map(sessions.map((session) => [session.id, session]));
+  const reviewSessionIdsByImplementationId = new Map<string, string[]>();
+
+  for (const branch of branches) {
+    const implementationSessionId = branch.implementation_session_id;
+    const reviewSessionId = branch.review_session_id;
+    if (
+      !implementationSessionId ||
+      !reviewSessionId ||
+      implementationSessionId === reviewSessionId ||
+      !sessionsById.has(implementationSessionId) ||
+      !sessionsById.has(reviewSessionId)
+    ) {
+      continue;
+    }
+
+    const reviewSessionIds =
+      reviewSessionIdsByImplementationId.get(implementationSessionId) ?? [];
+    if (!reviewSessionIds.includes(reviewSessionId)) {
+      reviewSessionIds.push(reviewSessionId);
+      reviewSessionIdsByImplementationId.set(implementationSessionId, reviewSessionIds);
+    }
+  }
+
+  const attachedReviewSessionIds = new Set(
+    [...reviewSessionIdsByImplementationId.values()].flat()
+  );
+
+  return sessions.flatMap((session) => {
+    if (attachedReviewSessionIds.has(session.id)) {
+      return [];
+    }
+
+    const reviewSessions = (reviewSessionIdsByImplementationId.get(session.id) ?? [])
+      .map((reviewSessionId) => sessionsById.get(reviewSessionId))
+      .filter((reviewSession): reviewSession is SessionRecord => Boolean(reviewSession));
+    return [session, ...reviewSessions];
+  });
 }

@@ -341,6 +341,7 @@ async function pullRequestCreationPrompt(
 ): Promise<string> {
   const template = await readFile(pullRequestPromptPath, "utf8");
   const contextPath = path.join(projectDirectory(project.project_id), CONTEXT_FILE);
+  const projectDocumentLinks = externalProjectDocumentLinks(project);
   const trackerCommand = [
     JSON.stringify(path.join(projectRoot, "node_modules", ".bin", "tsx")),
     JSON.stringify(
@@ -360,6 +361,7 @@ async function pullRequestCreationPrompt(
     .replaceAll("<PROJECT_NAME>", JSON.stringify(project.project_name))
     .replaceAll("<PROJECT_ID>", JSON.stringify(project.project_id))
     .replaceAll("<PROJECT_CONTEXT_PATH>", JSON.stringify(contextPath))
+    .replaceAll("<PROJECT_DOCUMENT_LINKS>", projectDocumentLinks)
     .replaceAll("<TASK_TITLE>", JSON.stringify(task.title))
     .replaceAll("<JIRA_TICKET_URL>", JSON.stringify(issue.link))
     .replaceAll("<JIRA_TICKET_KEY>", JSON.stringify(issue.key))
@@ -379,6 +381,18 @@ async function pullRequestCreationPrompt(
     )
     .replaceAll("<PR_TEMPLATE_CONTENT>", pullRequestTemplate?.content ?? "")
     .replaceAll("<PULL_REQUEST_TRACKER_COMMAND>", trackerCommand);
+}
+
+function externalProjectDocumentLinks(project: ProjectRecord): string {
+  const links = project.documents
+    .filter((document) => document.type !== "markdown" && document.type !== "rfc-draft")
+    .map(
+      (document) =>
+        `- Title: ${JSON.stringify(document.title ?? "Untitled document")}; ` +
+        `type: ${document.type}; URL: ${document.link}`
+    );
+
+  return links.length > 0 ? links.join("\n") : "- No external project document links are configured.";
 }
 
 function pullRequestSessionTitle(task: ProjectTask): string {

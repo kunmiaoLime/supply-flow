@@ -5,6 +5,7 @@ import {
   type AiModelSettings,
   type ResolvedAiSessionActionSettings
 } from "@supply-flow/core/ai-model-settings";
+import type { ProjectBranch } from "@supply-flow/core/branch";
 import type { ProjectRecord } from "@supply-flow/core/project";
 import type { SessionRecord } from "@supply-flow/core/session";
 import {
@@ -39,6 +40,11 @@ interface AiModelSettingsResponse {
   error?: string;
 }
 
+interface BranchListResponse {
+  branches?: ProjectBranch[];
+  error?: string;
+}
+
 type SessionScope = "global" | "project";
 
 interface ScopedSession {
@@ -51,6 +57,7 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
   const requestedSessionId = searchParams.get("session");
   const [globalSessions, setGlobalSessions] = useState<SessionRecord[]>([]);
   const [projectSessions, setProjectSessions] = useState<SessionRecord[]>([]);
+  const [projectBranches, setProjectBranches] = useState<ProjectBranch[]>([]);
   const [activeSessionKey, setActiveSessionKey] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isNewSessionDialogOpen, setIsNewSessionDialogOpen] = useState(false);
@@ -97,7 +104,7 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
   const authenticationResetTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const terminalRefreshRequestId = useRef(0);
 
-  const sessions = combineSessions(globalSessions, projectSessions);
+  const sessions = combineSessions(globalSessions, projectSessions, projectBranches);
   const activeSession = sessions.find((session) => sessionKey(session) === activeSessionKey) ?? null;
   const activeSessionIsReadOnly = activeSession?.session.readOnly !== false;
   const activeSessionNeedsWriteModeRestart =
@@ -153,7 +160,12 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
 
       const results = await Promise.allSettled([
         loadSessionCollection(globalSessionCollectionUrl()),
-        project ? loadSessionCollection(projectSessionCollectionUrl(project.project_id)) : []
+        project
+          ? loadSessionCollection(projectSessionCollectionUrl(project.project_id))
+          : Promise.resolve<SessionRecord[]>([]),
+        project
+          ? loadBranchCollection(projectBranchesUrl(project.project_id))
+          : Promise.resolve<ProjectBranch[]>([])
       ]);
       if (ignoreResult) {
         return;
@@ -163,13 +175,20 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
         results[0].status === "fulfilled" ? results[0].value : [];
       const loadedProjectSessions =
         results[1].status === "fulfilled" ? results[1].value : [];
-      const loadedSessions = combineSessions(loadedGlobalSessions, loadedProjectSessions);
+      const loadedProjectBranches =
+        results[2].status === "fulfilled" ? results[2].value : [];
+      const loadedSessions = combineSessions(
+        loadedGlobalSessions,
+        loadedProjectSessions,
+        loadedProjectBranches
+      );
       const requestedSession = loadedSessions.find(
         (session) => session.session.id === requestedSessionId
       );
 
       setGlobalSessions(loadedGlobalSessions);
       setProjectSessions(loadedProjectSessions);
+      setProjectBranches(loadedProjectBranches);
       setActiveSessionKey((currentSessionKey) =>
         requestedSession
           ? sessionKey(requestedSession)
@@ -178,7 +197,7 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
             : (loadedSessions[0] ? sessionKey(loadedSessions[0]) : null)
       );
 
-      if (results.some((result) => result.status === "rejected")) {
+      if (results.slice(0, 2).some((result) => result.status === "rejected")) {
         setSessionError("Some AI sessions could not be loaded.");
       }
       setIsLoading(false);
@@ -188,6 +207,7 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
       if (!ignoreResult) {
         setGlobalSessions([]);
         setProjectSessions([]);
+        setProjectBranches([]);
         setActiveSessionKey(null);
         setSessionError(error instanceof Error ? error.message : "Unable to load AI sessions.");
         setIsLoading(false);
@@ -1002,12 +1022,60 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
 
 function combineSessions(
   globalSessions: SessionRecord[],
-  projectSessions: SessionRecord[]
+  projectSessions: SessionRecord[],
+  projectBranches: ProjectBranch[]
 ): ScopedSession[] {
   return [
     ...globalSessions.map((session) => ({ scope: "global" as const, session })),
-    ...projectSessions.map((session) => ({ scope: "project" as const, session }))
+    ...orderProjectSessions(projectSessions, projectBranches).map((session) => ({
+      scope: "project" as const,
+      session
+    }))
   ];
+}
+
+function orderProjectSessions(
+  projectSessions: SessionRecord[],
+  projectBranches: ProjectBranch[]
+): SessionRecord[] {
+  const sessionsById = new Map(projectSessions.map((session) => [session.id, session]));
+  const reviewSessionIdsByImplementationId = new Map<string, string[]>();
+
+  for (const branch of projectBranches) {
+    const implementationSessionId = branch.implementation_session_id;
+    const reviewSessionId = branch.review_session_id;
+    if (
+      !implementationSessionId ||
+      !reviewSessionId ||
+      implementationSessionId === reviewSessionId ||
+      !sessionsById.has(implementationSessionId) ||
+      !sessionsById.has(reviewSessionId)
+    ) {
+      continue;
+    }
+
+    const reviewSessionIds =
+      reviewSessionIdsByImplementationId.get(implementationSessionId) ?? [];
+    if (!reviewSessionIds.includes(reviewSessionId)) {
+      reviewSessionIds.push(reviewSessionId);
+      reviewSessionIdsByImplementationId.set(implementationSessionId, reviewSessionIds);
+    }
+  }
+
+  const attachedReviewSessionIds = new Set(
+    [...reviewSessionIdsByImplementationId.values()].flat()
+  );
+
+  return projectSessions.flatMap((session) => {
+    if (attachedReviewSessionIds.has(session.id)) {
+      return [];
+    }
+
+    const reviewSessions = (reviewSessionIdsByImplementationId.get(session.id) ?? [])
+      .map((reviewSessionId) => sessionsById.get(reviewSessionId))
+      .filter((reviewSession): reviewSession is SessionRecord => Boolean(reviewSession));
+    return [session, ...reviewSessions];
+  });
 }
 
 function sessionKey(scopedSession: ScopedSession): string {
@@ -1032,8 +1100,22 @@ function projectSessionCollectionUrl(projectId: string): string {
   return `/api/projects/${encodeURIComponent(projectId)}/sessions`;
 }
 
+function projectBranchesUrl(projectId: string): string {
+  return `/api/projects/${encodeURIComponent(projectId)}/branches`;
+}
+
 function globalSessionCollectionUrl(): string {
   return "/api/settings/ai-interfaces/sessions";
+}
+
+async function loadBranchCollection(url: string): Promise<ProjectBranch[]> {
+  const response = await fetch(url, { cache: "no-store" });
+  const data = (await response.json()) as BranchListResponse;
+  if (!response.ok) {
+    throw new Error(data.error ?? "Unable to load project branches.");
+  }
+
+  return data.branches ?? [];
 }
 
 function sessionUrl(scopedSession: ScopedSession, project?: ProjectRecord): string {
