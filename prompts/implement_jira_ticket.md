@@ -69,15 +69,68 @@ Read the shared context first when it exists.
    Create the ticket branch from `<PARENT_BRANCH>`:
 
    - If the exact target branch is already checked out, verify
-     `<PARENT_BRANCH>` is its ancestor with `git merge-base --is-ancestor`.
-     Resume only when that check succeeds.
+     `<PARENT_BRANCH>` is its ancestor with `git merge-base --is-ancestor` and
+     that `gh stack view` includes the target. Resume only when both checks
+     succeed.
    - Otherwise, require a clean worktree, including no untracked files. Switch
      to `<PARENT_BRANCH>` and verify it is the current branch before creating
      the ticket branch.
-   - From `main` or `master`, create the target with `git switch -c`.
-   - From any other parent, use `gt create` so the branch is stacked on that
-     parent. If Graphite is unavailable, stop rather than falling back to a
-     different branch strategy.
+   - Use GitHub's native stack extension to create the ticket branch. Verify
+     `gh stack` is available first; if it is not, install the official
+     extension with `gh extension install github/gh-stack`.
+   - From `main` or `master`, initialize a new stack rooted on that branch:
+
+     ```sh
+     gh stack init --base <PARENT_BRANCH> <computed target branch>
+     ```
+
+   - From any other parent, inspect `gh stack view` while
+     `<PARENT_BRANCH>` is checked out:
+
+     - If it reports that the parent is already in a native GitHub stack, do
+       not run `gh stack init`. Confirm the parent is that stack's top branch,
+       then create the child with:
+
+       ```sh
+       gh stack add <computed target branch>
+       ```
+
+       If the parent is not the stack's top branch, stop and report the
+       blocker instead of creating an unstacked branch.
+     - If it explicitly reports that the parent is not in a native GitHub
+       stack, initialize the checked-out parent in place before adding the
+       child. Find a local `master` or `main` branch that is an ancestor of
+       `<PARENT_BRANCH>` and use it as the stack base:
+
+       ```sh
+       stack_base=""
+       for candidate in master main; do
+         if git show-ref --verify --quiet "refs/heads/$candidate" &&
+           git merge-base --is-ancestor "$candidate" <PARENT_BRANCH>; then
+           stack_base="$candidate"
+           break
+         fi
+       done
+       if [ -z "$stack_base" ]; then
+         echo "Cannot determine a main or master base for <PARENT_BRANCH>." >&2
+         exit 1
+       fi
+       gh stack init --base "$stack_base"
+       ```
+
+       Run this initialization only for the explicit no-stack result. If
+       `gh stack view` fails for another reason, stop and report that error.
+     - After initializing an unstacked parent, confirm it is the stack's top
+       branch and create the child with:
+
+       ```sh
+       gh stack add <computed target branch>
+       ```
+
+       If the parent is not the stack's top branch, stop and report the
+       blocker instead of creating an unstacked branch.
+   - Supply Flow records the parent branch when tracking the new branch so the
+     pull-request workflow knows whether it must submit a stack.
    - Do not overwrite or replace an existing branch.
 
 4. Move the ticket to `Develop` only through its permitted Jira workflow. Use

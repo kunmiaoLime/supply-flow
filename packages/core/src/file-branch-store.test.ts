@@ -12,6 +12,7 @@ test("tracks feature branches by repository path in branches.json", async () => 
   const feature = {
     name: "kun/SXP-123-ride-validation",
     repository_local: "/Users/example/code/ios/Apps/Supply",
+    parent_branch: "master",
     created_at: "2026-08-20T00:00:00.000Z",
     merged: false,
     jira_ticket: "https://limebike.atlassian.net/browse/SXP-123",
@@ -77,6 +78,7 @@ test("tracks feature branches by repository path in branches.json", async () => 
       store.add({
         name: "master",
         repository_local: feature.repository_local,
+        parent_branch: null,
         merged: false,
         jira_ticket: null,
         implementation_session_id: null,
@@ -94,6 +96,7 @@ test("tracks feature branches by repository path in branches.json", async () => 
       store.ensure({
         name: "main",
         repository_local: "/Users/example/code/limebike-web",
+        parent_branch: null,
         merged: false,
         jira_ticket: null,
         implementation_session_id: null,
@@ -111,6 +114,7 @@ test("tracks feature branches by repository path in branches.json", async () => 
     const renamed = {
       name: "kun/SXP-123-validated-ride",
       repository_local: feature.repository_local,
+      parent_branch: feature.parent_branch,
       created_at: feature.created_at,
       merged: mergedFeature.merged,
       jira_ticket: feature.jira_ticket,
@@ -169,6 +173,7 @@ test("removes default branches from legacy branch records", async () => {
     const feature = {
       name: "feature/legacy",
       repository_local: "/Users/example/code/supply-flow",
+      parent_branch: null,
       merged: false,
       jira_ticket: null,
       implementation_session_id: null,
@@ -213,6 +218,7 @@ test("migrates legacy branches with no review orchestration fields", async () =>
     const store = new FileBranchStore(rootDirectory);
     const migratedBranch = {
       ...legacyBranch,
+      parent_branch: null,
       merged: false,
       implementation_session_id: null,
       implementation_session_configuration: null,
@@ -239,6 +245,7 @@ test("starts coding with the active implementation session", () => {
   const branch = {
     name: "feature/review",
     repository_local: "/Users/example/code/supply-flow",
+    parent_branch: "feature/parent",
     merged: false,
     jira_ticket: "https://limebike.atlassian.net/browse/SXP-456",
     implementation_session_id: "session_previous",

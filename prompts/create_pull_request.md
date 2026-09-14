@@ -35,6 +35,7 @@ types identify their role; their URLs are safe to include in the PR body.
 - Project scope: <REPOSITORY_LOCAL>
 - Remote: <REPOSITORY_REMOTE>
 - Branch: <BRANCH_NAME>
+- Recorded parent branch: <PARENT_BRANCH>
 
 ## PR Description Template
 
@@ -58,8 +59,10 @@ Template source: <PR_TEMPLATE_SOURCE>
    that the branch contains reviewable committed work. Do not create commits,
    amend commits, discard changes, or edit source files as part of this task.
 4. Check GitHub for an existing pull request for this branch. If one exists,
-   do not create a duplicate. Otherwise determine the correct base branch,
-   including any Graphite stack relationship when present. Use the PR
+   do not create a duplicate. Otherwise use the recorded parent branch as the
+   PR base when one is present, after verifying it exists locally and is an
+   ancestor of `<BRANCH_NAME>`. Do not infer a missing parent from Git history.
+   Use the repository's default branch only when no parent was recorded. Use the PR
    description template above when one is configured: retain its section
    structure, fill only facts supported by the diff, Jira ticket, context, and
    validation, and the configured Project Document Links. Populate any
@@ -73,16 +76,24 @@ Template source: <PR_TEMPLATE_SOURCE>
    template is configured, use concise `## Summary`, `## Testing`, and
    `## Links` sections, including the Jira ticket and relevant external
    project document links.
-5. Choose the submission workflow:
-   - When the repository has a valid `.graphite_repo_config`, Graphite must
-     create or update the pull request. Before running submission commands,
-     read `<GRAPHITE_PULL_REQUEST_PROMPT_PATH>` and follow its instructions.
-     Do not use `gh pr create`, `gh pr edit`, or direct `git push` for this
-     path.
-   - Otherwise push the branch and create the PR with `gh pr create`.
-   Do not run global Codex helpers. Use a concise title that includes
-   `<JIRA_TICKET_KEY>`, and include the Jira link in the PR body. After
-   creating the PR, confirm its URL with GitHub.
+5. Choose the native GitHub submission workflow:
+   - When the recorded parent is `main` or `master` (or no parent was
+     recorded), push the branch and create the PR with `gh pr create`. Use the
+     recorded parent as `--base` when it is present. Use a concise title that
+     includes `<JIRA_TICKET_KEY>`, include the Jira link in the PR body, and
+     apply the selected PR description template.
+   - When the recorded parent is neither `main` nor `master`, the branch must
+     already have been created with `gh stack add`. Verify `gh stack` is
+     available, installing the official extension with
+     `gh extension install github/gh-stack` if necessary, then submit the
+     native GitHub stack with `gh stack submit`. Preserve existing lower-stack
+     PRs. In the stack submission editor, apply the selected branch's concise
+     title, Jira link, and selected description template; do not fabricate
+     details for other branches in the stack.
+   - Confirm the selected PR URL and that GitHub displays it in the expected
+     stack before continuing. Do not use Graphite or any `gt` command.
+
+   Do not run global Codex helpers.
 6. After GitHub confirms the PR, add it to this project's PR tracking index:
 
    ```sh

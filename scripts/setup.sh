@@ -310,11 +310,10 @@ if ! command -v codex >/dev/null 2>&1 && ! command -v claude >/dev/null 2>&1; th
 fi
 
 printf '\nOptional integrations\n'
-optional_command_status gh 'GitHub pull request import, monitoring, and creation'
+optional_command_status gh 'GitHub pull request import, monitoring, creation, and native stacks'
 optional_command_status gws 'Google Docs reader'
 optional_command_status slackread 'Slack channel reader'
 optional_command_status circleci 'CircleCI interface setup'
-optional_command_status gt 'Graphite stacked-branch workflow'
 optional_command_status zip 'project export'
 optional_command_status unzip 'project import'
 optional_command_status lsof 'web app stop script'

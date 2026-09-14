@@ -8,6 +8,7 @@ interface Arguments {
   projectDirectory: string;
   repositoryLocal: string;
   branch: string;
+  parentBranch: string | null;
   jiraTicket: string;
   sessionId: string;
   autoResolve: boolean;
@@ -16,7 +17,7 @@ interface Arguments {
 }
 
 const usage =
-  "Usage: track-project-branch --project-directory <path> --repository-local <path> --branch <name> --jira-ticket <url> --session-id <id> --auto-resolve <true|false> --implementation-provider-id <codex|claude-code> --implementation-model <model|empty> --implementation-reasoning-effort <effort|empty> --implementation-read-only <true|false> --implementation-yolo-mode <true|false> --review-provider-id <codex|claude-code> --review-model <model|empty> --review-reasoning-effort <effort|empty> --review-read-only <true|false> --review-yolo-mode <true|false>";
+  "Usage: track-project-branch --project-directory <path> --repository-local <path> --branch <name> --parent-branch <name> --jira-ticket <url> --session-id <id> --auto-resolve <true|false> --implementation-provider-id <codex|claude-code> --implementation-model <model|empty> --implementation-reasoning-effort <effort|empty> --implementation-read-only <true|false> --implementation-yolo-mode <true|false> --review-provider-id <codex|claude-code> --review-model <model|empty> --review-reasoning-effort <effort|empty> --review-read-only <true|false> --review-yolo-mode <true|false>";
 
 async function main(): Promise<void> {
   const arguments_ = parseArguments(process.argv.slice(2));
@@ -24,6 +25,7 @@ async function main(): Promise<void> {
   const trackedBranch = {
     name: arguments_.branch,
     repository_local: arguments_.repositoryLocal,
+    parent_branch: arguments_.parentBranch,
     merged: false,
     jira_ticket: arguments_.jiraTicket,
     implementation_session_id: arguments_.sessionId,
@@ -49,6 +51,7 @@ async function main(): Promise<void> {
   const nextBranch = existing
     ? {
         ...existing,
+        parent_branch: trackedBranch.parent_branch ?? existing.parent_branch,
         jira_ticket: trackedBranch.jira_ticket,
         implementation_session_id: trackedBranch.implementation_session_id,
         implementation_session_configuration:
@@ -93,6 +96,8 @@ function parseArguments(values: string[]): Arguments {
   const projectDirectory = arguments_.get("--project-directory")?.trim();
   const repositoryLocal = arguments_.get("--repository-local")?.trim();
   const branch = arguments_.get("--branch")?.trim();
+  const parentBranchValue = arguments_.get("--parent-branch");
+  const parentBranch = parentBranchValue?.trim() || null;
   const jiraTicket = arguments_.get("--jira-ticket")?.trim();
   const sessionId = arguments_.get("--session-id")?.trim();
   const autoResolve = arguments_.get("--auto-resolve")?.trim();
@@ -103,17 +108,17 @@ function parseArguments(values: string[]): Arguments {
     !jiraTicket ||
     !sessionId ||
     (autoResolve !== "true" && autoResolve !== "false") ||
-    (arguments_.size !== 6 && arguments_.size !== 11 && arguments_.size !== 16)
+    ![6, 7, 11, 12, 16, 17].includes(arguments_.size)
   ) {
     throw new Error(usage);
   }
 
   const implementationSessionConfiguration =
-    arguments_.size === 16
+    arguments_.size === 16 || arguments_.size === 17
       ? parseSessionConfiguration(arguments_, "implementation", "implementation")
       : null;
   const reviewSessionConfiguration =
-    arguments_.size === 11 || arguments_.size === 16
+    [11, 12, 16, 17].includes(arguments_.size)
       ? parseSessionConfiguration(arguments_, "review", "reviewer")
       : null;
 
@@ -121,6 +126,7 @@ function parseArguments(values: string[]): Arguments {
     projectDirectory,
     repositoryLocal,
     branch,
+    parentBranch,
     jiraTicket,
     sessionId,
     autoResolve: autoResolve === "true",

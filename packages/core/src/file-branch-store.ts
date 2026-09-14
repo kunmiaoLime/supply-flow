@@ -184,6 +184,7 @@ function hasMissingOrchestrationFields(value: unknown): boolean {
       branch !== null &&
       !Array.isArray(branch) &&
       (!("review_result" in branch) ||
+        !("parent_branch" in branch) ||
         !("implementation_session_id" in branch) ||
         !("implementation_session_configuration" in branch) ||
         !("review_session_id" in branch) ||

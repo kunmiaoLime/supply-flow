@@ -299,6 +299,8 @@ async function buildImplementationGoal(
     JSON.stringify(repository.local),
     "--branch",
     '"$(git branch --show-current)"',
+    "--parent-branch",
+    JSON.stringify(parentBranch),
     "--jira-ticket",
     JSON.stringify(issue.link),
     "--session-id",
