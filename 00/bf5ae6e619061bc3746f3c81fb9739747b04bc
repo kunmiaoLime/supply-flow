@@ -1,0 +1,41 @@
+apps/web/app/api/projects/[projectId]/implementation-sessions/route.ts
+  s_1b8e4f13e9825b::t_0d00051f41f6bb 302-303
+prompts/implement_jira_ticket.md
+  s_1b8e4f13e9825b::t_3db92a8f6b7b2c 87-88,100-122,125
+  s_1b8e4f13e9825b::t_5db825c7895c0e 90-99,123-124,126-128,130-131
+  s_1b8e4f13e9825b::t_a9e907f534430b 72-74,84
+  s_1b8e4f13e9825b::t_0672594a18a046 78-83,85-86,89,129,132-133
+packages/core/src/file-branch-store.test.ts
+  s_1b8e4f13e9825b::t_fa04687d9ab35b 15,81,99,117,176,221,248
+prompts/create_pull_request.md
+  s_1b8e4f13e9825b::t_38ed0907593f01 38,62-65,95-96
+  s_1b8e4f13e9825b::t_0672594a18a046 79-94
+packages/core/src/branch.ts
+  s_1b8e4f13e9825b::t_0d00051f41f6bb 47
+packages/core/src/file-branch-store.ts
+  s_1b8e4f13e9825b::t_0d00051f41f6bb 187
+apps/web/scripts/track-project-branch.ts
+  s_1b8e4f13e9825b::t_0d00051f41f6bb 11,20,28,54,99-100,111,117,121,129
+apps/web/app/api/projects/[projectId]/branches/track-pr/route.ts
+  s_1b8e4f13e9825b::t_fec42df845979b 235,369-370
+scripts/setup.sh
+  s_1b8e4f13e9825b::t_38ed0907593f01 313
+apps/web/app/api/projects/[projectId]/branches/route.ts
+  s_1b8e4f13e9825b::t_0d00051f41f6bb 110,251
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "00bf5ae6e619061bc3746f3c81fb9739747b04bc",
+  "prompts": {},
+  "sessions": {
+    "s_1b8e4f13e9825b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a161-9ca8-7f50-b7aa-0d4dfaf57a6e",
+        "model": "openai.gpt-5.6-terra"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    }
+  }
+}
