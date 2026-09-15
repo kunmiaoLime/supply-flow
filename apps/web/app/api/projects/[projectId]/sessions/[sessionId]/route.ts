@@ -85,11 +85,14 @@ export async function DELETE(_request: Request, context: SessionRouteContext) {
       // The terminal may have exited on its own before the stop request arrived.
     }
 
-    if (current.contextFile && current.status !== "stopped") {
-      const session = await store.update(current.id, {
-        lastError: undefined,
-        status: "stopped"
-      });
+    if (current.contextFile) {
+      const session =
+        current.status === "stopped"
+          ? current
+          : await store.update(current.id, {
+              lastError: undefined,
+              status: "stopped"
+            });
       return NextResponse.json({ retainedContext: true, session });
     }
 

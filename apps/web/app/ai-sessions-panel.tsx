@@ -649,20 +649,18 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
                       />
                       <span>{scopedSession.session.title}</span>
                     </button>
-                    <button
-                      aria-label={
-                        isSavedHandoff
-                          ? `Delete saved handoff for ${scopedSession.session.title}`
-                          : `Terminate ${scopedSession.session.title}`
-                      }
-                      className="ai-session-tab-close"
-                      disabled={isStopping}
-                      onClick={() => void stopSession(scopedSession)}
-                      title={isSavedHandoff ? "Delete saved handoff" : "Terminate session"}
-                      type="button"
-                    >
-                      <X aria-hidden="true" />
-                    </button>
+                    {!isSavedHandoff ? (
+                      <button
+                        aria-label={`Terminate ${scopedSession.session.title}`}
+                        className="ai-session-tab-close"
+                        disabled={isStopping}
+                        onClick={() => void stopSession(scopedSession)}
+                        title="Terminate session"
+                        type="button"
+                      >
+                        <X aria-hidden="true" />
+                      </button>
+                    ) : null}
                   </div>
                 );
               })}
@@ -962,24 +960,26 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
                     value={goal}
                   />
                 </label>
-                {resumableProjectSessions.length > 0 ? (
-                  <label htmlFor="resume-session">
-                    <span>Resume saved handoff</span>
-                    <select
-                      disabled={isCreating}
-                      id="resume-session"
-                      onChange={(event) => selectSavedHandoff(event.target.value)}
-                      value={resumeSessionId}
-                    >
-                      <option value="">Start without a saved handoff</option>
-                      {resumableProjectSessions.map((session) => (
-                        <option key={session.id} value={session.id}>
-                          {session.title}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : null}
+                <label htmlFor="resume-session">
+                  <span>Resume saved session</span>
+                  <select
+                    disabled={isCreating || resumableProjectSessions.length === 0}
+                    id="resume-session"
+                    onChange={(event) => selectSavedHandoff(event.target.value)}
+                    value={resumeSessionId}
+                  >
+                    <option value="">
+                      {resumableProjectSessions.length > 0
+                        ? "Start without a saved session"
+                        : "No saved sessions available"}
+                    </option>
+                    {resumableProjectSessions.map((session) => (
+                      <option key={session.id} value={session.id}>
+                        {session.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <AiSessionConfigurationFields
                   configuration={newSessionConfiguration}
                   disabled={isCreating || isLoadingNewSessionDefaults}
