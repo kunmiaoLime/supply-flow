@@ -1,0 +1,22 @@
+apps/web/app/workspace-shell.tsx
+  s_1b8e4f13e9825b::t_cf39e93040a372 28-29,201-203,260-261,274-284,337-351,669-673,675-692,697-699,705-710,1559-1563,1566-1577,1579-1626,1628-1647,1649-1662,1664-1689
+  s_1b8e4f13e9825b::t_5d5ecdde6652e4 285-291,674,693-696,700-704,1578,1627,1663
+apps/web/app/globals.css
+  s_1b8e4f13e9825b::t_cf39e93040a372 241,259-262,270,281-282,287-380,4078
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0223c631d190d0892c98363fb0d090e92f070058",
+  "prompts": {},
+  "sessions": {
+    "s_1b8e4f13e9825b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a161-9ca8-7f50-b7aa-0d4dfaf57a6e",
+        "model": "openai.gpt-5.6-terra"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    }
+  }
+}
