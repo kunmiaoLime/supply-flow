@@ -3,7 +3,7 @@ import { FileProjectStore } from "@supply-flow/core/file-project-store";
 import { FileSessionStore } from "@supply-flow/core/file-session-store";
 import { TmuxAdapter } from "@supply-flow/core/tmux";
 import { NextResponse } from "next/server";
-import { restartProjectSession } from "../../session-service";
+import { updateProjectSessionReadOnly } from "../../session-service";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -44,7 +44,7 @@ export async function POST(request: Request, context: SessionRouteContext) {
       );
     }
 
-    const updated = await restartProjectSession(project.project_id, session, readOnly);
+    const updated = await updateProjectSessionReadOnly(project.project_id, session, readOnly);
     return NextResponse.json({ session: updated });
   } catch (error) {
     return NextResponse.json(
