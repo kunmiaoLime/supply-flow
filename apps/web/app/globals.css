@@ -238,6 +238,7 @@ button:focus-visible {
 }
 
 .project-selector {
+  position: relative;
   display: flex;
   width: min(300px, 38vw);
   min-height: 38px;
@@ -255,6 +256,10 @@ button:focus-visible {
   box-shadow: 0 0 0 3px rgba(8, 124, 105, 0.14);
 }
 
+.project-selector.is-open {
+  border-color: var(--teal);
+}
+
 .project-selector svg {
   width: 17px;
   height: 17px;
@@ -262,21 +267,115 @@ button:focus-visible {
   color: var(--teal);
 }
 
-.project-selector select {
+.project-selector input {
   width: 100%;
   min-width: 0;
   border: 0;
   outline: 0;
   background: transparent;
   color: inherit;
-  cursor: pointer;
   font-size: 13px;
   font-weight: 700;
 }
 
-.project-selector.is-placeholder select {
+.project-selector input::placeholder,
+.project-selector.is-placeholder input {
   color: var(--muted);
   font-weight: 600;
+}
+
+.project-selector-clear,
+.project-selector-toggle {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.project-selector-clear:hover,
+.project-selector-toggle:hover:not(:disabled) {
+  background: var(--teal-soft);
+  color: var(--teal);
+}
+
+.project-selector-clear svg,
+.project-selector-toggle svg {
+  width: 17px;
+  height: 17px;
+  color: currentColor;
+}
+
+.project-selector-toggle:disabled {
+  cursor: not-allowed;
+}
+
+.project-selector-options {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  max-height: min(360px, calc(100vh - 104px));
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--surface);
+  box-shadow: 0 12px 24px rgba(20, 38, 32, 0.16);
+}
+
+.project-selector-option {
+  display: flex;
+  width: 100%;
+  min-height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 9px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  text-align: left;
+}
+
+.project-selector-option span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-selector-option svg {
+  width: 16px;
+  height: 16px;
+  color: var(--teal);
+}
+
+.project-selector-option:hover,
+.project-selector-option.is-active {
+  background: var(--teal-soft);
+  color: #05634f;
+}
+
+.project-selector-empty {
+  margin: 0;
+  padding: 10px 9px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .create-project-button {
@@ -3976,7 +4075,7 @@ code {
     padding: 0 8px;
   }
 
-  .project-selector select {
+  .project-selector input {
     font-size: 12px;
   }
 

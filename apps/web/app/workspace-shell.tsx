@@ -25,6 +25,8 @@ import type {
 import type { PullRequestTemplate } from "@supply-flow/core/file-pull-request-template-store";
 import {
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Code2,
   Download,
   Eye,
@@ -196,6 +198,9 @@ export function WorkspaceShell({
   const router = useRouter();
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+  const [isProjectPickerOpen, setIsProjectPickerOpen] = useState(false);
+  const [projectSearch, setProjectSearch] = useState("");
+  const [activeProjectOption, setActiveProjectOption] = useState(0);
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [creationError, setCreationError] = useState("");
@@ -252,6 +257,8 @@ export function WorkspaceShell({
   const [readmeError, setReadmeError] = useState("");
   const [isLoadingReadme, setIsLoadingReadme] = useState(false);
   const projectNameInput = useRef<HTMLInputElement>(null);
+  const projectPicker = useRef<HTMLDivElement>(null);
+  const projectPickerInput = useRef<HTMLInputElement>(null);
   const projectArchivePathInput = useRef<HTMLInputElement>(null);
   const removeProjectNameInput = useRef<HTMLInputElement>(null);
   const repositoryLocalPathInput = useRef<HTMLInputElement>(null);
@@ -264,6 +271,24 @@ export function WorkspaceShell({
   const selectedProjectId = projectId ?? "";
   const heading = tabHeadings[tab];
   const selectedProject = projects.find((project) => project.project_id === selectedProjectId);
+  const normalizedProjectSearch = projectSearch.trim().toLocaleLowerCase();
+  const matchingProjects = projects.filter((project) => {
+    if (!normalizedProjectSearch) {
+      return true;
+    }
+
+    return (
+      project.project_name.toLocaleLowerCase().includes(normalizedProjectSearch) ||
+      project.project_id.toLocaleLowerCase().includes(normalizedProjectSearch)
+    );
+  });
+  const activeProjectOptionIndex = Math.min(
+    activeProjectOption,
+    Math.max(matchingProjects.length - 1, 0)
+  );
+  const activeProjectOptionId = matchingProjects.length
+    ? `project-selector-option-${activeProjectOptionIndex}`
+    : undefined;
   const hasPanelHeading =
     tab !== "ai-sessions" &&
     tab !== "project" &&
@@ -308,6 +333,21 @@ export function WorkspaceShell({
       ignoreResult = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!isProjectPickerOpen) {
+      return;
+    }
+
+    function closeProjectPickerOnOutsidePointer(event: PointerEvent) {
+      if (!projectPicker.current?.contains(event.target as Node)) {
+        closeProjectPicker();
+      }
+    }
+
+    document.addEventListener("pointerdown", closeProjectPickerOnOutsidePointer);
+    return () => document.removeEventListener("pointerdown", closeProjectPickerOnOutsidePointer);
+  }, [isProjectPickerOpen]);
 
   useEffect(() => {
     if (isCreateProjectDialogOpen) {
@@ -624,6 +664,48 @@ export function WorkspaceShell({
         ? settingsTabUrl(settingsTab ?? defaultSettingsTab, projectId || undefined)
         : workspaceTabUrl(currentTab?.href ?? "/project", projectId || undefined);
     router.push(href);
+  }
+
+  function openProjectPicker() {
+    const selectedProjectIndex = projects.findIndex(
+      (project) => project.project_id === selectedProjectId
+    );
+    setProjectSearch("");
+    setActiveProjectOption(selectedProjectIndex >= 0 ? selectedProjectIndex : 0);
+    setIsProjectPickerOpen(true);
+    window.requestAnimationFrame(() => {
+      projectPickerInput.current?.focus();
+    });
+  }
+
+  function closeProjectPicker() {
+    setIsProjectPickerOpen(false);
+    setProjectSearch("");
+    setActiveProjectOption(0);
+  }
+
+  function chooseProject(projectId: string) {
+    closeProjectPicker();
+    selectProject(projectId);
+  }
+
+  function chooseActiveProject() {
+    const project = matchingProjects[activeProjectOptionIndex];
+    if (project) {
+      chooseProject(project.project_id);
+    }
+  }
+
+  function moveActiveProjectOption(direction: -1 | 1) {
+    const lastOptionIndex = matchingProjects.length - 1;
+    if (lastOptionIndex < 0) {
+      return;
+    }
+
+    setActiveProjectOption((currentOption) => {
+      const boundedOption = Math.min(currentOption, lastOptionIndex);
+      return Math.max(0, Math.min(lastOptionIndex, boundedOption + direction));
+    });
   }
 
   function replaceProject(updatedProject: ProjectRecord) {
@@ -1474,26 +1556,137 @@ export function WorkspaceShell({
         </div>
 
         <div className="project-controls">
-          <label
-            className={`project-selector${selectedProject ? "" : " is-placeholder"}`}
+          <div
+            className={`project-selector${isProjectPickerOpen ? " is-open" : ""}${
+              selectedProject ? "" : " is-placeholder"
+            }`}
+            ref={projectPicker}
           >
             <FolderKanban aria-hidden="true" />
-            <span className="sr-only">Current project</span>
-            <select
-              aria-label="Current project"
-              onChange={(event) => selectProject(event.target.value)}
-              value={selectedProjectId}
+            <input
+              aria-activedescendant={
+                isProjectPickerOpen ? activeProjectOptionId : undefined
+              }
+              aria-autocomplete="list"
+              aria-controls="project-selector-options"
+              aria-expanded={isProjectPickerOpen}
+              aria-label="Search or select a project"
+              autoComplete="off"
+              disabled={isLoadingProjects}
+              onChange={(event) => {
+                setProjectSearch(event.target.value);
+                setActiveProjectOption(0);
+                setIsProjectPickerOpen(true);
+              }}
+              onFocus={() => {
+                if (!isProjectPickerOpen) {
+                  openProjectPicker();
+                }
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowDown") {
+                  event.preventDefault();
+                  if (!isProjectPickerOpen) {
+                    openProjectPicker();
+                  } else {
+                    moveActiveProjectOption(1);
+                  }
+                } else if (event.key === "ArrowUp") {
+                  event.preventDefault();
+                  if (!isProjectPickerOpen) {
+                    openProjectPicker();
+                  } else {
+                    moveActiveProjectOption(-1);
+                  }
+                } else if (event.key === "Enter" && isProjectPickerOpen) {
+                  event.preventDefault();
+                  chooseActiveProject();
+                } else if (event.key === "Escape" && isProjectPickerOpen) {
+                  event.preventDefault();
+                  closeProjectPicker();
+                  projectPickerInput.current?.blur();
+                } else if (event.key === "Tab" && isProjectPickerOpen) {
+                  closeProjectPicker();
+                }
+              }}
+              placeholder={isLoadingProjects ? "Loading projects..." : "Select a project"}
+              ref={projectPickerInput}
+              role="combobox"
+              value={
+                isProjectPickerOpen
+                  ? projectSearch
+                  : selectedProject?.project_name ?? ""
+              }
+            />
+            {isProjectPickerOpen && projectSearch ? (
+              <button
+                aria-label="Clear project search"
+                className="project-selector-clear"
+                onClick={() => {
+                  setProjectSearch("");
+                  setActiveProjectOption(0);
+                  projectPickerInput.current?.focus();
+                }}
+                type="button"
+              >
+                <X aria-hidden="true" />
+              </button>
+            ) : null}
+            <button
+              aria-label={isProjectPickerOpen ? "Close project picker" : "Open project picker"}
+              className="project-selector-toggle"
+              disabled={isLoadingProjects}
+              onClick={() => {
+                if (isProjectPickerOpen) {
+                  closeProjectPicker();
+                  projectPickerInput.current?.blur();
+                } else {
+                  openProjectPicker();
+                }
+              }}
+              type="button"
             >
-              <option value="">
-                {isLoadingProjects ? "Loading projects..." : "Select a project"}
-              </option>
-              {projects.map((project) => (
-                <option key={project.project_id} value={project.project_id}>
-                  {project.project_name}
-                </option>
-              ))}
-            </select>
-          </label>
+              {isProjectPickerOpen ? (
+                <ChevronUp aria-hidden="true" />
+              ) : (
+                <ChevronDown aria-hidden="true" />
+              )}
+            </button>
+            {isProjectPickerOpen ? (
+              <div
+                aria-label="Project options"
+                className="project-selector-options"
+                id="project-selector-options"
+                role="listbox"
+              >
+                {matchingProjects.map((project, index) => {
+                  const optionIndex = index;
+                  const isSelected = project.project_id === selectedProjectId;
+                  return (
+                    <button
+                      aria-selected={isSelected}
+                      className={`project-selector-option${
+                        activeProjectOptionIndex === optionIndex ? " is-active" : ""
+                      }`}
+                      id={`project-selector-option-${optionIndex}`}
+                      key={project.project_id}
+                      onClick={() => chooseProject(project.project_id)}
+                      role="option"
+                      type="button"
+                    >
+                      <span>{project.project_name}</span>
+                      {isSelected ? <CheckCircle2 aria-hidden="true" /> : null}
+                    </button>
+                  );
+                })}
+                {!matchingProjects.length ? (
+                  <p className="project-selector-empty" role="status">
+                    No projects match “{projectSearch}”.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
           <button
             className="create-project-button"
             onClick={openCreateProjectDialog}
