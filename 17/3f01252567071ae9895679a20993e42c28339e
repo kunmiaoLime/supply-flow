@@ -1,0 +1,23 @@
+apps/web/app/api/projects/[projectId]/sessions/[sessionId]/read-only/route.ts
+  s_1b8e4f13e9825b::t_cd4648599d2eb7 6,47
+apps/web/app/ai-sessions-panel.tsx
+  s_1b8e4f13e9825b::t_cd4648599d2eb7 519,804,815
+apps/web/app/api/projects/[projectId]/sessions/session-service.ts
+  s_1b8e4f13e9825b::t_cd4648599d2eb7 19,203,208,212-213,215-222,225
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "173f01252567071ae9895679a20993e42c28339e",
+  "prompts": {},
+  "sessions": {
+    "s_1b8e4f13e9825b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a161-9ca8-7f50-b7aa-0d4dfaf57a6e",
+        "model": "openai.gpt-5.6-terra"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    }
+  }
+}
