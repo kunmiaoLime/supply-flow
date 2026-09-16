@@ -97,6 +97,17 @@ test("stores session metadata and append-only events", async () => {
       }
     );
 
+    const hidden = await store.update("session_01", { hiddenFromTabs: true });
+    assert.equal(hidden.hiddenFromTabs, true);
+    assert.equal(
+      await store.readContext("session_01"),
+      "# Session handoff\n\nThe next session should run the focused test suite.\n"
+    );
+    assert.equal(
+      await readFile(path.join(rootDirectory, "sessions", "session_01.md"), "utf8"),
+      "# Session handoff\n\nThe next session should run the focused test suite.\n"
+    );
+
     await store.remove("session_01");
     assert.equal(await store.get("session_01"), null);
     assert.equal(await store.readContext("session_01"), null);

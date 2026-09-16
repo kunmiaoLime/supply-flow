@@ -104,7 +104,8 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
   const authenticationResetTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const terminalRefreshRequestId = useRef(0);
 
-  const sessions = combineSessions(globalSessions, projectSessions, projectBranches);
+  const allSessions = combineSessions(globalSessions, projectSessions, projectBranches);
+  const sessions = allSessions.filter(({ session }) => session.hiddenFromTabs !== true);
   const activeSession = sessions.find((session) => sessionKey(session) === activeSessionKey) ?? null;
   const activeSessionIsReadOnly = activeSession?.session.readOnly !== false;
   const resumableProjectSessions = projectSessions.filter((session) => session.contextFile);
@@ -180,7 +181,10 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
         loadedProjectSessions,
         loadedProjectBranches
       );
-      const requestedSession = loadedSessions.find(
+      const loadedVisibleSessions = loadedSessions.filter(
+        ({ session }) => session.hiddenFromTabs !== true
+      );
+      const requestedSession = loadedVisibleSessions.find(
         (session) => session.session.id === requestedSessionId
       );
 
@@ -190,9 +194,9 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
       setActiveSessionKey((currentSessionKey) =>
         requestedSession
           ? sessionKey(requestedSession)
-          : loadedSessions.some((session) => sessionKey(session) === currentSessionKey)
+          : loadedVisibleSessions.some((session) => sessionKey(session) === currentSessionKey)
             ? currentSessionKey
-            : (loadedSessions[0] ? sessionKey(loadedSessions[0]) : null)
+            : (loadedVisibleSessions[0] ? sessionKey(loadedVisibleSessions[0]) : null)
       );
 
       if (results.slice(0, 2).some((result) => result.status === "rejected")) {
@@ -357,14 +361,10 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
           currentSessions.filter((session) => session.id !== scopedSession.session.id)
         );
       }
-      if (data.deleted) {
-        const nextSession = sessions.find((session) => sessionKey(session) !== key) ?? null;
-        setActiveSessionKey((currentSessionKey) =>
-          currentSessionKey === key
-            ? (nextSession ? sessionKey(nextSession) : null)
-            : currentSessionKey
-        );
-      }
+      const nextSession = sessions.find((session) => sessionKey(session) !== key) ?? null;
+      setActiveSessionKey((currentSessionKey) =>
+        currentSessionKey === key ? (nextSession ? sessionKey(nextSession) : null) : currentSessionKey
+      );
     } catch (error) {
       setSessionError(
         error instanceof Error ? error.message : "Unable to terminate the AI session."
@@ -397,6 +397,38 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
       );
     } finally {
       setOpeningTerminalSessionKey(null);
+    }
+  }
+
+  async function closeSavedHandoffTab(scopedSession: ScopedSession) {
+    const key = sessionKey(scopedSession);
+    if (stoppingSessionKey) {
+      return;
+    }
+
+    setStoppingSessionKey(key);
+    setSessionError("");
+
+    try {
+      const response = await fetch(`${sessionUrl(scopedSession, project)}/hide`, {
+        method: "POST"
+      });
+      const data = (await response.json()) as { session?: SessionRecord; error?: string };
+      if (!response.ok || !data.session) {
+        throw new Error(data.error ?? "Unable to close the saved session tab.");
+      }
+
+      updateSession(scopedSession.scope, data.session);
+      const nextSession = sessions.find((session) => sessionKey(session) !== key) ?? null;
+      setActiveSessionKey((currentSessionKey) =>
+        currentSessionKey === key ? (nextSession ? sessionKey(nextSession) : null) : currentSessionKey
+      );
+    } catch (error) {
+      setSessionError(
+        error instanceof Error ? error.message : "Unable to close the saved session tab."
+      );
+    } finally {
+      setStoppingSessionKey(null);
     }
   }
 
@@ -593,6 +625,7 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
 
   function removeSessionFromUi(scopedSession: ScopedSession) {
     const key = sessionKey(scopedSession);
+    const nextSession = sessions.find((session) => sessionKey(session) !== key) ?? null;
     setSessionError("");
     if (scopedSession.scope === "global") {
       setGlobalSessions((currentSessions) =>
@@ -604,7 +637,7 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
       );
     }
     setActiveSessionKey((currentSessionKey) =>
-      currentSessionKey === key ? null : currentSessionKey
+      currentSessionKey === key ? (nextSession ? sessionKey(nextSession) : null) : currentSessionKey
     );
   }
 
@@ -645,7 +678,18 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
                       />
                       <span>{scopedSession.session.title}</span>
                     </button>
-                    {!isSavedHandoff ? (
+                    {isSavedHandoff ? (
+                      <button
+                        aria-label={`Close ${scopedSession.session.title} tab`}
+                        className="ai-session-tab-close"
+                        disabled={isStopping}
+                        onClick={() => void closeSavedHandoffTab(scopedSession)}
+                        title="Close tab; keep saved handoff"
+                        type="button"
+                      >
+                        <X aria-hidden="true" />
+                      </button>
+                    ) : (
                       <button
                         aria-label={`Terminate ${scopedSession.session.title}`}
                         className="ai-session-tab-close"
@@ -656,7 +700,7 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
                       >
                         <X aria-hidden="true" />
                       </button>
-                    ) : null}
+                    )}
                   </div>
                 );
               })}
@@ -682,10 +726,12 @@ export function AiSessionsPanel({ project }: { project?: ProjectRecord }) {
           <div className="ai-sessions-empty">
             <Bot aria-hidden="true" />
             <div>
-              <strong>No AI sessions</strong>
+              <strong>No open AI sessions</strong>
               <span>
                 {project
-                  ? "Create a session or start interface setup from Settings."
+                  ? resumableProjectSessions.length > 0
+                    ? "Create a session and choose a saved handoff to resume it."
+                    : "Create a session or start interface setup from Settings."
                   : "Start interface setup from Settings."}
               </span>
             </div>

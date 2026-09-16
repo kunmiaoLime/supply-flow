@@ -21,6 +21,7 @@ export const SessionRecordSchema = z.object({
   workspacePath: z.string().min(1),
   tmuxSessionName: z.string().min(1),
   contextFile: z.string().regex(/^sessions\/[A-Za-z0-9_-]+\.md$/).optional(),
+  hiddenFromTabs: z.boolean().optional(),
   status: SessionStatusSchema,
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
@@ -65,6 +66,7 @@ export type SessionUpdate = Partial<
     | "launchedReadOnly"
     | "notifyWhenComplete"
     | "contextFile"
+    | "hiddenFromTabs"
   >
 > & {
   lastError?: string;
