@@ -2027,38 +2027,6 @@ code {
   height: 15px;
 }
 
-.review-branch-button {
-  display: inline-flex;
-  min-height: 32px;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 0 10px;
-  border: 1px solid var(--line-strong);
-  border-radius: 5px;
-  background: var(--surface);
-  color: var(--teal);
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 750;
-  white-space: nowrap;
-}
-
-.review-branch-button:hover:not(:disabled) {
-  border-color: var(--teal);
-  background: var(--teal-soft);
-}
-
-.review-branch-button:disabled {
-  cursor: wait;
-  opacity: 0.58;
-}
-
-.review-branch-button svg {
-  width: 15px;
-  height: 15px;
-}
-
 .code-implementation-form {
   margin-top: 18px;
   padding: 20px;
@@ -3954,38 +3922,6 @@ button.branch-review-state svg {
 .pull-request-monitor-control input:disabled {
   cursor: wait;
   opacity: 0.6;
-}
-
-.pull-request-address-button {
-  display: inline-flex;
-  min-height: 32px;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 0 9px;
-  border: 1px solid var(--line-strong);
-  border-radius: 5px;
-  background: var(--surface);
-  color: var(--ink);
-  cursor: pointer;
-  font-size: 11px;
-  font-weight: 750;
-  white-space: nowrap;
-}
-
-.pull-request-address-button:hover:not(:disabled) {
-  border-color: var(--teal);
-  color: var(--teal);
-}
-
-.pull-request-address-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.58;
-}
-
-.pull-request-address-button svg {
-  width: 14px;
-  height: 14px;
 }
 
 .pull-request-form-fields,

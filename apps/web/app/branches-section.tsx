@@ -892,18 +892,12 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
                     ) : null}
                     <button
                       aria-label={`Review ${branch.name}`}
-                      className="review-branch-button"
+                      className="repository-icon-button"
                       disabled={isBranchActionPending || !task}
                       onClick={() => openReviewDialog(branch)}
-                      title={
-                        task
-                          ? `Review code for ${branch.name}`
-                          : "Associate a tracked Jira task before reviewing this branch"
-                      }
                       type="button"
                     >
                       <FileSearch aria-hidden="true" />
-                      <span>{isReviewing ? "Reviewing..." : "Review"}</span>
                     </button>
                     <button
                       aria-label={`Track pull request for ${branch.name}`}

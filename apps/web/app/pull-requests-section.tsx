@@ -526,7 +526,8 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
                       <span>Auto resolve issues</span>
                     </label>
                     <button
-                      className="pull-request-address-button"
+                      aria-label={`Address issues for pull request #${pullRequest.number}`}
+                      className="repository-icon-button"
                       disabled={
                         isClosed ||
                         Boolean(removingPullRequest) ||
@@ -534,15 +535,9 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
                         Boolean(addressingPullRequestUrl)
                       }
                       onClick={() => void addressPullRequest(pullRequest)}
-                      title={
-                        isClosed
-                          ? "Only open pull requests can be addressed"
-                          : "Address unreplied comments, unresolved comments, merge conflicts, or failing CI"
-                      }
                       type="button"
                     >
                       <Wrench aria-hidden="true" />
-                      <span>{isAddressing ? "Starting..." : "Address issues"}</span>
                     </button>
                     <button
                       aria-label={`Remove pull request #${pullRequest.number}`}
@@ -564,6 +559,11 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
                     {isUpdatingMonitoring ? (
                       <span className="sr-only">
                         Updating monitoring for pull request #{pullRequest.number}
+                      </span>
+                    ) : null}
+                    {isAddressing ? (
+                      <span className="sr-only">
+                        Starting to address issues for pull request #{pullRequest.number}
                       </span>
                     ) : null}
                   </div>
