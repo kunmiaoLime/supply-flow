@@ -1,0 +1,22 @@
+apps/web/app/task-plan-section.tsx
+  s_1b8e4f13e9825b::t_8d006d56391a24 80,95-100,599-609,660-667,670,1030-1031
+  s_1b8e4f13e9825b::t_6581fc23678a7c 1032-1033
+apps/web/app/globals.css
+  s_1b8e4f13e9825b::t_8d006d56391a24 2183-2184,3810,3826,3832,3848,3863,3871,3878,3886
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e7b3eec1fd43927ee98a5de948c3a1ff022982c3",
+  "prompts": {},
+  "sessions": {
+    "s_1b8e4f13e9825b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a161-9ca8-7f50-b7aa-0d4dfaf57a6e",
+        "model": "openai.gpt-5.6-terra"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    }
+  }
+}
