@@ -2180,6 +2180,8 @@ code {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .track-task-button {
@@ -3805,6 +3807,7 @@ code {
 }
 
 .branch-filter-control,
+.task-filter-control,
 .pull-request-filter-control,
 .pull-request-monitor-control {
   display: inline-flex;
@@ -3820,11 +3823,13 @@ code {
 }
 
 .branch-filter-control,
+.task-filter-control,
 .pull-request-filter-control {
   min-height: 36px;
 }
 
 .branch-filter-control input,
+.task-filter-control input,
 .pull-request-filter-control input,
 .pull-request-monitor-control input {
   position: relative;
@@ -3840,6 +3845,7 @@ code {
 }
 
 .branch-filter-control input::after,
+.task-filter-control input::after,
 .pull-request-filter-control input::after,
 .pull-request-monitor-control input::after {
   position: absolute;
@@ -3854,6 +3860,7 @@ code {
 }
 
 .branch-filter-control input:checked,
+.task-filter-control input:checked,
 .pull-request-filter-control input:checked,
 .pull-request-monitor-control input:checked {
   border-color: var(--teal);
@@ -3861,12 +3868,14 @@ code {
 }
 
 .branch-filter-control input:checked::after,
+.task-filter-control input:checked::after,
 .pull-request-filter-control input:checked::after,
 .pull-request-monitor-control input:checked::after {
   transform: translateX(13px);
 }
 
 .branch-filter-control input:focus-visible,
+.task-filter-control input:focus-visible,
 .pull-request-filter-control input:focus-visible,
 .pull-request-monitor-control input:focus-visible {
   outline: 3px solid rgba(8, 124, 105, 0.25);
@@ -3874,6 +3883,7 @@ code {
 }
 
 .branch-filter-control input:disabled,
+.task-filter-control input:disabled,
 .pull-request-filter-control input:disabled,
 .pull-request-monitor-control input:disabled {
   cursor: wait;

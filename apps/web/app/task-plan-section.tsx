@@ -77,6 +77,7 @@ export function TaskPlanSection({
   const [dialogError, setDialogError] = useState("");
   const [listError, setListError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [showActiveOnly, setShowActiveOnly] = useState(true);
   const [copiedTicketUrl, setCopiedTicketUrl] = useState<string | null>(null);
   const [isLoadingTaskStatuses, setIsLoadingTaskStatuses] = useState(false);
   const [isLoadingTaskTransitionsTicket, setIsLoadingTaskTransitionsTicket] = useState<
@@ -91,6 +92,12 @@ export function TaskPlanSection({
   const taskTitleInput = useRef<HTMLInputElement>(null);
   const taskTicketInput = useRef<HTMLInputElement>(null);
   const copyResetTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const visibleTasks = tasks
+    .map((task, index) => ({ index, task }))
+    .filter(
+      ({ task }) =>
+        !showActiveOnly || !isClosedTask(taskStatuses[task.jira_ticket]?.status)
+    );
 
   useEffect(() => {
     setTasks(project.tasks);
@@ -589,6 +596,17 @@ export function TaskPlanSection({
             <h2 id="project-tasks-heading">Tasks</h2>
           </div>
           <div className="task-plan-actions">
+            <label
+              className="task-filter-control"
+              title="Hide Jira tasks in the Done category"
+            >
+              <input
+                checked={showActiveOnly}
+                onChange={(event) => setShowActiveOnly(event.target.checked)}
+                type="checkbox"
+              />
+              <span>Active only</span>
+            </label>
             <button
               className="track-task-button"
               disabled={isSaving}
@@ -639,9 +657,17 @@ export function TaskPlanSection({
               <span>Start a session to create a Jira task.</span>
             </div>
           </div>
+        ) : visibleTasks.length === 0 ? (
+          <div className="task-empty-state">
+            <ListTodo aria-hidden="true" />
+            <div>
+              <strong>No active tasks</strong>
+              <span>All tracked tasks are closed.</span>
+            </div>
+          </div>
         ) : (
           <ul className="project-task-list">
-            {tasks.map((task, index) => {
+            {visibleTasks.map(({ task, index }) => {
               const taskStatus = taskStatuses[task.jira_ticket];
               const currentStatus = taskStatus?.status;
               const transitions = taskStatus?.transitions;
@@ -999,6 +1025,10 @@ function jiraStatusColor(colorName: string | undefined): string {
     default:
       return "blue-gray";
   }
+}
+
+function isClosedTask(status: JiraTaskStatus | undefined): boolean {
+  return status?.category.trim().toLocaleLowerCase() === "done";
 }
 
 function cachedTaskStatuses(tasks: readonly ProjectTask[]): Record<string, TaskStatusResult> {
