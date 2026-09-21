@@ -3364,6 +3364,8 @@ code {
 .branch-review-state {
   display: inline-flex;
   width: fit-content;
+  align-items: center;
+  gap: 3px;
   padding: 3px 6px;
   border: 1px solid var(--line);
   border-radius: 4px;
@@ -3372,6 +3374,70 @@ code {
   font-size: 10px;
   font-weight: 750;
   line-height: 1.2;
+}
+
+button.branch-review-state {
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+}
+
+button.branch-review-state:hover:not(:disabled),
+button.branch-review-state:focus-visible {
+  border-color: currentColor;
+}
+
+button.branch-review-state:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+button.branch-review-state svg {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+}
+
+.branch-review-state-control {
+  position: relative;
+  width: fit-content;
+}
+
+.branch-review-state-menu {
+  position: absolute;
+  z-index: 4;
+  top: calc(100% + 4px);
+  left: 0;
+  display: grid;
+  min-width: 176px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 8px 20px rgb(29 42 35 / 14%);
+}
+
+.branch-review-state-option {
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  text-align: left;
+}
+
+.branch-review-state-option:hover,
+.branch-review-state-option:focus-visible {
+  background: var(--surface-soft);
+}
+
+.branch-review-state-option[aria-checked="true"] {
+  background: var(--teal-soft);
+  color: #05634f;
 }
 
 .branch-review-state.is-code_complete,

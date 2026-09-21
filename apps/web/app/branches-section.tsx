@@ -2,6 +2,7 @@
 
 import {
   isTrackableProjectBranchName,
+  projectBranchReviewStates,
   type ProjectBranch
 } from "@supply-flow/core/branch";
 import {
@@ -79,6 +80,8 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
   const [removingBranch, setRemovingBranch] = useState<ProjectBranch | null>(null);
   const [trackingPullRequest, setTrackingPullRequest] = useState<ProjectBranch | null>(null);
   const [reviewingBranch, setReviewingBranch] = useState<ProjectBranch | null>(null);
+  const [reviewStateMenuBranch, setReviewStateMenuBranch] = useState<ProjectBranch | null>(null);
+  const [updatingReviewState, setUpdatingReviewState] = useState<ProjectBranch | null>(null);
   const [reviewDialogBranch, setReviewDialogBranch] = useState<ProjectBranch | null>(null);
   const [reviewResult, setReviewResult] = useState<ReviewResult | null>(null);
   const [reviewSession, setReviewSession] = useState<SessionRecord | null>(null);
@@ -96,6 +99,7 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
     useState(false);
   const [isReviewConfigurationExpanded, setIsReviewConfigurationExpanded] = useState(false);
   const repositoryInput = useRef<HTMLSelectElement>(null);
+  const reviewStateMenuControl = useRef<HTMLDivElement>(null);
   const hasRepositories = project.repos.length > 0;
   const visibleBranches = showActiveOnly ? branches.filter((branch) => !branch.merged) : branches;
 
@@ -176,6 +180,33 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [reviewDialogBranch, reviewingBranch]);
+
+  useEffect(() => {
+    if (!reviewStateMenuBranch) {
+      return;
+    }
+
+    function dismissOnPointerDown(event: PointerEvent) {
+      if (reviewStateMenuControl.current?.contains(event.target as Node)) {
+        return;
+      }
+
+      setReviewStateMenuBranch(null);
+    }
+
+    function dismissOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setReviewStateMenuBranch(null);
+      }
+    }
+
+    window.addEventListener("pointerdown", dismissOnPointerDown);
+    window.addEventListener("keydown", dismissOnEscape);
+    return () => {
+      window.removeEventListener("pointerdown", dismissOnPointerDown);
+      window.removeEventListener("keydown", dismissOnEscape);
+    };
+  }, [reviewStateMenuBranch]);
 
   useEffect(() => {
     if (!reviewDialogBranch) {
@@ -400,11 +431,56 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
     }
   }
 
+  async function updateReviewState(
+    branch: ProjectBranch,
+    reviewState: ProjectBranch["review_state"]
+  ) {
+    if (updatingReviewState) {
+      return;
+    }
+
+    setUpdatingReviewState(branch);
+    setReviewStateMenuBranch(null);
+    setListError("");
+    try {
+      const response = await fetch(reviewStateUrl(project.project_id), {
+        body: JSON.stringify({
+          name: branch.name,
+          repositoryLocal: branch.repository_local,
+          reviewState
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      });
+      const data = (await response.json()) as { branch?: ProjectBranch; error?: string };
+      if (!response.ok || !data.branch) {
+        throw new Error(data.error ?? "Unable to update the branch state.");
+      }
+
+      const updatedBranch = data.branch;
+      setBranches((currentBranches) =>
+        currentBranches.map((currentBranch) =>
+          isSameBranch(currentBranch, branch) ? updatedBranch : currentBranch
+        )
+      );
+      if (reviewDialogBranch && isSameBranch(reviewDialogBranch, branch)) {
+        setReviewDialogBranch(updatedBranch);
+      }
+    } catch (error) {
+      setListError(
+        error instanceof Error ? error.message : "Unable to update the branch state."
+      );
+    } finally {
+      setUpdatingReviewState(null);
+    }
+  }
+
   function openReviewDialog(branch: ProjectBranch) {
     if (removingBranch || trackingPullRequest || reviewingBranch) {
       return;
     }
 
+    setReviewStateMenuBranch(null);
     setReviewDialogBranch(branch);
     setReviewResult(null);
     setReviewSession(null);
@@ -728,6 +804,8 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
               const isRemoving = isSameBranch(removingBranch, branch);
               const isTrackingPullRequest = isSameBranch(trackingPullRequest, branch);
               const isReviewing = isSameBranch(reviewingBranch, branch);
+              const isReviewStateMenuOpen = isSameBranch(reviewStateMenuBranch, branch);
+              const isUpdatingBranchReviewState = isSameBranch(updatingReviewState, branch);
               const task = project.tasks.find(
                 (currentTask) => currentTask.jira_ticket === branch.jira_ticket
               );
@@ -742,9 +820,51 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
                     <span>{repository?.name ?? "Removed repository"}</span>
                     <span>{task?.title ?? (branch.jira_ticket ? "Removed task" : "No Jira task")}</span>
                     <div className="branch-statuses">
-                      <span className={`branch-review-state is-${branch.review_state}`}>
-                        {reviewStateLabel(branch.review_state)}
-                      </span>
+                      <div
+                        className="branch-review-state-control"
+                        ref={isReviewStateMenuOpen ? reviewStateMenuControl : null}
+                      >
+                        <button
+                          aria-expanded={isReviewStateMenuOpen}
+                          aria-haspopup="menu"
+                          aria-label={`Change state for ${branch.name}`}
+                          className={`branch-review-state is-${branch.review_state}`}
+                          disabled={isUpdatingBranchReviewState}
+                          onClick={() =>
+                            setReviewStateMenuBranch((currentBranch) =>
+                              isSameBranch(currentBranch, branch) ? null : branch
+                            )
+                          }
+                          type="button"
+                        >
+                          <span>
+                            {isUpdatingBranchReviewState
+                              ? "Updating..."
+                              : reviewStateLabel(branch.review_state)}
+                          </span>
+                          <ChevronDown aria-hidden="true" />
+                        </button>
+                        {isReviewStateMenuOpen ? (
+                          <div
+                            aria-label={`States for ${branch.name}`}
+                            className="branch-review-state-menu"
+                            role="menu"
+                          >
+                            {projectBranchReviewStates.map((reviewState) => (
+                              <button
+                                aria-checked={branch.review_state === reviewState}
+                                className={`branch-review-state-option is-${reviewState}`}
+                                key={reviewState}
+                                onClick={() => void updateReviewState(branch, reviewState)}
+                                role="menuitemradio"
+                                type="button"
+                              >
+                                {reviewStateLabel(reviewState)}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
                       {branch.merged ? <span className="branch-merge-state">Merged</span> : null}
                     </div>
                     <code>{branch.repository_local}</code>
@@ -1173,6 +1293,10 @@ function reviewDetailsUrl(projectId: string, branch: ProjectBranch): string {
 
 function autoResolveUrl(projectId: string): string {
   return `${branchesUrl(projectId)}/auto-resolve`;
+}
+
+function reviewStateUrl(projectId: string): string {
+  return `${branchesUrl(projectId)}/review-state`;
 }
 
 function implementationConfigurationUrl(projectId: string): string {
