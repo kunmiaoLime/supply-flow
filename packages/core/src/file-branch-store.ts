@@ -121,7 +121,7 @@ export class FileBranchStore {
 
     return {
       branches: sortBranches(parsedIndex.branches),
-      needsMigration: hasMissingOrchestrationFields(rawIndex)
+      needsMigration: needsBranchIndexMigration(rawIndex)
     };
   }
 
@@ -168,7 +168,7 @@ function isSameBranch(first: ProjectBranch, second: ProjectBranch): boolean {
   return first.name === second.name && first.repository_local === second.repository_local;
 }
 
-function hasMissingOrchestrationFields(value: unknown): boolean {
+function needsBranchIndexMigration(value: unknown): boolean {
   if (
     typeof value !== "object" ||
     value === null ||
@@ -186,12 +186,12 @@ function hasMissingOrchestrationFields(value: unknown): boolean {
       (!("review_result" in branch) ||
         !("parent_branch" in branch) ||
         !("implementation_session_id" in branch) ||
-        !("implementation_session_configuration" in branch) ||
         !("review_session_id" in branch) ||
-        !("review_session_configuration" in branch) ||
         !("review_state" in branch) ||
         !("auto_resolve" in branch) ||
-        !("merged" in branch))
+        !("merged" in branch) ||
+        "implementation_session_configuration" in branch ||
+        "review_session_configuration" in branch)
   );
 }
 

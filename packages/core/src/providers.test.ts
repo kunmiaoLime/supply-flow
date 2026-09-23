@@ -10,15 +10,12 @@ test("lists versioned Claude model choices", () => {
       .map((option) => option.model),
     [
       "opus",
+      "claude-opus-5-5",
       "claude-opus-5",
       "claude-opus-4-8",
       "sonnet",
       "claude-sonnet-5",
-      "claude-sonnet-4-8",
-      "fable",
-      "claude-fable-5-1",
-      "claude-fable-5",
-      "claude-fable-4-8"
+      "claude-sonnet-4-8"
     ]
   );
 });

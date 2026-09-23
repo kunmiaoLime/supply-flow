@@ -17,15 +17,7 @@ test("tracks feature branches by repository path in branches.json", async () => 
     merged: false,
     jira_ticket: "https://limebike.atlassian.net/browse/SXP-123",
     implementation_session_id: "session_implementation",
-    implementation_session_configuration: {
-      provider_id: "codex" as const,
-      model: "gpt-5.3-codex",
-      reasoning_effort: "high" as const,
-      read_only: false,
-      yolo_mode: true
-    },
     review_session_id: null,
-    review_session_configuration: null,
     last_session_id: "session_implementation",
     review_result: null,
     review_state: "coding" as const,
@@ -82,9 +74,7 @@ test("tracks feature branches by repository path in branches.json", async () => 
         merged: false,
         jira_ticket: null,
         implementation_session_id: null,
-        implementation_session_configuration: null,
         review_session_id: null,
-        review_session_configuration: null,
         last_session_id: null,
         review_result: null,
         review_state: "coding",
@@ -100,9 +90,7 @@ test("tracks feature branches by repository path in branches.json", async () => 
         merged: false,
         jira_ticket: null,
         implementation_session_id: null,
-        implementation_session_configuration: null,
         review_session_id: null,
-        review_session_configuration: null,
         last_session_id: null,
         review_result: null,
         review_state: "coding",
@@ -119,9 +107,7 @@ test("tracks feature branches by repository path in branches.json", async () => 
       merged: mergedFeature.merged,
       jira_ticket: feature.jira_ticket,
       implementation_session_id: feature.implementation_session_id,
-      implementation_session_configuration: feature.implementation_session_configuration,
       review_session_id: feature.review_session_id,
-      review_session_configuration: feature.review_session_configuration,
       last_session_id: feature.last_session_id,
       review_result: "review-sxp-123.md",
       review_state: feature.review_state,
@@ -177,9 +163,7 @@ test("removes default branches from legacy branch records", async () => {
       merged: false,
       jira_ticket: null,
       implementation_session_id: null,
-      implementation_session_configuration: null,
       review_session_id: null,
-      review_session_configuration: null,
       last_session_id: null,
       review_result: null,
       review_state: "coding",
@@ -205,7 +189,21 @@ test("migrates legacy branches with no review orchestration fields", async () =>
     name: "feature/review",
     repository_local: "/Users/example/code/supply-flow",
     jira_ticket: "https://limebike.atlassian.net/browse/SXP-456",
-    last_session_id: "session_existing"
+    last_session_id: "session_existing",
+    implementation_session_configuration: {
+      provider_id: "codex",
+      model: "gpt-5.3-codex",
+      reasoning_effort: "high",
+      read_only: false,
+      yolo_mode: true
+    },
+    review_session_configuration: {
+      provider_id: "claude-code",
+      model: "claude-opus-5",
+      reasoning_effort: "xhigh",
+      read_only: false,
+      yolo_mode: true
+    }
   };
 
   try {
@@ -217,13 +215,14 @@ test("migrates legacy branches with no review orchestration fields", async () =>
 
     const store = new FileBranchStore(rootDirectory);
     const migratedBranch = {
-      ...legacyBranch,
+      name: legacyBranch.name,
+      repository_local: legacyBranch.repository_local,
+      jira_ticket: legacyBranch.jira_ticket,
+      last_session_id: legacyBranch.last_session_id,
       parent_branch: null,
       merged: false,
       implementation_session_id: null,
-      implementation_session_configuration: null,
       review_session_id: null,
-      review_session_configuration: null,
       review_result: null,
       review_state: "coding",
       auto_resolve: false
@@ -249,9 +248,7 @@ test("starts coding with the active implementation session", () => {
     merged: false,
     jira_ticket: "https://limebike.atlassian.net/browse/SXP-456",
     implementation_session_id: "session_previous",
-    implementation_session_configuration: null,
     review_session_id: "session_review",
-    review_session_configuration: null,
     last_session_id: "session_review",
     review_result: "review-feature.md",
     review_state: "review_passed" as const,

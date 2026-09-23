@@ -18,8 +18,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   branchReviewContext,
-  findActiveImplementationSession,
   findActiveReviewSession,
+  findSavedReviewSession,
   isReviewResultFilename,
   requestReviewSession
 } from "../../../../../branch-review-workflow";
@@ -90,16 +90,15 @@ export async function GET(request: Request, context: ProjectRouteContext) {
     const branch = await findTrackedBranch(project.project_id, input);
     const review = await loadReviewResult(project.project_id, branch);
     const session = await findOpenReviewSession(project.project_id, branch);
-    const implementationSession = await findActiveImplementationSession(
-      project.project_id,
-      branch
-    );
+    const savedSession = session
+      ? null
+      : await findSavedReviewSession(project.project_id, branch);
     return NextResponse.json({
       branch,
       review: review.content === null ? null : { content: review.content, filename: branch.review_result },
       ...(review.error ? { reviewError: review.error } : {}),
       session,
-      implementationSession
+      savedSession
     });
   } catch (error) {
     return reviewWorkflowErrorResponse(error);

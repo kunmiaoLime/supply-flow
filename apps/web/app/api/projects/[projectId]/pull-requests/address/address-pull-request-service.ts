@@ -18,7 +18,6 @@ import {
   configurationForSession,
   findActiveImplementationSession,
   findSavedImplementationSession,
-  implementationSessionConfigurationForBranch,
   resumeSavedImplementationSessionGoal
 } from "../../../../../branch-review-workflow";
 
@@ -95,10 +94,7 @@ export async function startAddressPullRequestSession(
   } else {
     const sessionConfiguration =
       savedImplementationSession && branch
-        ? (await configurationForSession(
-            project.project_id,
-            savedImplementationSession.id
-          )) ?? implementationSessionConfigurationForBranch(branch)
+        ? await configurationForSession(project.project_id, savedImplementationSession.id)
         : undefined;
     session = await createProjectSession(project, {
       action: "address-pull-request",

@@ -76,15 +76,12 @@ export const aiModelOptions: readonly {
   { label: "GPT-5.1 Codex", model: "gpt-5.1-codex", providerId: "codex" },
   { label: "GPT-5.1 Codex Mini", model: "gpt-5.1-codex-mini", providerId: "codex" },
   { label: "Claude Opus (latest)", model: "opus", providerId: "claude-code" },
+  { label: "Claude Opus 5.5", model: "claude-opus-5-5", providerId: "claude-code" },
   { label: "Claude Opus 5.0", model: "claude-opus-5", providerId: "claude-code" },
   { label: "Claude Opus 4.8", model: "claude-opus-4-8", providerId: "claude-code" },
   { label: "Claude Sonnet (latest)", model: "sonnet", providerId: "claude-code" },
   { label: "Claude Sonnet 5.0", model: "claude-sonnet-5", providerId: "claude-code" },
-  { label: "Claude Sonnet 4.8", model: "claude-sonnet-4-8", providerId: "claude-code" },
-  { label: "Claude Fable (latest)", model: "fable", providerId: "claude-code" },
-  { label: "Claude Fable 5.1", model: "claude-fable-5-1", providerId: "claude-code" },
-  { label: "Claude Fable 5.0", model: "claude-fable-5", providerId: "claude-code" },
-  { label: "Claude Fable 4.8", model: "claude-fable-4-8", providerId: "claude-code" }
+  { label: "Claude Sonnet 4.8", model: "claude-sonnet-4-8", providerId: "claude-code" }
 ];
 
 const AiModelSelectionInputSchema = z.object({

@@ -13,9 +13,10 @@ import {
   buildResolveReviewGoal,
   configurationForSession,
   findActiveImplementationSession,
-  implementationSessionConfigurationForBranch,
+  findSavedImplementationSession,
   isReviewResultFilename,
-  requestReviewSession
+  requestReviewSession,
+  resumeSavedImplementationSessionGoal
 } from "../app/branch-review-workflow";
 import {
   createProjectSession,
@@ -85,6 +86,9 @@ async function main(): Promise<void> {
       projectId,
       reviewedBranch
     );
+    const savedImplementationSession = activeImplementationSession
+      ? null
+      : await findSavedImplementationSession(projectId, reviewedBranch);
     const session = activeImplementationSession
       ? activeImplementationSession
       : await createProjectSession(project, {
@@ -93,16 +97,20 @@ async function main(): Promise<void> {
             0,
             120
           ),
-          goal: prompt,
+          goal: savedImplementationSession
+            ? resumeSavedImplementationSessionGoal(
+                projectId,
+                savedImplementationSession,
+                prompt
+              )
+            : prompt,
           workspacePath: context.repository.local,
           additionalWritableDirectories: [projectDirectory(projectId)],
           loadProjectContext: true,
           sessionConfiguration:
-            implementationSessionConfigurationForBranch(reviewedBranch) ??
-            (await configurationForSession(
-              projectId,
-              reviewedBranch.implementation_session_id ?? reviewedBranch.last_session_id
-            ))
+            savedImplementationSession
+              ? await configurationForSession(projectId, savedImplementationSession.id)
+              : undefined
         });
 
     if (activeImplementationSession) {

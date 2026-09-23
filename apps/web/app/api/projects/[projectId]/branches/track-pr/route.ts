@@ -32,7 +32,6 @@ import {
   configurationForSession,
   findActiveImplementationSession,
   findSavedImplementationSession,
-  implementationSessionConfigurationForBranch,
   resumeSavedImplementationSessionGoal
 } from "../../../../../branch-review-workflow";
 
@@ -174,8 +173,7 @@ export async function POST(request: Request, context: ProjectRouteContext) {
       additionalWritableDirectories: [projectDirectory(project.project_id)],
       loadProjectContext: true,
       sessionConfiguration: savedImplementationSession
-        ? (await configurationForSession(project.project_id, savedImplementationSession.id)) ??
-          implementationSessionConfigurationForBranch(branch)
+        ? await configurationForSession(project.project_id, savedImplementationSession.id)
         : undefined
     });
     if (savedImplementationSession) {
@@ -236,9 +234,7 @@ function toProjectBranch(input: TrackPullRequestInput): ProjectBranch {
     merged: false,
     jira_ticket: null,
     implementation_session_id: null,
-    implementation_session_configuration: null,
     review_session_id: null,
-    review_session_configuration: null,
     last_session_id: null,
     review_result: null,
     review_state: "coding",

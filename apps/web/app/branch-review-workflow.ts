@@ -1,10 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import type {
-  ProjectBranch,
-  ProjectBranchReviewSessionConfiguration
-} from "@supply-flow/core/branch";
+import type { ProjectBranch } from "@supply-flow/core/branch";
 import { FileBranchStore } from "@supply-flow/core/file-branch-store";
 import { FileSessionStore } from "@supply-flow/core/file-session-store";
 import type {
@@ -209,20 +206,26 @@ export async function requestReviewSession(
     session = activeSession;
     reusedSession = true;
   } else {
+    const savedReviewSession = await findSavedReviewSession(
+      context.project.project_id,
+      context.branch
+    );
     session = await createProjectSession(context.project, {
       action: "review-code",
       title: `[${context.issue.key}] Review ${context.task.title}`.slice(0, 120),
-      goal,
+      goal: savedReviewSession
+        ? resumeSavedReviewSessionGoal(
+            context.project.project_id,
+            savedReviewSession,
+            goal
+          )
+        : goal,
       workspacePath: context.repository.local,
       additionalWritableDirectories: [projectDirectory(context.project.project_id)],
       loadProjectContext: true,
-      sessionConfiguration:
-        sessionConfiguration ??
-        reviewSessionConfigurationForBranch(context.branch) ??
-        (await configurationForSession(
-          context.project.project_id,
-          context.branch.review_session_id
-        ))
+      sessionConfiguration: savedReviewSession
+        ? await configurationForSession(context.project.project_id, savedReviewSession.id)
+        : sessionConfiguration
     });
     reusedSession = false;
   }
@@ -236,34 +239,6 @@ export async function requestReviewSession(
   });
 
   return { branch, session, reusedSession };
-}
-
-function reviewSessionConfigurationForBranch(
-  branch: ProjectBranch
-): ResolvedAiSessionActionSettings | undefined {
-  return branch.review_session_configuration
-    ? fromBranchSessionConfiguration(branch.review_session_configuration)
-    : undefined;
-}
-
-export function implementationSessionConfigurationForBranch(
-  branch: ProjectBranch
-): ResolvedAiSessionActionSettings | undefined {
-  return branch.implementation_session_configuration
-    ? fromBranchSessionConfiguration(branch.implementation_session_configuration)
-    : undefined;
-}
-
-function fromBranchSessionConfiguration(
-  configuration: ProjectBranchReviewSessionConfiguration
-): ResolvedAiSessionActionSettings {
-  return {
-    providerId: configuration.provider_id,
-    model: configuration.model,
-    reasoningEffort: configuration.reasoning_effort,
-    readOnly: configuration.read_only,
-    yoloMode: configuration.yolo_mode
-  };
 }
 
 export async function findActiveSession(
@@ -343,6 +318,31 @@ export async function findSavedImplementationSession(
   return legacySession && isImplementationSession(legacySession) ? legacySession : null;
 }
 
+export async function findSavedReviewSession(
+  projectId: string,
+  branch: ProjectBranch
+): Promise<SessionRecord | null> {
+  const preferredSession = await findSavedSession(
+    projectId,
+    branch.review_session_id,
+    branch.repository_local
+  );
+  if (preferredSession) {
+    return preferredSession;
+  }
+
+  if (branch.review_session_id || !branch.last_session_id) {
+    return null;
+  }
+
+  const legacySession = await findSavedSession(
+    projectId,
+    branch.last_session_id,
+    branch.repository_local
+  );
+  return legacySession && isReviewSessionForBranch(legacySession, branch) ? legacySession : null;
+}
+
 export function resumeSavedImplementationSessionGoal(
   projectId: string,
   session: SessionRecord,
@@ -359,6 +359,26 @@ export function resumeSavedImplementationSessionGoal(
     "Treat the handoff as the authoritative summary of the prior session. Inspect the repository status, diff, and relevant files before acting because the prior process may have stopped immediately after saving.",
     "",
     "Follow-up task:",
+    goal
+  ].join("\n");
+}
+
+export function resumeSavedReviewSessionGoal(
+  projectId: string,
+  session: SessionRecord,
+  goal: string
+): string {
+  if (!session.contextFile) {
+    throw new Error(`Review session "${session.id}" has no saved handoff.`);
+  }
+
+  const handoffPath = path.join(projectDirectory(projectId), session.contextFile);
+  return [
+    "Resume the prior code review session before starting this new review.",
+    `First read the saved provider-neutral handoff at ${JSON.stringify(handoffPath)}.`,
+    "Treat the handoff as the authoritative summary of the prior session. Inspect the repository status, diff, and relevant files before acting because the prior process may have stopped immediately after saving.",
+    "",
+    "New review task:",
     goal
   ].join("\n");
 }

@@ -52,7 +52,7 @@ interface ReviewResponse {
   reviewError?: string;
   reviewRequested?: boolean;
   session?: SessionRecord | null;
-  implementationSession?: SessionRecord | null;
+  savedSession?: SessionRecord | null;
   reusedSession?: boolean;
   error?: string;
 }
@@ -85,18 +85,14 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
   const [reviewDialogBranch, setReviewDialogBranch] = useState<ProjectBranch | null>(null);
   const [reviewResult, setReviewResult] = useState<ReviewResult | null>(null);
   const [reviewSession, setReviewSession] = useState<SessionRecord | null>(null);
-  const [implementationSession, setImplementationSession] = useState<SessionRecord | null>(null);
+  const [savedReviewSession, setSavedReviewSession] = useState<SessionRecord | null>(null);
   const [isLoadingReview, setIsLoadingReview] = useState(false);
   const [reviewDialogError, setReviewDialogError] = useState("");
   const [reviewConfiguration, setReviewConfiguration] =
     useState<ResolvedAiSessionActionSettings | null>(null);
-  const [implementationConfiguration, setImplementationConfiguration] =
-    useState<ResolvedAiSessionActionSettings | null>(null);
   const [isLoadingReviewConfiguration, setIsLoadingReviewConfiguration] = useState(false);
   const [reviewConfigurationError, setReviewConfigurationError] = useState("");
   const [isUpdatingAutoResolve, setIsUpdatingAutoResolve] = useState(false);
-  const [isUpdatingImplementationConfiguration, setIsUpdatingImplementationConfiguration] =
-    useState(false);
   const [isReviewConfigurationExpanded, setIsReviewConfigurationExpanded] = useState(false);
   const repositoryInput = useRef<HTMLSelectElement>(null);
   const reviewStateMenuControl = useRef<HTMLDivElement>(null);
@@ -484,13 +480,11 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
     setReviewDialogBranch(branch);
     setReviewResult(null);
     setReviewSession(null);
-    setImplementationSession(null);
+    setSavedReviewSession(null);
     setReviewDialogError("");
     setReviewConfiguration(null);
-    setImplementationConfiguration(null);
     setReviewConfigurationError("");
     setIsUpdatingAutoResolve(false);
-    setIsUpdatingImplementationConfiguration(false);
     setIsReviewConfigurationExpanded(false);
     setIsLoadingReview(true);
     setIsLoadingReviewConfiguration(true);
@@ -503,13 +497,11 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
       setReviewDialogBranch(null);
       setReviewResult(null);
       setReviewSession(null);
-      setImplementationSession(null);
+      setSavedReviewSession(null);
       setReviewDialogError("");
       setReviewConfiguration(null);
-      setImplementationConfiguration(null);
       setReviewConfigurationError("");
       setIsUpdatingAutoResolve(false);
-      setIsUpdatingImplementationConfiguration(false);
       setIsReviewConfigurationExpanded(false);
     }
   }
@@ -535,19 +527,10 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
       setReviewDialogBranch(data.branch);
       setReviewResult(data.review ?? null);
       setReviewSession(data.session ?? null);
-      setImplementationSession(data.implementationSession ?? null);
+      setSavedReviewSession(data.savedSession ?? null);
       setReviewDialogError(data.reviewError ?? "");
-      const activeImplementationConfiguration = configurationFromSession(
-        data.implementationSession ?? null
-      );
-      if (activeImplementationConfiguration) {
-        setImplementationConfiguration(activeImplementationConfiguration);
-      }
       if (loadSessionConfigurations) {
-        void loadReviewConfiguration(
-          data.branch as ProjectBranch,
-          data.implementationSession ?? null
-        );
+        void loadReviewConfiguration(data.session ?? null, data.savedSession ?? null);
       }
     } catch (error) {
       setReviewDialogError(
@@ -562,8 +545,8 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
   }
 
   async function loadReviewConfiguration(
-    branch: ProjectBranch,
-    activeImplementationSession: SessionRecord | null
+    activeReviewSession: SessionRecord | null,
+    savedReviewSession: SessionRecord | null
   ) {
     try {
       const response = await fetch("/api/settings/ai-models", { cache: "no-store" });
@@ -573,13 +556,9 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
       }
 
       setReviewConfiguration(
-        configurationFromBranch(branch.review_session_configuration) ??
+        configurationFromSession(activeReviewSession) ??
+          configurationFromSession(savedReviewSession) ??
           resolveAiModelDefault(data.settings, "review-code")
-      );
-      setImplementationConfiguration(
-        configurationFromSession(activeImplementationSession) ??
-          configurationFromBranch(branch.implementation_session_configuration) ??
-          resolveAiModelDefault(data.settings, "implement-code")
       );
     } catch (error) {
       setReviewConfigurationError(
@@ -637,60 +616,11 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
     }
   }
 
-  async function updateImplementationConfiguration(
-    configuration: ResolvedAiSessionActionSettings
-  ) {
-    if (
-      !reviewDialogBranch ||
-      implementationSession ||
-      isUpdatingImplementationConfiguration
-    ) {
-      return;
-    }
-
-    const previousConfiguration = implementationConfiguration;
-    setImplementationConfiguration(configuration);
-    setIsUpdatingImplementationConfiguration(true);
-    setReviewDialogError("");
-    try {
-      const response = await fetch(implementationConfigurationUrl(project.project_id), {
-        body: JSON.stringify({
-          name: reviewDialogBranch.name,
-          repositoryLocal: reviewDialogBranch.repository_local,
-          sessionConfiguration: configuration
-        }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST"
-      });
-      const data = (await response.json()) as { branch?: ProjectBranch; error?: string };
-      if (!response.ok || !data.branch) {
-        throw new Error(data.error ?? "Unable to update the code implementation configuration.");
-      }
-
-      const updatedBranch = data.branch;
-      setBranches((currentBranches) =>
-        currentBranches.map((branch) =>
-          isSameBranch(branch, reviewDialogBranch) ? updatedBranch : branch
-        )
-      );
-      setReviewDialogBranch(updatedBranch);
-    } catch (error) {
-      setImplementationConfiguration(previousConfiguration);
-      setReviewDialogError(
-        error instanceof Error
-          ? error.message
-          : "Unable to update the code implementation configuration."
-      );
-    } finally {
-      setIsUpdatingImplementationConfiguration(false);
-    }
-  }
-
   async function reviewAgain() {
     if (!reviewDialogBranch || reviewingBranch) {
       return;
     }
-    if (!reviewSession && !reviewConfiguration) {
+    if (!reviewSession && !savedReviewSession && !reviewConfiguration) {
       setReviewDialogError(
         reviewConfigurationError || "AI review defaults are still loading. Try again shortly."
       );
@@ -705,7 +635,7 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
         body: JSON.stringify({
           name: reviewDialogBranch.name,
           repositoryLocal: reviewDialogBranch.repository_local,
-          ...(reviewSession || !reviewConfiguration
+          ...(reviewSession || savedReviewSession || !reviewConfiguration
             ? {}
             : { sessionConfiguration: reviewConfiguration })
         }),
@@ -1037,37 +967,18 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
                   </section>
                   <div className="review-ai-configuration">
                     <div className="review-ai-configuration-heading">
-                      <strong>Code implementation AI</strong>
-                      {implementationSession ? (
-                        <span className="review-session-status">Session active</span>
-                      ) : null}
-                    </div>
-                    <AiSessionConfigurationFields
-                      configuration={implementationConfiguration}
-                      disabled={
-                        Boolean(implementationSession) ||
-                        Boolean(reviewingBranch) ||
-                        isLoadingReviewConfiguration ||
-                        isUpdatingImplementationConfiguration
-                      }
-                      idPrefix="review-implementation"
-                      isLoading={isLoadingReviewConfiguration}
-                      onChange={(configuration) => {
-                        void updateImplementationConfiguration(configuration);
-                      }}
-                    />
-                  </div>
-                  <div className="review-ai-configuration">
-                    <div className="review-ai-configuration-heading">
                       <strong>Reviewer AI</strong>
                       {reviewSession ? (
                         <span className="review-session-status">Session active</span>
+                      ) : savedReviewSession ? (
+                        <span className="review-session-status">Saved handoff</span>
                       ) : null}
                     </div>
                     <AiSessionConfigurationFields
                       configuration={reviewConfiguration}
                       disabled={
                         Boolean(reviewSession) ||
+                        Boolean(savedReviewSession) ||
                         Boolean(reviewingBranch) ||
                         isLoadingReviewConfiguration
                       }
@@ -1112,6 +1023,7 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
                   Boolean(reviewingBranch) ||
                   isLoadingReview ||
                   (!reviewSession &&
+                    !savedReviewSession &&
                     (isLoadingReviewConfiguration || !reviewConfiguration))
                 }
                 onClick={() => void reviewAgain()}
@@ -1291,24 +1203,6 @@ function autoResolveUrl(projectId: string): string {
 
 function reviewStateUrl(projectId: string): string {
   return `${branchesUrl(projectId)}/review-state`;
-}
-
-function implementationConfigurationUrl(projectId: string): string {
-  return `${branchesUrl(projectId)}/implementation-configuration`;
-}
-
-function configurationFromBranch(
-  configuration: ProjectBranch["review_session_configuration"]
-): ResolvedAiSessionActionSettings | null {
-  return configuration
-    ? {
-        providerId: configuration.provider_id,
-        model: configuration.model,
-        reasoningEffort: configuration.reasoning_effort,
-        readOnly: configuration.read_only,
-        yoloMode: configuration.yolo_mode
-      }
-    : null;
 }
 
 function configurationFromSession(

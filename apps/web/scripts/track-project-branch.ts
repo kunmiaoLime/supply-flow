@@ -1,7 +1,3 @@
-import {
-  ProjectBranchReviewSessionConfigurationSchema,
-  type ProjectBranchReviewSessionConfiguration
-} from "@supply-flow/core/branch";
 import { FileBranchStore } from "@supply-flow/core/file-branch-store";
 
 interface Arguments {
@@ -12,12 +8,10 @@ interface Arguments {
   jiraTicket: string;
   sessionId: string;
   autoResolve: boolean;
-  implementationSessionConfiguration: ProjectBranchReviewSessionConfiguration | null;
-  reviewSessionConfiguration: ProjectBranchReviewSessionConfiguration | null;
 }
 
 const usage =
-  "Usage: track-project-branch --project-directory <path> --repository-local <path> --branch <name> --parent-branch <name> --jira-ticket <url> --session-id <id> --auto-resolve <true|false> --implementation-provider-id <codex|claude-code> --implementation-model <model|empty> --implementation-reasoning-effort <effort|empty> --implementation-read-only <true|false> --implementation-yolo-mode <true|false> --review-provider-id <codex|claude-code> --review-model <model|empty> --review-reasoning-effort <effort|empty> --review-read-only <true|false> --review-yolo-mode <true|false>";
+  "Usage: track-project-branch --project-directory <path> --repository-local <path> --branch <name> --parent-branch <name> --jira-ticket <url> --session-id <id> --auto-resolve <true|false>";
 
 async function main(): Promise<void> {
   const arguments_ = parseArguments(process.argv.slice(2));
@@ -29,9 +23,7 @@ async function main(): Promise<void> {
     merged: false,
     jira_ticket: arguments_.jiraTicket,
     implementation_session_id: arguments_.sessionId,
-    implementation_session_configuration: arguments_.implementationSessionConfiguration,
     review_session_id: null,
-    review_session_configuration: arguments_.reviewSessionConfiguration,
     last_session_id: arguments_.sessionId,
     review_result: null,
     review_state: "coding" as const,
@@ -54,10 +46,7 @@ async function main(): Promise<void> {
         parent_branch: trackedBranch.parent_branch ?? existing.parent_branch,
         jira_ticket: trackedBranch.jira_ticket,
         implementation_session_id: trackedBranch.implementation_session_id,
-        implementation_session_configuration:
-          trackedBranch.implementation_session_configuration,
         review_session_id: null,
-        review_session_configuration: trackedBranch.review_session_configuration,
         last_session_id: trackedBranch.last_session_id,
         review_result: null,
         review_state: "coding" as const,
@@ -108,19 +97,10 @@ function parseArguments(values: string[]): Arguments {
     !jiraTicket ||
     !sessionId ||
     (autoResolve !== "true" && autoResolve !== "false") ||
-    ![6, 7, 11, 12, 16, 17].includes(arguments_.size)
+    ![6, 7].includes(arguments_.size)
   ) {
     throw new Error(usage);
   }
-
-  const implementationSessionConfiguration =
-    arguments_.size === 16 || arguments_.size === 17
-      ? parseSessionConfiguration(arguments_, "implementation", "implementation")
-      : null;
-  const reviewSessionConfiguration =
-    [11, 12, 16, 17].includes(arguments_.size)
-      ? parseSessionConfiguration(arguments_, "review", "reviewer")
-      : null;
 
   return {
     projectDirectory,
@@ -129,44 +109,8 @@ function parseArguments(values: string[]): Arguments {
     parentBranch,
     jiraTicket,
     sessionId,
-    autoResolve: autoResolve === "true",
-    implementationSessionConfiguration,
-    reviewSessionConfiguration
+    autoResolve: autoResolve === "true"
   };
-}
-
-function parseSessionConfiguration(
-  arguments_: Map<string, string>,
-  prefix: "implementation" | "review",
-  label: string
-): ProjectBranchReviewSessionConfiguration {
-  const providerId = arguments_.get(`--${prefix}-provider-id`)?.trim();
-  const model = arguments_.get(`--${prefix}-model`);
-  const reasoningEffort = arguments_.get(`--${prefix}-reasoning-effort`);
-  const readOnly = arguments_.get(`--${prefix}-read-only`)?.trim();
-  const yoloMode = arguments_.get(`--${prefix}-yolo-mode`)?.trim();
-  if (
-    !providerId ||
-    model === undefined ||
-    reasoningEffort === undefined ||
-    (readOnly !== "true" && readOnly !== "false") ||
-    (yoloMode !== "true" && yoloMode !== "false")
-  ) {
-    throw new Error(usage);
-  }
-
-  const configuration = ProjectBranchReviewSessionConfigurationSchema.safeParse({
-    provider_id: providerId,
-    model: model.trim() || null,
-    reasoning_effort: reasoningEffort.trim() || null,
-    read_only: readOnly === "true",
-    yolo_mode: yoloMode === "true"
-  });
-  if (!configuration.success) {
-    throw new Error(`The ${label} AI session configuration is invalid.`);
-  }
-
-  return configuration.data;
 }
 
 void main().catch((error: unknown) => {

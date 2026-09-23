@@ -43,7 +43,6 @@ interface ImplementationSessionInput {
   autoResolve: boolean;
   instructions?: string;
   implementationSessionConfiguration?: ResolvedAiSessionActionSettings;
-  reviewSessionConfiguration?: ResolvedAiSessionActionSettings;
 }
 
 interface JiraIssue {
@@ -130,8 +129,6 @@ export async function POST(request: Request, context: ProjectRouteContext) {
     const implementationSessionConfiguration =
       input.implementationSessionConfiguration ??
       resolveAiModelDefault(aiModelSettings, "implement-code");
-    const reviewSessionConfiguration =
-      input.reviewSessionConfiguration ?? resolveAiModelDefault(aiModelSettings, "review-code");
     const session = await createProjectSession(project, {
       action: "implement-code",
       title: implementationSessionTitle(task, issue),
@@ -142,8 +139,6 @@ export async function POST(request: Request, context: ProjectRouteContext) {
         issue,
         input.parentBranch,
         input.autoResolve,
-        implementationSessionConfiguration,
-        reviewSessionConfiguration,
         input.instructions
       ),
       workspacePath: repository.local,
@@ -205,10 +200,6 @@ async function parseImplementationSessionInput(
       body,
       "implementationSessionConfiguration"
     );
-    const reviewSessionConfiguration = parseOptionalSessionConfiguration(
-      body,
-      "reviewSessionConfiguration"
-    );
 
     if (
       !jiraTicket ||
@@ -218,8 +209,7 @@ async function parseImplementationSessionInput(
       !parentBranch ||
       parentBranch.length > 255 ||
       instructions.length > MAX_INSTRUCTIONS_LENGTH ||
-      implementationSessionConfiguration === null ||
-      reviewSessionConfiguration === null
+      implementationSessionConfiguration === null
     ) {
       return null;
     }
@@ -232,7 +222,6 @@ async function parseImplementationSessionInput(
       ...(implementationSessionConfiguration
         ? { implementationSessionConfiguration }
         : {}),
-      ...(reviewSessionConfiguration ? { reviewSessionConfiguration } : {}),
       ...(instructions ? { instructions } : {})
     };
   } catch {
@@ -242,7 +231,7 @@ async function parseImplementationSessionInput(
 
 function parseOptionalSessionConfiguration(
   body: object,
-  field: "implementationSessionConfiguration" | "reviewSessionConfiguration"
+  field: "implementationSessionConfiguration"
 ): ResolvedAiSessionActionSettings | null | undefined {
   if (!(field in body)) {
     return undefined;
@@ -285,8 +274,6 @@ async function buildImplementationGoal(
   issue: JiraIssue,
   parentBranch: string,
   autoResolve: boolean,
-  implementationSessionConfiguration: ResolvedAiSessionActionSettings,
-  reviewSessionConfiguration: ResolvedAiSessionActionSettings,
   instructions?: string
 ): Promise<string> {
   const contextPath = path.join(projectDirectory(project.project_id), "context.md");
@@ -306,27 +293,7 @@ async function buildImplementationGoal(
     "--session-id",
     JSON.stringify("<AI_SESSION_ID>"),
     "--auto-resolve",
-    String(autoResolve),
-    "--implementation-provider-id",
-    JSON.stringify(implementationSessionConfiguration.providerId),
-    "--implementation-model",
-    JSON.stringify(implementationSessionConfiguration.model ?? ""),
-    "--implementation-reasoning-effort",
-    JSON.stringify(implementationSessionConfiguration.reasoningEffort ?? ""),
-    "--implementation-read-only",
-    String(implementationSessionConfiguration.readOnly),
-    "--implementation-yolo-mode",
-    String(implementationSessionConfiguration.yoloMode),
-    "--review-provider-id",
-    JSON.stringify(reviewSessionConfiguration.providerId),
-    "--review-model",
-    JSON.stringify(reviewSessionConfiguration.model ?? ""),
-    "--review-reasoning-effort",
-    JSON.stringify(reviewSessionConfiguration.reasoningEffort ?? ""),
-    "--review-read-only",
-    String(reviewSessionConfiguration.readOnly),
-    "--review-yolo-mode",
-    String(reviewSessionConfiguration.yoloMode)
+    String(autoResolve)
   ].join(" ");
   const codeCompleteCommand = [
     `SUPPLY_FLOW_ROOT=${JSON.stringify(projectRoot)}`,
