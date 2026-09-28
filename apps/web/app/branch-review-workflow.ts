@@ -190,6 +190,7 @@ export async function requestReviewSession(
 ): Promise<ReviewSessionRequest> {
   const reviewResult = reviewResultFilename(context.branch.name);
   const goal = await buildReviewGoal(context, reviewResult);
+  const pendingSessionConfiguration = pendingReviewSessionConfiguration(context.branch);
   const activeSession = await findActiveReviewSession(
     context.project.project_id,
     context.branch
@@ -225,7 +226,7 @@ export async function requestReviewSession(
       loadProjectContext: true,
       sessionConfiguration: savedReviewSession
         ? await configurationForSession(context.project.project_id, savedReviewSession.id)
-        : sessionConfiguration
+        : (pendingSessionConfiguration ?? sessionConfiguration)
     });
     reusedSession = false;
   }
@@ -235,7 +236,8 @@ export async function requestReviewSession(
     ...context.branch,
     review_session_id: session.id,
     last_session_id: session.id,
-    review_state: "reviewing"
+    review_state: "reviewing",
+    pending_review_session_configuration: null
   });
 
   return { branch, session, reusedSession };
@@ -450,6 +452,23 @@ export async function configurationForSession(
     reasoningEffort: session.reasoningEffort ?? null,
     readOnly: session.readOnly ?? false,
     yoloMode: session.yoloMode ?? false
+  };
+}
+
+function pendingReviewSessionConfiguration(
+  branch: ProjectBranch
+): ResolvedAiSessionActionSettings | undefined {
+  const configuration = branch.pending_review_session_configuration;
+  if (!configuration) {
+    return undefined;
+  }
+
+  return {
+    providerId: configuration.provider_id,
+    model: configuration.model,
+    reasoningEffort: configuration.reasoning_effort,
+    readOnly: configuration.read_only,
+    yoloMode: configuration.yolo_mode
   };
 }
 

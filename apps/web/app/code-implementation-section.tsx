@@ -42,6 +42,8 @@ export function CodeImplementationSection({
   const [branchError, setBranchError] = useState("");
   const [implementationSessionConfiguration, setImplementationSessionConfiguration] =
     useState<ResolvedAiSessionActionSettings | null>(null);
+  const [reviewSessionConfiguration, setReviewSessionConfiguration] =
+    useState<ResolvedAiSessionActionSettings | null>(null);
   const [isLoadingSessionConfigurations, setIsLoadingSessionConfigurations] = useState(true);
   const [sessionConfigurationError, setSessionConfigurationError] = useState("");
   const hasTasks = project.tasks.length > 0;
@@ -55,6 +57,7 @@ export function CodeImplementationSection({
     setAutoResolve(false);
     setError("");
     setImplementationSessionConfiguration(null);
+    setReviewSessionConfiguration(null);
     setSessionConfigurationError("");
   }, [project.project_id]);
 
@@ -80,10 +83,12 @@ export function CodeImplementationSection({
           setImplementationSessionConfiguration(
             resolveAiModelDefault(data.settings, "implement-code")
           );
+          setReviewSessionConfiguration(resolveAiModelDefault(data.settings, "review-code"));
         }
       } catch (loadError) {
         if (!ignoreResult) {
           setImplementationSessionConfiguration(null);
+          setReviewSessionConfiguration(null);
           setSessionConfigurationError(
             loadError instanceof Error
               ? loadError.message
@@ -159,6 +164,7 @@ export function CodeImplementationSection({
       !repositoryLocal ||
       !parentBranch ||
       !implementationSessionConfiguration ||
+      !reviewSessionConfiguration ||
       isStarting
     ) {
       setError("Select a task, repository, and parent branch.");
@@ -176,6 +182,7 @@ export function CodeImplementationSection({
           parentBranch,
           autoResolve,
           implementationSessionConfiguration,
+          reviewSessionConfiguration,
           ...(instructions.trim() ? { instructions: instructions.trim() } : {})
         }),
         headers: { "Content-Type": "application/json" },
@@ -311,6 +318,16 @@ export function CodeImplementationSection({
               onChange={setImplementationSessionConfiguration}
             />
           </div>
+          <div className="implementation-session-config-row">
+            <strong>Reviewer AI</strong>
+            <AiSessionConfigurationFields
+              configuration={reviewSessionConfiguration}
+              disabled={isStarting || isLoadingSessionConfigurations}
+              idPrefix="implementation-reviewer-ai"
+              isLoading={isLoadingSessionConfigurations}
+              onChange={setReviewSessionConfiguration}
+            />
+          </div>
         </div>
 
         {branchError || sessionConfigurationError || error ? (
@@ -352,6 +369,7 @@ export function CodeImplementationSection({
               Boolean(sessionConfigurationError) ||
               isLoadingSessionConfigurations ||
               !implementationSessionConfiguration ||
+              !reviewSessionConfiguration ||
               isStarting
             }
             type="submit"

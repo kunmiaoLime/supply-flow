@@ -1,4 +1,11 @@
+import {
+  AiProviderIdSchema,
+  ReasoningEffortSchema,
+  supportsReasoningEffort,
+  type ResolvedAiSessionActionSettings
+} from "@supply-flow/core/ai-model-settings";
 import { FileBranchStore } from "@supply-flow/core/file-branch-store";
+import { z } from "zod";
 
 interface Arguments {
   projectDirectory: string;
@@ -8,10 +15,29 @@ interface Arguments {
   jiraTicket: string;
   sessionId: string;
   autoResolve: boolean;
+  reviewSessionConfiguration?: ResolvedAiSessionActionSettings;
 }
 
 const usage =
-  "Usage: track-project-branch --project-directory <path> --repository-local <path> --branch <name> --parent-branch <name> --jira-ticket <url> --session-id <id> --auto-resolve <true|false>";
+  "Usage: track-project-branch --project-directory <path> --repository-local <path> --branch <name> --parent-branch <name> --jira-ticket <url> --session-id <id> --auto-resolve <true|false> [--review-session-configuration <json>]";
+
+const ReviewSessionConfigurationSchema = z
+  .object({
+    providerId: AiProviderIdSchema,
+    model: z.string().trim().min(1).max(120).nullable(),
+    reasoningEffort: ReasoningEffortSchema.nullable(),
+    readOnly: z.boolean(),
+    yoloMode: z.boolean()
+  })
+  .superRefine((configuration, context) => {
+    if (!supportsReasoningEffort(configuration.providerId, configuration.reasoningEffort)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "The reasoning effort is not supported by the selected AI provider.",
+        path: ["reasoningEffort"]
+      });
+    }
+  });
 
 async function main(): Promise<void> {
   const arguments_ = parseArguments(process.argv.slice(2));
@@ -27,7 +53,16 @@ async function main(): Promise<void> {
     last_session_id: arguments_.sessionId,
     review_result: null,
     review_state: "coding" as const,
-    auto_resolve: arguments_.autoResolve
+    auto_resolve: arguments_.autoResolve,
+    pending_review_session_configuration: arguments_.reviewSessionConfiguration
+      ? {
+          provider_id: arguments_.reviewSessionConfiguration.providerId,
+          model: arguments_.reviewSessionConfiguration.model,
+          reasoning_effort: arguments_.reviewSessionConfiguration.reasoningEffort,
+          read_only: arguments_.reviewSessionConfiguration.readOnly,
+          yolo_mode: arguments_.reviewSessionConfiguration.yoloMode
+        }
+      : null
   };
   const existing = (await store.list()).find(
     (branch) =>
@@ -50,7 +85,9 @@ async function main(): Promise<void> {
         last_session_id: trackedBranch.last_session_id,
         review_result: null,
         review_state: "coding" as const,
-        auto_resolve: trackedBranch.auto_resolve
+        auto_resolve: trackedBranch.auto_resolve,
+        pending_review_session_configuration:
+          trackedBranch.pending_review_session_configuration
       }
     : trackedBranch;
   const result = existing
@@ -90,6 +127,10 @@ function parseArguments(values: string[]): Arguments {
   const jiraTicket = arguments_.get("--jira-ticket")?.trim();
   const sessionId = arguments_.get("--session-id")?.trim();
   const autoResolve = arguments_.get("--auto-resolve")?.trim();
+  const reviewSessionConfiguration = parseReviewSessionConfiguration(
+    arguments_.get("--review-session-configuration")
+  );
+  const expectedArgumentCounts = reviewSessionConfiguration ? [7, 8] : [6, 7];
   if (
     !projectDirectory ||
     !repositoryLocal ||
@@ -97,7 +138,9 @@ function parseArguments(values: string[]): Arguments {
     !jiraTicket ||
     !sessionId ||
     (autoResolve !== "true" && autoResolve !== "false") ||
-    ![6, 7].includes(arguments_.size)
+    reviewSessionConfiguration === null ||
+    (reviewSessionConfiguration && autoResolve !== "true") ||
+    !expectedArgumentCounts.includes(arguments_.size)
   ) {
     throw new Error(usage);
   }
@@ -109,8 +152,25 @@ function parseArguments(values: string[]): Arguments {
     parentBranch,
     jiraTicket,
     sessionId,
-    autoResolve: autoResolve === "true"
+    autoResolve: autoResolve === "true",
+    ...(reviewSessionConfiguration ? { reviewSessionConfiguration } : {})
   };
+}
+
+function parseReviewSessionConfiguration(
+  value: string | undefined
+): ResolvedAiSessionActionSettings | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(value);
+    const configuration = ReviewSessionConfigurationSchema.safeParse(parsed);
+    return configuration.success ? configuration.data : null;
+  } catch {
+    return null;
+  }
 }
 
 void main().catch((error: unknown) => {

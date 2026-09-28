@@ -1033,7 +1033,7 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
                 <span>
                   {reviewingBranch
                     ? "Starting..."
-                    : "Review again"}
+                    : "Review"}
                 </span>
               </button>
             </div>

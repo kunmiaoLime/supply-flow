@@ -43,6 +43,7 @@ interface ImplementationSessionInput {
   autoResolve: boolean;
   instructions?: string;
   implementationSessionConfiguration?: ResolvedAiSessionActionSettings;
+  reviewSessionConfiguration?: ResolvedAiSessionActionSettings;
 }
 
 interface JiraIssue {
@@ -129,6 +130,10 @@ export async function POST(request: Request, context: ProjectRouteContext) {
     const implementationSessionConfiguration =
       input.implementationSessionConfiguration ??
       resolveAiModelDefault(aiModelSettings, "implement-code");
+    const reviewSessionConfiguration = input.autoResolve
+      ? (input.reviewSessionConfiguration ??
+        resolveAiModelDefault(aiModelSettings, "review-code"))
+      : undefined;
     const session = await createProjectSession(project, {
       action: "implement-code",
       title: implementationSessionTitle(task, issue),
@@ -139,6 +144,7 @@ export async function POST(request: Request, context: ProjectRouteContext) {
         issue,
         input.parentBranch,
         input.autoResolve,
+        reviewSessionConfiguration,
         input.instructions
       ),
       workspacePath: repository.local,
@@ -200,6 +206,10 @@ async function parseImplementationSessionInput(
       body,
       "implementationSessionConfiguration"
     );
+    const reviewSessionConfiguration = parseOptionalSessionConfiguration(
+      body,
+      "reviewSessionConfiguration"
+    );
 
     if (
       !jiraTicket ||
@@ -209,7 +219,8 @@ async function parseImplementationSessionInput(
       !parentBranch ||
       parentBranch.length > 255 ||
       instructions.length > MAX_INSTRUCTIONS_LENGTH ||
-      implementationSessionConfiguration === null
+      implementationSessionConfiguration === null ||
+      reviewSessionConfiguration === null
     ) {
       return null;
     }
@@ -222,6 +233,7 @@ async function parseImplementationSessionInput(
       ...(implementationSessionConfiguration
         ? { implementationSessionConfiguration }
         : {}),
+      ...(reviewSessionConfiguration ? { reviewSessionConfiguration } : {}),
       ...(instructions ? { instructions } : {})
     };
   } catch {
@@ -231,7 +243,7 @@ async function parseImplementationSessionInput(
 
 function parseOptionalSessionConfiguration(
   body: object,
-  field: "implementationSessionConfiguration"
+  field: "implementationSessionConfiguration" | "reviewSessionConfiguration"
 ): ResolvedAiSessionActionSettings | null | undefined {
   if (!(field in body)) {
     return undefined;
@@ -274,6 +286,7 @@ async function buildImplementationGoal(
   issue: JiraIssue,
   parentBranch: string,
   autoResolve: boolean,
+  reviewSessionConfiguration: ResolvedAiSessionActionSettings | undefined,
   instructions?: string
 ): Promise<string> {
   const contextPath = path.join(projectDirectory(project.project_id), "context.md");
@@ -293,7 +306,13 @@ async function buildImplementationGoal(
     "--session-id",
     JSON.stringify("<AI_SESSION_ID>"),
     "--auto-resolve",
-    String(autoResolve)
+    String(autoResolve),
+    ...(reviewSessionConfiguration
+      ? [
+          "--review-session-configuration",
+          JSON.stringify(JSON.stringify(reviewSessionConfiguration))
+        ]
+      : [])
   ].join(" ");
   const codeCompleteCommand = [
     `SUPPLY_FLOW_ROOT=${JSON.stringify(projectRoot)}`,

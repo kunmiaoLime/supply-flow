@@ -113,7 +113,9 @@ export async function PATCH(request: Request, context: ProjectRouteContext) {
       last_session_id: currentBranch.last_session_id,
       review_result: currentBranch.review_result,
       review_state: currentBranch.review_state,
-      auto_resolve: currentBranch.auto_resolve
+      auto_resolve: currentBranch.auto_resolve,
+      pending_review_session_configuration:
+        currentBranch.pending_review_session_configuration ?? null
     });
     return NextResponse.json({ branch });
   } catch (error) {
@@ -254,7 +256,8 @@ function toProjectBranch(input: BranchMutationInput): ProjectBranch {
     last_session_id: null,
     review_result: null,
     review_state: "coding",
-    auto_resolve: false
+    auto_resolve: false,
+    pending_review_session_configuration: null
   };
 }
 

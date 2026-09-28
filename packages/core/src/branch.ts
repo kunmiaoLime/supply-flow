@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  AiProviderIdSchema,
+  ReasoningEffortSchema,
+  supportsReasoningEffort
+} from "@supply-flow/core/ai-model-settings";
 
 const untrackableBranchNames = new Set(["main", "master"]);
 
@@ -14,6 +19,28 @@ export const ProjectBranchReviewStateSchema = z.enum(projectBranchReviewStates);
 
 export type ProjectBranchReviewState = z.infer<typeof ProjectBranchReviewStateSchema>;
 
+export const ProjectBranchPendingReviewSessionConfigurationSchema = z
+  .object({
+    provider_id: AiProviderIdSchema,
+    model: z.string().trim().min(1).max(120).nullable(),
+    reasoning_effort: ReasoningEffortSchema.nullable(),
+    read_only: z.boolean(),
+    yolo_mode: z.boolean()
+  })
+  .superRefine((configuration, context) => {
+    if (!supportsReasoningEffort(configuration.provider_id, configuration.reasoning_effort)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "The reasoning effort is not supported by the selected AI provider.",
+        path: ["reasoning_effort"]
+      });
+    }
+  });
+
+export type ProjectBranchPendingReviewSessionConfiguration = z.infer<
+  typeof ProjectBranchPendingReviewSessionConfigurationSchema
+>;
+
 export const ProjectBranchSchema = z.object({
   name: z.string().trim().min(1).max(255),
   repository_local: z.string().trim().min(1).max(4_096),
@@ -26,7 +53,9 @@ export const ProjectBranchSchema = z.object({
   last_session_id: z.string().trim().min(1).max(255).nullable().default(null),
   review_result: z.string().trim().min(1).max(255).nullable().default(null),
   review_state: ProjectBranchReviewStateSchema.default("coding"),
-  auto_resolve: z.boolean().default(false)
+  auto_resolve: z.boolean().default(false),
+  pending_review_session_configuration:
+    ProjectBranchPendingReviewSessionConfigurationSchema.nullable().optional()
 });
 
 export type ProjectBranch = z.infer<typeof ProjectBranchSchema>;
