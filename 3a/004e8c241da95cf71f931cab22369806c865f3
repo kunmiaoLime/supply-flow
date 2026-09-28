@@ -1,0 +1,34 @@
+apps/web/app/branch-review-workflow.ts
+  s_f8f0094e8c9475::t_99e3f4066ae9d5 193,229,239-240,458-471
+  s_f8f0094e8c9475::t_05d0a1458598a3 472-474
+apps/web/scripts/track-project-branch.ts
+  s_f8f0094e8c9475::t_99e3f4066ae9d5 1-6,8,18,22-40,56-65,88-90,130-133,141-143,155-156,160-173
+  s_f8f0094e8c9475::t_a0f7c9e03e9a31 174-175
+apps/web/app/api/projects/[projectId]/implementation-sessions/route.ts
+  s_f8f0094e8c9475::t_fd4ebc2c1f7d56 46,133-136,147,209-212,222-223,236,246,289
+  s_f8f0094e8c9475::t_99e3f4066ae9d5 309-315
+apps/web/app/code-implementation-section.tsx
+  s_f8f0094e8c9475::t_fd4ebc2c1f7d56 45-46,60,86,91,167,185,321-330,372
+apps/web/app/api/projects/[projectId]/branches/route.ts
+  s_f8f0094e8c9475::t_99e3f4066ae9d5 116-118,259-260
+apps/web/app/branches-section.tsx
+  s_f8f0094e8c9475::t_22a322f6e0b4ee 1036
+packages/core/src/branch.ts
+  s_f8f0094e8c9475::t_336fe32b7ea1e6 2-6,22-43,56-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3a004e8c241da95cf71f931cab22369806c865f3",
+  "prompts": {},
+  "sessions": {
+    "s_f8f0094e8c9475": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c5f0-d82b-75e2-902f-75079e7aa308",
+        "model": "openai.gpt-5.6-terra"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    }
+  }
+}
