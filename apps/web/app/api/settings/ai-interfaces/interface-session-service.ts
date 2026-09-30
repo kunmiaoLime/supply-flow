@@ -309,7 +309,7 @@ export async function readAiInterfaceTerminalOutput(
   const [output, transcript] = await Promise.all([
     readTerminalOutput(terminalLogPath(session.id), requestedOffset),
     includeTranscript
-      ? readSessionTranscript(session, terminalLogPath(session.id))
+      ? readSessionTranscript(terminalLogPath(session.id))
       : undefined
   ]);
   return {

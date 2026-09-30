@@ -265,8 +265,8 @@ export function TmuxTerminal({
           return;
         }
 
-        if (includeTranscript && data.transcript !== undefined) {
-          setTranscript(data.transcript || null);
+        if (includeTranscript) {
+          setTranscript(data.transcript ?? null);
           transcriptLoaded = true;
         }
         if (resetLiveTerminal || data.outputTruncated) {
@@ -317,6 +317,10 @@ export function TmuxTerminal({
     <div
       className="tmux-terminal-viewport"
       onWheelCapture={(event) => {
+        if (!transcript) {
+          return;
+        }
+
         const viewport = wrapperRef.current;
         if (!viewport) {
           return;

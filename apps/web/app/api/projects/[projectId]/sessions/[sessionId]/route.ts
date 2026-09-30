@@ -48,7 +48,7 @@ export async function GET(request: Request, context: SessionRouteContext) {
         outputOffsetFromRequest(request)
       ),
       transcriptRequested(request)
-        ? readSessionTranscript(session, terminalLogPath(project.project_id, session.id))
+        ? readSessionTranscript(terminalLogPath(project.project_id, session.id))
         : undefined
     ]);
     return NextResponse.json({
