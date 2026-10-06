@@ -1,0 +1,23 @@
+prompts/implement_jira_ticket.md
+  s_552f52103b4686::t_ae34ee68509927 161
+  s_552f52103b4686::t_32d73f44a5b83b 173,175
+  s_552f52103b4686::t_976134e75f2355 156-160,168-171,174
+  s_552f52103b4686::t_fce38fbdffdd5f 155,162-167,176-178
+  s_552f52103b4686::t_b49fa6e91ebfb5 172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "091b7f9174546980428d94d77bbe3f10ba89fba3",
+  "prompts": {},
+  "sessions": {
+    "s_552f52103b4686": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a10e3c-da3c-7671-b092-71559d39364d",
+        "model": "openai.gpt-5.6-terra"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    }
+  }
+}
