@@ -455,7 +455,7 @@ export async function configurationForSession(
   };
 }
 
-function pendingReviewSessionConfiguration(
+export function pendingReviewSessionConfiguration(
   branch: ProjectBranch
 ): ResolvedAiSessionActionSettings | undefined {
   const configuration = branch.pending_review_session_configuration;

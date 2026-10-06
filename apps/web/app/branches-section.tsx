@@ -57,6 +57,13 @@ interface ReviewResponse {
   error?: string;
 }
 
+interface BranchImplementationResponse {
+  branch?: ProjectBranch;
+  session?: SessionRecord;
+  reusedSession?: boolean;
+  error?: string;
+}
+
 const emptyBranchForm: BranchForm = {
   name: "",
   repository_local: "",
@@ -79,6 +86,8 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
   const [isSaving, setIsSaving] = useState(false);
   const [removingBranch, setRemovingBranch] = useState<ProjectBranch | null>(null);
   const [trackingPullRequest, setTrackingPullRequest] = useState<ProjectBranch | null>(null);
+  const [openingImplementationBranch, setOpeningImplementationBranch] =
+    useState<ProjectBranch | null>(null);
   const [reviewingBranch, setReviewingBranch] = useState<ProjectBranch | null>(null);
   const [reviewStateMenuBranch, setReviewStateMenuBranch] = useState<ProjectBranch | null>(null);
   const [updatingReviewState, setUpdatingReviewState] = useState<ProjectBranch | null>(null);
@@ -427,6 +436,44 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
     }
   }
 
+  async function openImplementationSession(branch: ProjectBranch) {
+    if (
+      removingBranch ||
+      trackingPullRequest ||
+      openingImplementationBranch ||
+      reviewingBranch
+    ) {
+      return;
+    }
+
+    setOpeningImplementationBranch(branch);
+    setListError("");
+    try {
+      const response = await fetch(implementationSessionUrl(project.project_id), {
+        body: JSON.stringify(toRequestBranch(branch)),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      });
+      const data = (await response.json()) as BranchImplementationResponse;
+      if (!response.ok || !data.branch || !data.session) {
+        throw new Error(data.error ?? "Unable to open the implementation session.");
+      }
+
+      setBranches((currentBranches) =>
+        currentBranches.map((currentBranch) =>
+          isSameBranch(currentBranch, branch) ? (data.branch as ProjectBranch) : currentBranch
+        )
+      );
+      router.push(workspaceTabUrl("/ai_sessions", project.project_id, data.session.id));
+    } catch (error) {
+      setListError(
+        error instanceof Error ? error.message : "Unable to open the implementation session."
+      );
+    } finally {
+      setOpeningImplementationBranch(null);
+    }
+  }
+
   async function updateReviewState(
     branch: ProjectBranch,
     reviewState: ProjectBranch["review_state"]
@@ -733,6 +780,7 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
               );
               const isRemoving = isSameBranch(removingBranch, branch);
               const isTrackingPullRequest = isSameBranch(trackingPullRequest, branch);
+              const isOpeningImplementation = isSameBranch(openingImplementationBranch, branch);
               const isReviewing = isSameBranch(reviewingBranch, branch);
               const isReviewStateMenuOpen = isSameBranch(reviewStateMenuBranch, branch);
               const isUpdatingBranchReviewState = isSameBranch(updatingReviewState, branch);
@@ -740,7 +788,10 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
                 (currentTask) => currentTask.jira_ticket === branch.jira_ticket
               );
               const isBranchActionPending = Boolean(
-                removingBranch || trackingPullRequest || reviewingBranch
+                removingBranch ||
+                  trackingPullRequest ||
+                  openingImplementationBranch ||
+                  reviewingBranch
               );
 
               return (
@@ -800,21 +851,13 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
                     <code>{branch.repository_local}</code>
                   </div>
                   <div className="repository-actions">
-                    {branch.last_session_id ? (
+                    {branch.implementation_session_id || task ? (
                       <button
-                        aria-label={`Open the last AI session for ${branch.name}`}
+                        aria-label={`Open or restart the implementation session for ${branch.name}`}
                         className="repository-icon-button"
-                        disabled={isBranchActionPending}
-                        onClick={() =>
-                          router.push(
-                            workspaceTabUrl(
-                              "/ai_sessions",
-                              project.project_id,
-                              branch.last_session_id as string
-                            )
-                          )
-                        }
-                        title={`Open the last AI session for ${branch.name}`}
+                        disabled={isBranchActionPending || !task}
+                        onClick={() => void openImplementationSession(branch)}
+                        title={`Open or restart the implementation session for ${branch.name}`}
                         type="button"
                       >
                         <MessageSquare aria-hidden="true" />
@@ -862,6 +905,11 @@ export function BranchesSection({ project }: { project: ProjectRecord }) {
                     {isRemoving ? <span className="sr-only">Removing {branch.name}</span> : null}
                     {isTrackingPullRequest ? (
                       <span className="sr-only">Finding pull request for {branch.name}</span>
+                    ) : null}
+                    {isOpeningImplementation ? (
+                      <span className="sr-only">
+                        Opening implementation session for {branch.name}
+                      </span>
                     ) : null}
                     {isReviewing ? <span className="sr-only">Starting review for {branch.name}</span> : null}
                   </div>
@@ -1188,6 +1236,10 @@ function trackPullRequestUrl(projectId: string): string {
 
 function reviewBranchUrl(projectId: string): string {
   return `${branchesUrl(projectId)}/review`;
+}
+
+function implementationSessionUrl(projectId: string): string {
+  return `${branchesUrl(projectId)}/implementation`;
 }
 
 function reviewDetailsUrl(projectId: string, branch: ProjectBranch): string {
