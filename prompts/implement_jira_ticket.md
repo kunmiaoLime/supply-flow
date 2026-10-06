@@ -152,10 +152,30 @@ Read the shared context first when it exists.
    <BRANCH_TRACKER_COMMAND>
    ```
 
-6. Implement only the agreed scope in the selected repository. Run focused
-   validation and report its results. Do not commit changes.
+6. Keep this primary session available to chat with the user. For every
+   source-code change, delegate the work to one or more coding sub-agents.
+   When Claude offers both sub-agents and teammates, use sub-agents and never
+   use teammates for implementation work; teammates are not an acceptable
+   substitute for coding sub-agents. Do not author or edit implementation code
+   directly in this primary session
+   while a coding-subagent mechanism is available.
+   Give each subagent a bounded assignment, the relevant ticket and repository
+   context, acceptance criteria, and validation expectations. Subagents may
+   inspect, edit, and test only the selected repository scope, then return
+   their changed files, validation results, and open questions to this primary
+   session. Coordinate their work, review their results, relay material
+   progress and questions to the user, and direct any follow-up fixes through
+   coding sub-agents. If coding sub-agents are unavailable, including when only
+   teammates are available, state that the fallback is in use and proceed with
+   the implementation directly in this primary session without waiting for
+   further user approval.
 
-7. Before finishing, update `<PROJECT_CONTEXT_PATH>` with concise, durable
+7. Implement only the agreed scope in the selected repository, using coding
+   sub-agents whenever available and the primary-session fallback only when they
+   are unavailable. Run or request focused validation and report its results.
+   Do not commit changes.
+
+8. Before finishing, update `<PROJECT_CONTEXT_PATH>` with concise, durable
    implementation decisions, completed work, validation, risks, and open
    questions. Merge with useful existing context. Do not use `save_context`
    and do not write beneath `~/.codex/sessions`. When the implementation is
