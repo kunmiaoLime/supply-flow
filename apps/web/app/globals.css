@@ -410,7 +410,8 @@ button:focus-visible {
 }
 
 .import-project-button,
-.export-project-button {
+.export-project-button,
+.rename-project-button {
   display: inline-flex;
   min-height: 38px;
   align-items: center;
@@ -428,20 +429,23 @@ button:focus-visible {
 }
 
 .import-project-button:hover:not(:disabled),
-.export-project-button:hover:not(:disabled) {
+.export-project-button:hover:not(:disabled),
+.rename-project-button:hover:not(:disabled) {
   border-color: var(--teal);
   background: var(--teal-soft);
   color: #066a5a;
 }
 
 .import-project-button:disabled,
-.export-project-button:disabled {
+.export-project-button:disabled,
+.rename-project-button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
 
 .import-project-button svg,
-.export-project-button svg {
+.export-project-button svg,
+.rename-project-button svg {
   width: 16px;
   height: 16px;
 }
@@ -4098,7 +4102,8 @@ button.branch-review-state svg {
   }
 
   .import-project-button,
-  .export-project-button {
+  .export-project-button,
+  .rename-project-button {
     min-height: 36px;
     padding: 0 10px;
     font-size: 12px;
@@ -4234,6 +4239,23 @@ button.branch-review-state svg {
   }
 }
 
+@media (max-width: 1120px) {
+  .project-controls .import-project-button,
+  .project-controls .export-project-button,
+  .project-controls .rename-project-button,
+  .project-controls .remove-project-button {
+    width: 38px;
+    padding: 0;
+  }
+
+  .project-controls .import-project-button span,
+  .project-controls .export-project-button span,
+  .project-controls .rename-project-button span,
+  .project-controls .remove-project-button span {
+    display: none;
+  }
+}
+
 @media (max-width: 540px) {
   .workspace-topbar {
     flex-wrap: wrap;
@@ -4253,6 +4275,7 @@ button.branch-review-state svg {
 
   .project-controls .import-project-button,
   .project-controls .export-project-button,
+  .project-controls .rename-project-button,
   .project-controls .remove-project-button {
     width: 36px;
     padding: 0;
@@ -4260,6 +4283,7 @@ button.branch-review-state svg {
 
   .project-controls .import-project-button span,
   .project-controls .export-project-button span,
+  .project-controls .rename-project-button span,
   .project-controls .remove-project-button span {
     display: none;
   }

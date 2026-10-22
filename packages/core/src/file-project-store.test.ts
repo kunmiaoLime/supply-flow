@@ -315,6 +315,31 @@ test("normalizes project names into collision-safe directory ids", () => {
   assert.equal(createProjectId("Café & tea", []), "cafe-and-tea");
 });
 
+test("renames project metadata without changing its stable project id", async () => {
+  const rootDirectory = await mkdtemp(path.join(os.tmpdir(), "supply-flow-projects-"));
+  const store = new FileProjectStore(rootDirectory);
+
+  try {
+    await store.create({
+      project_name: "Original project",
+      project_id: "original-project",
+      repos: [],
+      documents: [],
+      tasks: []
+    });
+
+    const renamed = await store.update("original-project", {
+      project_name: "Renamed project"
+    });
+
+    assert.equal(renamed.project_id, "original-project");
+    assert.equal(renamed.project_name, "Renamed project");
+    assert.deepEqual(await store.get("original-project"), renamed);
+  } finally {
+    await rm(rootDirectory, { recursive: true, force: true });
+  }
+});
+
 test("removes a complete project directory", async () => {
   const rootDirectory = await mkdtemp(path.join(os.tmpdir(), "supply-flow-projects-"));
   const store = new FileProjectStore(rootDirectory);

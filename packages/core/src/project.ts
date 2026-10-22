@@ -121,9 +121,11 @@ export const ProjectTaskSchema = z.object({
 
 export const ProjectTasksSchema = z.array(ProjectTaskSchema);
 
+export const ProjectNameSchema = z.string().trim().min(1).max(120);
+
 export const ProjectRecordSchema = z
   .object({
-    project_name: z.string().trim().min(1).max(120),
+    project_name: ProjectNameSchema,
     project_id: z.string().regex(PROJECT_ID_PATTERN),
     repos: ProjectRepositoriesSchema.default([]),
     documents: ProjectDocumentsSchema.optional(),
@@ -145,14 +147,18 @@ export type ProjectTaskStatus = z.infer<typeof ProjectTaskStatusSchema>;
 
 export const ProjectUpdateSchema = z
   .object({
+    project_name: ProjectNameSchema.optional(),
     repos: ProjectRepositoriesSchema.optional(),
     documents: ProjectDocumentsSchema.optional(),
     tasks: ProjectTasksSchema.optional()
   })
   .refine(
     (update) =>
-      update.repos !== undefined || update.documents !== undefined || update.tasks !== undefined,
-    "A project update requires repositories, documents, or tasks."
+      update.project_name !== undefined ||
+      update.repos !== undefined ||
+      update.documents !== undefined ||
+      update.tasks !== undefined,
+    "A project update requires a name, repositories, documents, or tasks."
   );
 
 export type ProjectUpdate = z.infer<typeof ProjectUpdateSchema>;

@@ -220,6 +220,10 @@ export function WorkspaceShell({
   const [projectImportMode, setProjectImportMode] =
     useState<ProjectImportMode>("separate");
   const [importTargetProjectId, setImportTargetProjectId] = useState("");
+  const [isRenameProjectDialogOpen, setIsRenameProjectDialogOpen] = useState(false);
+  const [renamedProjectName, setRenamedProjectName] = useState("");
+  const [renameProjectError, setRenameProjectError] = useState("");
+  const [isRenamingProject, setIsRenamingProject] = useState(false);
   const [isRemoveProjectDialogOpen, setIsRemoveProjectDialogOpen] = useState(false);
   const [removeProjectConfirmation, setRemoveProjectConfirmation] = useState("");
   const [removeProjectError, setRemoveProjectError] = useState("");
@@ -260,6 +264,7 @@ export function WorkspaceShell({
   const projectPicker = useRef<HTMLDivElement>(null);
   const projectPickerInput = useRef<HTMLInputElement>(null);
   const projectArchivePathInput = useRef<HTMLInputElement>(null);
+  const renameProjectNameInput = useRef<HTMLInputElement>(null);
   const removeProjectNameInput = useRef<HTMLInputElement>(null);
   const repositoryLocalPathInput = useRef<HTMLInputElement>(null);
   const requirementLinkInput = useRef<HTMLInputElement>(null);
@@ -362,6 +367,13 @@ export function WorkspaceShell({
   }, [isImportProjectDialogOpen]);
 
   useEffect(() => {
+    if (isRenameProjectDialogOpen) {
+      renameProjectNameInput.current?.focus();
+      renameProjectNameInput.current?.select();
+    }
+  }, [isRenameProjectDialogOpen]);
+
+  useEffect(() => {
     if (isRemoveProjectDialogOpen) {
       removeProjectNameInput.current?.focus();
     }
@@ -431,6 +443,21 @@ export function WorkspaceShell({
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [isImportProjectDialogOpen, isImportingProject]);
+
+  useEffect(() => {
+    if (!isRenameProjectDialogOpen) {
+      return;
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && !isRenamingProject) {
+        closeRenameProjectDialog();
+      }
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [isRenameProjectDialogOpen, isRenamingProject]);
 
   useEffect(() => {
     if (!isRemoveProjectDialogOpen) {
@@ -640,6 +667,23 @@ export function WorkspaceShell({
     setIsRemoveProjectDialogOpen(true);
   }
 
+  function openRenameProjectDialog() {
+    if (!selectedProject) {
+      return;
+    }
+
+    setRenamedProjectName(selectedProject.project_name);
+    setRenameProjectError("");
+    setIsRenameProjectDialogOpen(true);
+  }
+
+  function closeRenameProjectDialog() {
+    if (!isRenamingProject) {
+      setIsRenameProjectDialogOpen(false);
+      setRenameProjectError("");
+    }
+  }
+
   function closeRemoveProjectDialog() {
     if (!isRemovingProject) {
       setIsRemoveProjectDialogOpen(false);
@@ -824,6 +868,51 @@ export function WorkspaceShell({
       );
     } finally {
       setIsImportingProject(false);
+    }
+  }
+
+  async function renameProject(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const project = selectedProject;
+    if (!project) {
+      closeRenameProjectDialog();
+      return;
+    }
+
+    const projectName = renamedProjectName.trim();
+    if (!projectName) {
+      setRenameProjectError("Enter a project name.");
+      return;
+    }
+
+    if (projectName === project.project_name) {
+      setRenameProjectError("Enter a different project name.");
+      return;
+    }
+
+    setIsRenamingProject(true);
+    setRenameProjectError("");
+
+    try {
+      const response = await fetch(`/api/projects/${encodeURIComponent(project.project_id)}`, {
+        body: JSON.stringify({ project_name: projectName }),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH"
+      });
+      const data = (await response.json()) as { error?: string; project?: ProjectRecord };
+      if (!response.ok || !data.project) {
+        throw new Error(data.error ?? "Unable to rename the project.");
+      }
+
+      replaceProject(data.project);
+      setIsRenameProjectDialogOpen(false);
+      setRenamedProjectName("");
+    } catch (error) {
+      setRenameProjectError(
+        error instanceof Error ? error.message : "Unable to rename the project."
+      );
+    } finally {
+      setIsRenamingProject(false);
     }
   }
 
@@ -1716,6 +1805,17 @@ export function WorkspaceShell({
             <span>Export project</span>
           </button>
           <button
+            aria-label="Rename current project"
+            className="rename-project-button"
+            disabled={!selectedProject || isRenamingProject}
+            onClick={openRenameProjectDialog}
+            title="Rename current project"
+            type="button"
+          >
+            <Pencil aria-hidden="true" />
+            <span>Rename project</span>
+          </button>
+          <button
             aria-label="Remove current project"
             className="remove-project-button"
             disabled={!selectedProject || isRemovingProject}
@@ -1935,6 +2035,68 @@ export function WorkspaceShell({
                 <button className="create-project-button" disabled={isCreatingProject} type="submit">
                   <Plus aria-hidden="true" />
                   <span>{isCreatingProject ? "Creating..." : "Create project"}</span>
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      ) : null}
+
+      {isRenameProjectDialogOpen && selectedProject ? (
+        <div
+          className="dialog-backdrop"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) {
+              closeRenameProjectDialog();
+            }
+          }}
+        >
+          <section
+            aria-labelledby="rename-project-title"
+            aria-modal="true"
+            className="create-project-dialog"
+            role="dialog"
+          >
+            <h2 id="rename-project-title">Rename project</h2>
+            <form onSubmit={renameProject}>
+              <label className="project-name-field" htmlFor="rename-project-name">
+                <span>Project name</span>
+                <input
+                  autoComplete="off"
+                  id="rename-project-name"
+                  maxLength={120}
+                  onChange={(event) => setRenamedProjectName(event.target.value)}
+                  ref={renameProjectNameInput}
+                  required
+                  type="text"
+                  value={renamedProjectName}
+                />
+              </label>
+              {renameProjectError ? (
+                <p className="create-project-error" role="alert">
+                  {renameProjectError}
+                </p>
+              ) : null}
+              <div className="dialog-actions">
+                <button
+                  className="dialog-cancel-button"
+                  disabled={isRenamingProject}
+                  onClick={closeRenameProjectDialog}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button
+                  className="create-project-button"
+                  disabled={
+                    isRenamingProject ||
+                    !renamedProjectName.trim() ||
+                    renamedProjectName.trim() === selectedProject.project_name
+                  }
+                  type="submit"
+                >
+                  <Pencil aria-hidden="true" />
+                  <span>{isRenamingProject ? "Renaming..." : "Rename project"}</span>
                 </button>
               </div>
             </form>
