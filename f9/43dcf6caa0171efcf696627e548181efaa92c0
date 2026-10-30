@@ -1,0 +1,33 @@
+apps/web/app/task-plan-section.tsx
+  s_4e563f7b0a5c00::t_5f9e333b570665 1070
+apps/web/app/workspace-shell.tsx
+  s_4e563f7b0a5c00::t_5f9e333b570665 129
+apps/web/app/api/projects/[projectId]/tasks/from-plan/route.ts
+  s_4e563f7b0a5c00::t_5f9e333b570665 186
+packages/core/src/file-project-store.test.ts
+  s_4e563f7b0a5c00::t_5f9e333b570665 253-276
+prompts/read_claude_artifact.md
+  s_4e563f7b0a5c00::t_5f9e333b570665 1-18
+packages/core/src/project.ts
+  s_4e563f7b0a5c00::t_5f9e333b570665 17
+apps/web/app/api/projects/[projectId]/context/route.ts
+  s_4e563f7b0a5c00::t_5f9e333b570665 397
+apps/web/app/api/projects/[projectId]/rfc/route.ts
+  s_4e563f7b0a5c00::t_5f9e333b570665 208
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f943dcf6caa0171efcf696627e548181efaa92c0",
+  "prompts": {},
+  "sessions": {
+    "s_4e563f7b0a5c00": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13279-2b9c-75b0-b22b-cf96b12864a2",
+        "model": "openai.gpt-5.6-terra"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    }
+  }
+}
