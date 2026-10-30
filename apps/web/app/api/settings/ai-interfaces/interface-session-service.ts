@@ -15,7 +15,7 @@ import { FileSessionStore } from "@supply-flow/core/file-session-store";
 import { withManagedSessionEnvironment } from "@supply-flow/core/managed-session-environment";
 import { findProvider } from "@supply-flow/core/providers";
 import {
-  prependCodexWriteModeBootstrap,
+  prependCodexWriteModeCommand,
   prepareInitialAiSessionPrompt,
   prepareSessionWriteModePrompt,
   sendAiSessionPrompt
@@ -401,8 +401,7 @@ async function buildInitialPrompt(
     .replaceAll(
       "<PROJECT_SESSION_INDEX_PATH>",
       JSON.stringify(path.join(aiInterfaceSessionDirectory(), "sessions.json"))
-    )
-    .replaceAll("<SESSION_MODE_UPDATER>", buildReadOnlyUpdaterCommand(sessionId));
+    );
 
   return prepareInitialAiSessionPrompt(`${writeModePrompt}\n\n${goal}`, {
     bootstrapCodexWriteMode: configuration.providerId === "codex" && !configuration.readOnly
@@ -422,19 +421,6 @@ async function buildSetupGoal(input: {
     .replaceAll("<SUPPLY_FLOW_ROOT>", JSON.stringify(projectRoot))
     .replaceAll("<STATUS_FILE>", JSON.stringify(aiInterfaceStatusPath()))
     .replaceAll("<STATUS_UPDATER_COMMAND>", buildStatusUpdaterCommand());
-}
-
-function buildReadOnlyUpdaterCommand(sessionId: string): string {
-  return [
-    JSON.stringify(path.join(projectRoot, "node_modules", ".bin", "tsx")),
-    JSON.stringify(
-      path.join(projectRoot, "apps", "web", "scripts", "set-ai-interface-session-read-only.ts")
-    ),
-    "--session-directory",
-    JSON.stringify(aiInterfaceSessionDirectory()),
-    "--session-id",
-    JSON.stringify(sessionId)
-  ].join(" ");
 }
 
 function buildStatusUpdaterCommand(): string {
@@ -457,9 +443,7 @@ function readOnlyModePrompt(readOnly: boolean, providerId: string): string {
     readOnly ? "on" : "off"
   } and persisted it in the AI interface session index. Reload the current session's readOnly value before any filesystem write and follow the repository-local write-mode policy.`;
 
-  return providerId === "codex" && !readOnly
-    ? prependCodexWriteModeBootstrap(prompt)
-    : prompt;
+  return providerId === "codex" ? prependCodexWriteModeCommand(prompt, readOnly) : prompt;
 }
 
 async function runAuthenticationCommand(command: string, workspacePath: string): Promise<void> {

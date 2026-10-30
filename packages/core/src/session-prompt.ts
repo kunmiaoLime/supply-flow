@@ -8,16 +8,23 @@ export interface InitialAiSessionPromptOptions {
   bootstrapCodexWriteMode?: boolean;
 }
 
-const codexWriteModeBootstrap =
-  "Before doing anything else, process this direct user command exactly: read_only off.";
+function codexWriteModeCommand(readOnly: boolean): string {
+  return `Before doing anything else, process this direct user command exactly: read_only ${
+    readOnly ? "on" : "off"
+  }.`;
+}
+
+export function prependCodexWriteModeCommand(prompt: string, readOnly: boolean): string {
+  return `${codexWriteModeCommand(readOnly)}\n\n${requirePromptContent(prompt)}`;
+}
 
 export function prependCodexWriteModeBootstrap(prompt: string): string {
-  return `${codexWriteModeBootstrap}\n\n${requirePromptContent(prompt)}`;
+  return prependCodexWriteModeCommand(prompt, false);
 }
 
 export function withoutCodexWriteModeBootstrap(prompt: string): string {
   const preparedPrompt = requirePromptContent(prompt);
-  const prefix = `${codexWriteModeBootstrap}\n\n`;
+  const prefix = `${codexWriteModeCommand(false)}\n\n`;
   return preparedPrompt.startsWith(prefix) ? preparedPrompt.slice(prefix.length) : preparedPrompt;
 }
 

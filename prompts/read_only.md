@@ -1,19 +1,19 @@
-# Session Write Mode
+# Supply Flow Session Write Scope
 
-This is a Supply Flow-managed AI session. Its write behavior is persisted in
-the project-local session index, not in an environment-specific skill.
+This is a Supply Flow-managed AI session. Its intended write scope is persisted
+in the project-local session index.
 
 Configured write mode: `<READ_ONLY_MODE>`
 
-YOLO mode may allow commands to run without a confirmation, but it never
-authorizes a filesystem, Git, or project-data write while this local mode is
-`on`.
+This setting does not override a higher-priority environment-level write
+policy. When an environment-level `read_only` command is supplied, process that
+command through its configured environment workflow before continuing. Do not
+substitute a Supply Flow session updater for it.
 
 ## Persistent State
 
 - Current session ID: `<AI_SESSION_ID>`
 - Project session index: `<PROJECT_SESSION_INDEX_PATH>`
-- Read-only state updater: `<SESSION_MODE_UPDATER>`
 
 Before any filesystem write, read the current session's `readOnly` value from
 the project session index. Treat `readOnly: true`, a missing `readOnly` value,
@@ -35,19 +35,7 @@ When the resolved mode is `off`:
   discard, overwrite, reset, stash, force-push, or delete unrelated work
   unless the user explicitly asks.
 
-## Mode Changes
-
-When the user directly requests `read_only on` or `read_only off`:
-
-1. Require exactly one mode argument, `on` or `off`. For any other form,
-   report `Usage: read_only <on|off>` and do not change state.
-2. Run the exact updater command above with `--mode on` or `--mode off`.
-   That command updates this session's `readOnly` state in `sessions.json` and
-   its matching session metadata.
-3. Read the session index again, confirm this session's saved state, and
-   report the active mode. The direct request authorizes only this state
-   update; continue to follow the active mode for all other writes.
-
-Follow this local write-mode policy for the entire session. A startup
-`read_only` command may also satisfy an environment-level per-thread policy
-when one is present, but it never replaces this project-local state.
+Supply Flow changes this setting through its session controls before sending an
+in-place update message. Do not use a typed `read_only` command to update the
+Supply Flow session record; that command belongs to the environment-level
+write policy.

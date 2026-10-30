@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  prependCodexWriteModeCommand,
   prependCodexWriteModeBootstrap,
   prepareFollowUpAiSessionPrompt,
   prepareInitialAiSessionPrompt,
@@ -20,6 +21,10 @@ test("preserves initial session prompts and normalizes follow-up prompts", () =>
   assert.equal(
     prependCodexWriteModeBootstrap("Continue the current task."),
     "Before doing anything else, process this direct user command exactly: read_only off.\n\nContinue the current task."
+  );
+  assert.equal(
+    prependCodexWriteModeCommand("Continue the current task.", true),
+    "Before doing anything else, process this direct user command exactly: read_only on.\n\nContinue the current task."
   );
   assert.equal(
     withoutCodexWriteModeBootstrap(

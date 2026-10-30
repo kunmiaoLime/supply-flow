@@ -14,6 +14,7 @@ import type { ProjectRecord } from "@supply-flow/core/project";
 import { findProvider } from "@supply-flow/core/providers";
 import type { SessionRecord } from "@supply-flow/core/session";
 import {
+  prependCodexWriteModeCommand,
   prepareInitialAiSessionPrompt,
   prepareSessionWriteModePrompt,
   sendAiSessionPrompt
@@ -215,11 +216,20 @@ export async function updateProjectSessionReadOnly(
   await sendAiSessionPrompt(
     new TmuxAdapter(),
     updated.tmuxSessionName,
-    [
-      `Supply Flow changed this existing session's write mode to ${readOnly ? "on" : "off"}.`,
-      "This is an in-place policy update: do not restart, exit, replace the session, or re-read the task context.",
-      "Continue the current conversation. Before any write, read this session's readOnly value from the project session index; that value is authoritative."
-    ].join(" ")
+    updated.providerId === "codex"
+      ? prependCodexWriteModeCommand(
+          [
+            `Supply Flow changed this existing session's write mode to ${readOnly ? "on" : "off"}.`,
+            "This is an in-place policy update: do not restart, exit, replace the session, or re-read the task context.",
+            "The Supply Flow setting is already persisted. Continue the current conversation and follow both the environment-level and Supply Flow write policies."
+          ].join(" "),
+          readOnly
+        )
+      : [
+          `Supply Flow changed this existing session's write mode to ${readOnly ? "on" : "off"}.`,
+          "This is an in-place policy update: do not restart, exit, replace the session, or re-read the task context.",
+          "Continue the current conversation. Before any write, read this session's readOnly value from the project session index; that value is authoritative."
+        ].join(" ")
   );
 
   return updated;
@@ -269,10 +279,6 @@ async function getSessionWriteModePrompt(
       .replaceAll(
         "<PROJECT_SESSION_INDEX_PATH>",
         JSON.stringify(path.join(projectDirectory(projectId), "sessions.json"))
-      )
-      .replaceAll(
-        "<SESSION_MODE_UPDATER>",
-        buildSessionWriteModeUpdaterCommand(projectId, sessionId)
       );
   } catch (error) {
     throw new Error(
@@ -295,19 +301,6 @@ async function launchWritableDirectoriesFor(
 
   await mkdir(CODEX_THREAD_STATE_DIRECTORY, { recursive: true });
   return [...directories, CODEX_THREAD_STATE_DIRECTORY];
-}
-
-function buildSessionWriteModeUpdaterCommand(projectId: string, sessionId: string): string {
-  return [
-    JSON.stringify(path.join(projectRoot, "node_modules", ".bin", "tsx")),
-    JSON.stringify(
-      path.join(projectRoot, "apps", "web", "scripts", "set-project-session-read-only.ts")
-    ),
-    "--project-directory",
-    JSON.stringify(projectDirectory(projectId)),
-    "--session-id",
-    JSON.stringify(sessionId)
-  ].join(" ");
 }
 
 function isMissingFileError(error: unknown): error is NodeJS.ErrnoException {
