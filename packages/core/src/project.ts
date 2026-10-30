@@ -14,6 +14,7 @@ export const DocumentSourceTypeSchema = z.enum([
   "google-doc",
   "confluence",
   "figma",
+  "claude-artifact",
   "slack",
   "markdown",
   "rfc-draft"

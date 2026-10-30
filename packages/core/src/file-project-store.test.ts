@@ -250,6 +250,30 @@ test("persists project-local Markdown document sources", async () => {
   }
 });
 
+test("persists Claude Artifact document sources", async () => {
+  const rootDirectory = await mkdtemp(path.join(os.tmpdir(), "supply-flow-projects-"));
+  const store = new FileProjectStore(rootDirectory);
+  const artifact = {
+    type: "claude-artifact" as const,
+    link: "https://claude.ai/artifact/example-artifact",
+    title: "Payment clarity prototype"
+  };
+
+  try {
+    await store.create({
+      project_name: "Claude Artifact",
+      project_id: "claude-artifact",
+      repos: [],
+      documents: [artifact],
+      tasks: []
+    });
+
+    assert.deepEqual((await store.get("claude-artifact"))?.documents, [artifact]);
+  } finally {
+    await rm(rootDirectory, { recursive: true, force: true });
+  }
+});
+
 test("persists project-local RFC drafts", async () => {
   const rootDirectory = await mkdtemp(path.join(os.tmpdir(), "supply-flow-projects-"));
   const store = new FileProjectStore(rootDirectory);

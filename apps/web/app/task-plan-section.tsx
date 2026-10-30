@@ -1067,6 +1067,7 @@ function documentTypeLabel(type: DocumentSource["type"]): string {
     "google-doc": "Google Doc",
     confluence: "Confluence",
     figma: "Figma",
+    "claude-artifact": "Claude Artifact",
     slack: "Slack",
     markdown: "Markdown",
     "rfc-draft": "RFC draft"

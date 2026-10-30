@@ -126,6 +126,7 @@ const requirementSourceOptions: readonly {
   { type: "google-doc", label: "Google Doc" },
   { type: "confluence", label: "Confluence" },
   { type: "figma", label: "Figma" },
+  { type: "claude-artifact", label: "Claude Artifact" },
   { type: "slack", label: "Slack" },
   { type: "markdown", label: "Markdown" }
 ];

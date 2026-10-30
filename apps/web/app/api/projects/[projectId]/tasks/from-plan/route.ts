@@ -183,6 +183,7 @@ function sourcePromptPath(type: DocumentSourceType): string {
     "google-doc": "read_google_doc.md",
     confluence: "read_confluence_page.md",
     figma: "read_figma_design.md",
+    "claude-artifact": "read_claude_artifact.md",
     slack: "read_slack_channel.md",
     markdown: "read_local_markdown.md",
     "rfc-draft": "read_rfc_draft.md"
