@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { startBranchCodingSession } from "./branch.js";
+import { activeParentBranches, startBranchCodingSession } from "./branch.js";
 import { FileBranchStore } from "./file-branch-store.js";
 
 test("tracks feature branches by repository path in branches.json", async () => {
@@ -181,6 +181,41 @@ test("removes default branches from legacy branch records", async () => {
   } finally {
     await rm(rootDirectory, { force: true, recursive: true });
   }
+});
+
+test("excludes merged tracked branches from implementation parent choices", () => {
+  const repositoryLocal = "/Users/example/code/ios/Apps/Supply";
+  const activeBranch = {
+    name: "kun/SXP-123-active",
+    repository_local: repositoryLocal,
+    parent_branch: "master",
+    merged: false,
+    jira_ticket: null,
+    implementation_session_id: null,
+    review_session_id: null,
+    last_session_id: null,
+    review_result: null,
+    review_state: "coding" as const,
+    auto_resolve: false
+  };
+  const mergedBranch = {
+    ...activeBranch,
+    name: "kun/SXP-122-merged",
+    merged: true
+  };
+
+  assert.deepEqual(
+    activeParentBranches(
+      ["master", activeBranch.name, mergedBranch.name, "untracked/local"],
+      [activeBranch, mergedBranch],
+      repositoryLocal
+    ),
+    ["master", activeBranch.name, "untracked/local"]
+  );
+  assert.deepEqual(
+    activeParentBranches([mergedBranch.name], [mergedBranch], "/other/repository"),
+    [mergedBranch.name]
+  );
 });
 
 test("migrates legacy branches with no review orchestration fields", async () => {

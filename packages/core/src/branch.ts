@@ -71,6 +71,22 @@ export function isTrackableProjectBranchName(name: string): boolean {
   return !untrackableBranchNames.has(name.trim().toLowerCase());
 }
 
+export function activeParentBranches(
+  localBranches: readonly string[],
+  trackedBranches: readonly ProjectBranch[],
+  repositoryLocal: string
+): string[] {
+  const mergedBranchNames = new Set(
+    trackedBranches
+      .filter(
+        (branch) => branch.repository_local === repositoryLocal && branch.merged
+      )
+      .map((branch) => branch.name)
+  );
+
+  return localBranches.filter((branch) => !mergedBranchNames.has(branch));
+}
+
 export function startBranchCodingSession(
   branch: ProjectBranch,
   sessionId: string

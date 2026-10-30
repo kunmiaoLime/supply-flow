@@ -5,7 +5,9 @@ import {
   supportsReasoningEffort,
   type ResolvedAiSessionActionSettings
 } from "@supply-flow/core/ai-model-settings";
+import { activeParentBranches } from "@supply-flow/core/branch";
 import { FileAiModelSettingsStore } from "@supply-flow/core/file-ai-model-settings-store";
+import { FileBranchStore } from "@supply-flow/core/file-branch-store";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
 import {
   listGitBranches,
@@ -101,9 +103,14 @@ export async function POST(request: Request, context: ProjectRouteContext) {
     }
 
     const localBranches = await listGitBranches(repository.local);
-    if (!localBranches.includes(input.parentBranch)) {
+    const availableParentBranches = activeParentBranches(
+      localBranches,
+      await new FileBranchStore(projectDirectory(project.project_id)).list(),
+      repository.local
+    );
+    if (!availableParentBranches.includes(input.parentBranch)) {
       return NextResponse.json(
-        { error: "The selected parent branch is not available in the selected repository." },
+        { error: "Select an active parent branch. Merged branches cannot be used as a parent." },
         { status: 400 }
       );
     }

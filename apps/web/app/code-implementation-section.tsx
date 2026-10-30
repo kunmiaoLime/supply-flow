@@ -277,9 +277,9 @@ export function CodeImplementationSection({
               {!repositoryLocal ? (
                 <option value="">Select a repository first</option>
               ) : isLoadingAvailableBranches ? (
-                <option value="">Loading local branches...</option>
+                <option value="">Loading active branches...</option>
               ) : availableBranches.length === 0 ? (
-                <option value="">No local branches</option>
+                <option value="">No active branches</option>
               ) : (
                 availableBranches.map((branch) => (
                   <option key={branch} value={branch}>
@@ -389,6 +389,7 @@ function availableBranchesUrl(projectId: string, repositoryLocal: string): strin
     window.location.origin
   );
   url.searchParams.set("repositoryLocal", repositoryLocal);
+  url.searchParams.set("activeOnly", "true");
   return `${url.pathname}${url.search}`;
 }
 

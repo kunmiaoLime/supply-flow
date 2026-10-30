@@ -1,10 +1,12 @@
+import { activeParentBranches } from "@supply-flow/core/branch";
+import { FileBranchStore } from "@supply-flow/core/file-branch-store";
 import { FileProjectStore } from "@supply-flow/core/file-project-store";
 import {
   listGitBranches,
   RepositoryBranchError
 } from "@supply-flow/core/repository-discovery";
 import { NextResponse } from "next/server";
-import { dataDirectory } from "../../sessions/session-service";
+import { dataDirectory, projectDirectory } from "../../sessions/session-service";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -14,7 +16,9 @@ interface ProjectRouteContext {
 }
 
 export async function GET(request: Request, context: ProjectRouteContext) {
-  const repositoryLocal = new URL(request.url).searchParams.get("repositoryLocal")?.trim();
+  const requestUrl = new URL(request.url);
+  const repositoryLocal = requestUrl.searchParams.get("repositoryLocal")?.trim();
+  const activeOnly = requestUrl.searchParams.get("activeOnly") === "true";
   if (!repositoryLocal || repositoryLocal.length > 4_096) {
     return NextResponse.json(
       { error: "Select a repository associated with this project." },
@@ -40,7 +44,17 @@ export async function GET(request: Request, context: ProjectRouteContext) {
       );
     }
 
-    return NextResponse.json({ branches: await listGitBranches(repository.local) });
+    const localBranches = await listGitBranches(repository.local);
+    if (!activeOnly) {
+      return NextResponse.json({ branches: localBranches });
+    }
+
+    const trackedBranches = await new FileBranchStore(
+      projectDirectory(project.project_id)
+    ).list();
+    return NextResponse.json({
+      branches: activeParentBranches(localBranches, trackedBranches, repository.local)
+    });
   } catch (error) {
     if (error instanceof RepositoryBranchError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
