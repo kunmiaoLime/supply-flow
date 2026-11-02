@@ -1,0 +1,28 @@
+apps/web/app/api/settings/ai-interfaces/interface-session-service.ts
+  s_4e563f7b0a5c00::t_8387991273a86b 309-313,315-317,320-327,529-530
+  s_4e563f7b0a5c00::t_e7f92fe217f433 531-532
+packages/core/src/tmux.ts
+  s_4e563f7b0a5c00::t_8387991273a86b 117-143
+packages/core/src/tmux.test.ts
+  s_4e563f7b0a5c00::t_8387991273a86b 88-114
+apps/web/app/api/projects/[projectId]/sessions/[sessionId]/route.ts
+  s_4e563f7b0a5c00::t_8387991273a86b 45,50,52,56-58,61-68,211-212
+  s_4e563f7b0a5c00::t_c5ae3eedec6ec6 46-49
+  s_4e563f7b0a5c00::t_ca9b511fdec18e 213-214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1459be17447ec4ea677636c7faa302723b0c6fed",
+  "prompts": {},
+  "sessions": {
+    "s_4e563f7b0a5c00": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13279-2b9c-75b0-b22b-cf96b12864a2",
+        "model": "openai.gpt-5.6-terra"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    }
+  }
+}
