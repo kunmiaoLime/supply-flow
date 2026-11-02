@@ -85,6 +85,33 @@ test("waits longer for larger action prompts before submitting", async () => {
   assert.deepEqual(waits, [2_100]);
 });
 
+test("reopens a missing terminal output pipe", async () => {
+  const commands: string[][] = [];
+  const adapter = new TmuxAdapter(async (arguments_) => {
+    commands.push(arguments_);
+    return arguments_[0] === "display-message"
+      ? { stdout: "0\n", stderr: "" }
+      : emptyResult();
+  });
+
+  assert.equal(await adapter.ensureOutputPipe("sf_session_01", "/tmp/session.log"), true);
+  assert.deepEqual(commands, [
+    ["display-message", "-p", "-t", "sf_session_01", "#{pane_pipe}"],
+    ["pipe-pane", "-o", "-t", "sf_session_01", "cat >> '/tmp/session.log'"]
+  ]);
+});
+
+test("leaves an active terminal output pipe in place", async () => {
+  const commands: string[][] = [];
+  const adapter = new TmuxAdapter(async (arguments_) => {
+    commands.push(arguments_);
+    return { stdout: "1\n", stderr: "" };
+  });
+
+  assert.equal(await adapter.ensureOutputPipe("sf_session_01", "/tmp/session.log"), false);
+  assert.deepEqual(commands, [["display-message", "-p", "-t", "sf_session_01", "#{pane_pipe}"]]);
+});
+
 test("unsets requested environment variables before launching a provider", async () => {
   const commands: string[][] = [];
   const adapter = new TmuxAdapter(async (arguments_) => {

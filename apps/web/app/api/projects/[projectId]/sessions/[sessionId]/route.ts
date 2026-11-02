@@ -42,17 +42,30 @@ export async function GET(request: Request, context: SessionRouteContext) {
         { status: 404 }
       );
     }
-    const [output, transcript] = await Promise.all([
+    const outputPath = terminalLogPath(project.project_id, session.id);
+    const outputPipeRecovered =
+      session.status === "running"
+        ? await tmux.ensureOutputPipe(session.tmuxSessionName, outputPath)
+        : false;
+    const [output, transcript, tmuxSnapshot] = await Promise.all([
       readTerminalOutput(
-        terminalLogPath(project.project_id, session.id),
+        outputPath,
         outputOffsetFromRequest(request)
       ),
       transcriptRequested(request)
-        ? readSessionTranscript(terminalLogPath(project.project_id, session.id))
-        : undefined
+        ? readSessionTranscript(outputPath)
+        : undefined,
+      outputPipeRecovered ? tmux.captureOutput(session.tmuxSessionName) : undefined
     ]);
     return NextResponse.json({
-      ...output,
+      ...(tmuxSnapshot === undefined
+        ? output
+        : {
+            output: toTerminalSnapshot(tmuxSnapshot),
+            outputOffset: output.outputSize,
+            outputSize: output.outputSize,
+            outputTruncated: true
+          }),
       ...(transcript === undefined ? {} : { transcript }),
       session
     });
@@ -193,6 +206,10 @@ function outputOffsetFromRequest(request: Request): number | undefined {
 
 function transcriptRequested(request: Request): boolean {
   return new URL(request.url).searchParams.get("transcript") === "1";
+}
+
+function toTerminalSnapshot(output: string): string {
+  return output.replaceAll(/\r?\n/g, "\r\n");
 }
 
 function projectDirectory(projectId: string): string {

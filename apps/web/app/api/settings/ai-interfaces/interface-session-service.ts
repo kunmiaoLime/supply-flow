@@ -306,14 +306,25 @@ export async function readAiInterfaceTerminalOutput(
   outputTruncated: boolean;
   transcript?: string;
 }> {
-  const [output, transcript] = await Promise.all([
-    readTerminalOutput(terminalLogPath(session.id), requestedOffset),
+  const outputPath = terminalLogPath(session.id);
+  const tmux = new TmuxAdapter();
+  const outputPipeRecovered = await tmux.ensureOutputPipe(session.tmuxSessionName, outputPath);
+  const [output, transcript, tmuxSnapshot] = await Promise.all([
+    readTerminalOutput(outputPath, requestedOffset),
     includeTranscript
-      ? readSessionTranscript(terminalLogPath(session.id))
-      : undefined
+      ? readSessionTranscript(outputPath)
+      : undefined,
+    outputPipeRecovered ? tmux.captureOutput(session.tmuxSessionName) : undefined
   ]);
   return {
-    ...output,
+    ...(tmuxSnapshot === undefined
+      ? output
+      : {
+          output: toTerminalSnapshot(tmuxSnapshot),
+          outputOffset: output.outputSize,
+          outputSize: output.outputSize,
+          outputTruncated: true
+        }),
     ...(transcript === undefined ? {} : { transcript })
   };
 }
@@ -513,6 +524,10 @@ end tell`
 
 function terminalLogPath(sessionId: string): string {
   return path.join(aiInterfaceSessionDirectory(), "sessions", sessionId, "terminal.log");
+}
+
+function toTerminalSnapshot(output: string): string {
+  return output.replaceAll(/\r?\n/g, "\r\n");
 }
 
 async function readTerminalOutput(

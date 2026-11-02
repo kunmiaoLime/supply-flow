@@ -114,6 +114,33 @@ export class TmuxAdapter {
     return result.stdout;
   }
 
+  public async ensureOutputPipe(sessionName: string, outputPath: string): Promise<boolean> {
+    assertSessionName(sessionName);
+    if (!outputPath || outputPath.includes("\0")) {
+      throw new Error("Terminal output path is invalid.");
+    }
+
+    const pipeState = await this.run([
+      "display-message",
+      "-p",
+      "-t",
+      sessionName,
+      "#{pane_pipe}"
+    ]);
+    if (pipeState.stdout.trim() === "1") {
+      return false;
+    }
+
+    await this.run([
+      "pipe-pane",
+      "-o",
+      "-t",
+      sessionName,
+      `cat >> ${quoteForShell(outputPath)}`
+    ]);
+    return true;
+  }
+
   public async listSessions(): Promise<string[]> {
     try {
       const result = await this.run(["list-sessions", "-F", "#{session_name}"]);
