@@ -307,17 +307,22 @@ export async function getGitHubPullRequestHealth(
     throw new GitHubPullRequestError("The pull request repository is invalid.", 400);
   }
 
-  const [reviewThreadHealth, approval] = await Promise.all([
+  const [reviewThreadHealth, approval, requiredStatusCheckNames] = await Promise.all([
     getReviewThreadHealth(owner, repository, reference.number),
     getGitHubPullRequestApprovalStatus(
       owner,
       repository,
       reference.number,
       healthPayload.baseRefName
-    )
+    ),
+    getGitHubRequiredStatusCheckNames(owner, repository, healthPayload.baseRefName)
   ]);
-  const ciStatus = classifyGitHubPullRequestCiStatus(healthPayload.statusCheckRollup);
-  const ciRetryTargets = getGitHubCiRetryTargets(healthPayload.statusCheckRollup);
+  const requiredStatusCheckRollup = filterGitHubRequiredStatusChecks(
+    healthPayload.statusCheckRollup,
+    requiredStatusCheckNames
+  );
+  const ciStatus = classifyGitHubPullRequestCiStatus(requiredStatusCheckRollup);
+  const ciRetryTargets = getGitHubCiRetryTargets(requiredStatusCheckRollup);
   const ciIssueFingerprints =
     ciStatus === "failure"
       ? ciRetryTargets.length > 0
@@ -426,6 +431,27 @@ async function requiresGitHubCodeOwnerReviews(
 
   const payload = parseGitHubRequiredPullRequestReviewsPayload(response);
   return payload.requireCodeOwnerReviews;
+}
+
+async function getGitHubRequiredStatusCheckNames(
+  owner: string,
+  repository: string,
+  baseRefName: string
+): Promise<Set<string>> {
+  const response = await runGhCommandAllowingNotFound(
+    [
+      "api",
+      `repos/${encodeURIComponent(owner)}/${encodeURIComponent(
+        repository
+      )}/branches/${encodeURIComponent(baseRefName)}/protection/required_status_checks`
+    ],
+    "GitHub CLI could not retrieve the required status checks. Check GitHub CLI authentication and repository access."
+  );
+  if (response === null) {
+    return new Set();
+  }
+
+  return parseGitHubRequiredStatusChecksPayload(response);
 }
 
 async function getGitHubCodeOwners(
@@ -641,6 +667,35 @@ export function classifyGitHubPullRequestStatus(
   return "unknown";
 }
 
+export function filterGitHubRequiredStatusChecks(
+  statusCheckRollup: unknown,
+  requiredStatusCheckNames: ReadonlySet<string>
+): object[] {
+  if (!Array.isArray(statusCheckRollup) || requiredStatusCheckNames.size === 0) {
+    return [];
+  }
+
+  const checks = statusCheckRollup.filter(
+    (check): check is object => typeof check === "object" && check !== null
+  );
+  const requiredChecks = checks.filter((check) => {
+    const name = githubStatusCheckName(check);
+    return name !== null && requiredStatusCheckNames.has(name);
+  });
+  const reportedRequiredCheckNames = new Set(
+    requiredChecks
+      .map(githubStatusCheckName)
+      .filter((name): name is string => name !== null)
+  );
+
+  return [
+    ...requiredChecks,
+    ...[...requiredStatusCheckNames]
+      .filter((name) => !reportedRequiredCheckNames.has(name))
+      .map((context) => ({ context, state: "PENDING" }))
+  ];
+}
+
 export function classifyGitHubPullRequestCiStatus(
   statusCheckRollup: unknown
 ): ProjectPullRequestCiStatus {
@@ -680,11 +735,11 @@ export function classifyGitHubPullRequestCiStatus(
     }
   }
 
-  if (hasPending) {
-    return "pending";
-  }
   if (hasFailure) {
     return "failure";
+  }
+  if (hasPending) {
+    return "pending";
   }
   if (hasUnknown) {
     return "unknown";
@@ -737,6 +792,21 @@ function ciCheckValues(check: object): string[] {
     .filter((value): value is string => typeof value === "string")
     .map((value) => value.trim().toUpperCase())
     .filter(Boolean);
+}
+
+function githubStatusCheckName(check: object): string | null {
+  const record = check as Record<string, unknown>;
+  for (const key of ["name", "context"]) {
+    const value = record[key];
+    if (typeof value !== "string") {
+      continue;
+    }
+    const name = value.trim();
+    if (name) {
+      return name;
+    }
+  }
+  return null;
 }
 
 function isFailedCiCheckValues(values: readonly string[]): boolean {
@@ -1105,6 +1175,28 @@ function parseGitHubRequiredPullRequestReviewsPayload(value: string): {
   } catch {
     throw new GitHubPullRequestError(
       "GitHub returned invalid pull request review policy data.",
+      502
+    );
+  }
+}
+
+function parseGitHubRequiredStatusChecksPayload(value: string): Set<string> {
+  try {
+    const payload: unknown = JSON.parse(value);
+    if (
+      typeof payload !== "object" ||
+      payload === null ||
+      !("contexts" in payload) ||
+      !Array.isArray(payload.contexts) ||
+      !payload.contexts.every((context) => typeof context === "string")
+    ) {
+      throw new Error("Invalid payload");
+    }
+
+    return new Set(payload.contexts.map((context) => context.trim()).filter(Boolean));
+  } catch {
+    throw new GitHubPullRequestError(
+      "GitHub returned invalid required status check data.",
       502
     );
   }

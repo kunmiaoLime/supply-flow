@@ -9,6 +9,7 @@ import {
   classifyGitHubPullRequestCiStatus,
   classifyGitHubPullRequestStatus,
   countUnrepliedGitHubReviewThreads,
+  filterGitHubRequiredStatusChecks,
   getGitHubReviewThreadIssueFingerprints,
   getApprovedGitHubReviewerLogins,
   getGitHubCiRetryTargets,
@@ -80,9 +81,55 @@ test("summarizes GitHub CI checks", () => {
       { conclusion: "FAILURE", status: "COMPLETED" },
       { conclusion: null, status: "IN_PROGRESS" }
     ]),
-    "pending"
+    "failure"
   );
   assert.equal(classifyGitHubPullRequestCiStatus(null), "unknown");
+});
+
+test("ignores optional CI checks when evaluating required check failures", () => {
+  const requiredChecks = filterGitHubRequiredStatusChecks(
+    [
+      {
+        context: "danger/danger",
+        state: "PENDING"
+      },
+      {
+        conclusion: "FAILURE",
+        detailsUrl: "https://app.circleci.com/workflow/0795e769-bbc5-4dc8-8bbe-894c58def65c",
+        name: "supply_pr_check",
+        status: "COMPLETED"
+      },
+      {
+        conclusion: "SUCCESS",
+        name: "supreme_pr_check",
+        status: "COMPLETED"
+      }
+    ],
+    new Set(["danger/danger", "supreme_pr_check"])
+  );
+
+  assert.equal(classifyGitHubPullRequestCiStatus(requiredChecks), "pending");
+  assert.deepEqual(getGitHubCiRetryTargets(requiredChecks), []);
+
+  const checksWithMissingRequiredContext = filterGitHubRequiredStatusChecks(
+    [
+      {
+        conclusion: "FAILURE",
+        detailsUrl: "https://app.circleci.com/workflow/0795e769-bbc5-4dc8-8bbe-894c58def65c",
+        name: "supply_pr_check",
+        status: "COMPLETED"
+      },
+      {
+        conclusion: "SUCCESS",
+        name: "supreme_pr_check",
+        status: "COMPLETED"
+      }
+    ],
+    new Set(["danger/danger", "supreme_pr_check"])
+  );
+
+  assert.equal(classifyGitHubPullRequestCiStatus(checksWithMissingRequiredContext), "pending");
+  assert.deepEqual(getGitHubCiRetryTargets(checksWithMissingRequiredContext), []);
 });
 
 test("identifies GitHub pull request merge conflicts", () => {
