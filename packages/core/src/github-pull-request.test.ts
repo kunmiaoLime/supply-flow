@@ -87,27 +87,29 @@ test("summarizes GitHub CI checks", () => {
 });
 
 test("ignores optional CI checks when evaluating required check failures", () => {
+  const allChecks = [
+    {
+      context: "danger/danger",
+      state: "PENDING"
+    },
+    {
+      conclusion: "FAILURE",
+      detailsUrl: "https://app.circleci.com/workflow/0795e769-bbc5-4dc8-8bbe-894c58def65c",
+      name: "supply_pr_check",
+      status: "COMPLETED"
+    },
+    {
+      conclusion: "SUCCESS",
+      name: "supreme_pr_check",
+      status: "COMPLETED"
+    }
+  ];
   const requiredChecks = filterGitHubRequiredStatusChecks(
-    [
-      {
-        context: "danger/danger",
-        state: "PENDING"
-      },
-      {
-        conclusion: "FAILURE",
-        detailsUrl: "https://app.circleci.com/workflow/0795e769-bbc5-4dc8-8bbe-894c58def65c",
-        name: "supply_pr_check",
-        status: "COMPLETED"
-      },
-      {
-        conclusion: "SUCCESS",
-        name: "supreme_pr_check",
-        status: "COMPLETED"
-      }
-    ],
+    allChecks,
     new Set(["danger/danger", "supreme_pr_check"])
   );
 
+  assert.equal(classifyGitHubPullRequestCiStatus(allChecks), "failure");
   assert.equal(classifyGitHubPullRequestCiStatus(requiredChecks), "pending");
   assert.deepEqual(getGitHubCiRetryTargets(requiredChecks), []);
 

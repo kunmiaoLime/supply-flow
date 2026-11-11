@@ -60,7 +60,7 @@ async function scanPullRequest(
     const autoResolveIssues = monitoringEnabled && current.auto_resolve_issues;
     shouldRetryCi =
       retryCiEnabled &&
-      health.ciStatus === "failure" &&
+      health.hasRequiredCiFailure &&
       (health.status === "open" || health.status === "draft");
     const hasLegacyActiveIssues =
       current.active_issue_fingerprints.length === 0 &&

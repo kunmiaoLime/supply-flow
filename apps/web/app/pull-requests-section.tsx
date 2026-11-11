@@ -21,11 +21,15 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
   const [removingPullRequest, setRemovingPullRequest] = useState<ProjectPullRequest | null>(
     null
   );
-  const [updatingMonitoringUrl, setUpdatingMonitoringUrl] = useState<string | null>(null);
+  const [updatingPullRequestUrls, setUpdatingPullRequestUrls] = useState<Set<string>>(
+    () => new Set()
+  );
   const [addressingPullRequestUrl, setAddressingPullRequestUrl] = useState<string | null>(null);
   const urlInput = useRef<HTMLInputElement>(null);
   const scanInFlight = useRef(false);
   const pullRequestSettingsRevision = useRef(0);
+  const pullRequestSettingsUpdateRevisions = useRef(new Map<string, number>());
+  const pendingPullRequestSettingsUpdates = useRef(new Map<string, Promise<void>>());
 
   useEffect(() => {
     let ignoreResult = false;
@@ -92,6 +96,7 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
 
       scanInFlight.current = true;
       const settingsRevisionAtStart = pullRequestSettingsRevision.current;
+      const hasPendingSettingsUpdates = pendingPullRequestSettingsUpdates.current.size > 0;
       try {
         const response = await fetch(scanPullRequestsUrl(project.project_id), {
           body: JSON.stringify({}),
@@ -110,6 +115,7 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
         if (
           !ignoreResult &&
           data.prs &&
+          !hasPendingSettingsUpdates &&
           settingsRevisionAtStart === pullRequestSettingsRevision.current
         ) {
           setPullRequests(data.prs);
@@ -211,7 +217,11 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
   }
 
   async function removePullRequest(pullRequest: ProjectPullRequest) {
-    if (removingPullRequest || updatingMonitoringUrl || addressingPullRequestUrl) {
+    if (
+      removingPullRequest ||
+      updatingPullRequestUrls.has(pullRequest.url) ||
+      addressingPullRequestUrl
+    ) {
       return;
     }
 
@@ -239,11 +249,8 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
     }
   }
 
-  async function updateMonitoring(
-    pullRequest: ProjectPullRequest,
-    monitoringEnabled: boolean
-  ) {
-    await updatePullRequestSettings(
+  function updateMonitoring(pullRequest: ProjectPullRequest, monitoringEnabled: boolean) {
+    updatePullRequestSettings(
       pullRequest,
       monitoringEnabled,
       monitoringEnabled ? pullRequest.retry_ci_enabled : false,
@@ -251,8 +258,8 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
     );
   }
 
-  async function updateRetryCi(pullRequest: ProjectPullRequest, retryCiEnabled: boolean) {
-    await updatePullRequestSettings(
+  function updateRetryCi(pullRequest: ProjectPullRequest, retryCiEnabled: boolean) {
+    updatePullRequestSettings(
       pullRequest,
       pullRequest.monitoring_enabled,
       retryCiEnabled,
@@ -260,11 +267,8 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
     );
   }
 
-  async function updateAutoResolveIssues(
-    pullRequest: ProjectPullRequest,
-    autoResolveIssues: boolean
-  ) {
-    await updatePullRequestSettings(
+  function updateAutoResolveIssues(pullRequest: ProjectPullRequest, autoResolveIssues: boolean) {
+    updatePullRequestSettings(
       pullRequest,
       pullRequest.monitoring_enabled,
       pullRequest.retry_ci_enabled,
@@ -272,24 +276,78 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
     );
   }
 
-  async function updatePullRequestSettings(
+  function updatePullRequestSettings(
     pullRequest: ProjectPullRequest,
     monitoringEnabled: boolean,
     retryCiEnabled: boolean,
     autoResolveIssues: boolean
   ) {
-    if (removingPullRequest || updatingMonitoringUrl || addressingPullRequestUrl) {
+    if (removingPullRequest || addressingPullRequestUrl) {
       return;
     }
 
     pullRequestSettingsRevision.current += 1;
-    setUpdatingMonitoringUrl(pullRequest.url);
+    const updateRevision =
+      (pullRequestSettingsUpdateRevisions.current.get(pullRequest.url) ?? 0) + 1;
+    pullRequestSettingsUpdateRevisions.current.set(pullRequest.url, updateRevision);
+    const updatedPullRequest: ProjectPullRequest = {
+      ...pullRequest,
+      monitoring_enabled: monitoringEnabled,
+      retry_ci_enabled: monitoringEnabled && retryCiEnabled,
+      auto_resolve_issues: monitoringEnabled && autoResolveIssues,
+      last_ci_retry_at:
+        monitoringEnabled && retryCiEnabled ? pullRequest.last_ci_retry_at : null,
+      last_ci_retry_error:
+        monitoringEnabled && retryCiEnabled ? pullRequest.last_ci_retry_error : null
+    };
+    setPullRequests((currentPullRequests) =>
+      sortPullRequests(
+        currentPullRequests.map((currentPullRequest) =>
+          currentPullRequest.url === pullRequest.url ? updatedPullRequest : currentPullRequest
+        )
+      )
+    );
+    setUpdatingPullRequestUrls((currentUrls) => new Set(currentUrls).add(pullRequest.url));
     setListError("");
 
+    const pendingUpdate =
+      pendingPullRequestSettingsUpdates.current.get(pullRequest.url) ?? Promise.resolve();
+    const queuedUpdate = pendingUpdate.then(() =>
+      persistPullRequestSettings(
+        pullRequest,
+        updatedPullRequest,
+        monitoringEnabled,
+        retryCiEnabled,
+        autoResolveIssues,
+        updateRevision
+      )
+    );
+    pendingPullRequestSettingsUpdates.current.set(pullRequest.url, queuedUpdate);
+    void queuedUpdate.finally(() => {
+      if (pendingPullRequestSettingsUpdates.current.get(pullRequest.url) !== queuedUpdate) {
+        return;
+      }
+      pendingPullRequestSettingsUpdates.current.delete(pullRequest.url);
+      setUpdatingPullRequestUrls((currentUrls) => {
+        const nextUrls = new Set(currentUrls);
+        nextUrls.delete(pullRequest.url);
+        return nextUrls;
+      });
+    });
+  }
+
+  async function persistPullRequestSettings(
+    previousPullRequest: ProjectPullRequest,
+    updatedPullRequest: ProjectPullRequest,
+    monitoringEnabled: boolean,
+    retryCiEnabled: boolean,
+    autoResolveIssues: boolean,
+    updateRevision: number
+  ) {
     try {
       const response = await fetch(pullRequestsUrl(project.project_id), {
         body: JSON.stringify({
-          url: pullRequest.url,
+          url: updatedPullRequest.url,
           monitoringEnabled,
           retryCiEnabled,
           autoResolveIssues
@@ -306,10 +364,15 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
         throw new Error(data.error ?? "Unable to update pull request monitoring.");
       }
 
+      if (
+        pullRequestSettingsUpdateRevisions.current.get(updatedPullRequest.url) !== updateRevision
+      ) {
+        return;
+      }
       setPullRequests((currentPullRequests) =>
         sortPullRequests(
           currentPullRequests.map((currentPullRequest) =>
-            currentPullRequest.url === pullRequest.url
+            currentPullRequest.url === updatedPullRequest.url
               ? (data.pullRequest as ProjectPullRequest)
               : currentPullRequest
           )
@@ -319,16 +382,32 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
         setListError(data.scanError);
       }
     } catch (error) {
+      if (
+        pullRequestSettingsUpdateRevisions.current.get(updatedPullRequest.url) !== updateRevision
+      ) {
+        return;
+      }
+      setPullRequests((currentPullRequests) =>
+        sortPullRequests(
+          currentPullRequests.map((currentPullRequest) =>
+            currentPullRequest.url === updatedPullRequest.url
+              ? previousPullRequest
+              : currentPullRequest
+          )
+        )
+      );
       setListError(
         error instanceof Error ? error.message : "Unable to update pull request monitoring."
       );
-    } finally {
-      setUpdatingMonitoringUrl(null);
     }
   }
 
   async function addressPullRequest(pullRequest: ProjectPullRequest) {
-    if (removingPullRequest || updatingMonitoringUrl || addressingPullRequestUrl) {
+    if (
+      removingPullRequest ||
+      updatingPullRequestUrls.has(pullRequest.url) ||
+      addressingPullRequestUrl
+    ) {
       return;
     }
 
@@ -441,7 +520,7 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
                 (currentRepository) => currentRepository.local === pullRequest.repository_local
               );
               const isRemoving = removingPullRequest?.url === pullRequest.url;
-              const isUpdatingMonitoring = updatingMonitoringUrl === pullRequest.url;
+              const isUpdatingMonitoring = updatingPullRequestUrls.has(pullRequest.url);
               const isAddressing = addressingPullRequestUrl === pullRequest.url;
               const isClosed = isInactivePullRequest(pullRequest);
 
@@ -467,7 +546,6 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
                         checked={pullRequest.monitoring_enabled}
                         disabled={
                           Boolean(removingPullRequest) ||
-                          Boolean(updatingMonitoringUrl) ||
                           Boolean(addressingPullRequestUrl)
                         }
                         onChange={(event) =>
@@ -491,7 +569,6 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
                           isClosed ||
                           !pullRequest.monitoring_enabled ||
                           Boolean(removingPullRequest) ||
-                          Boolean(updatingMonitoringUrl) ||
                           Boolean(addressingPullRequestUrl)
                         }
                         onChange={(event) =>
@@ -515,7 +592,6 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
                           isClosed ||
                           !pullRequest.monitoring_enabled ||
                           Boolean(removingPullRequest) ||
-                          Boolean(updatingMonitoringUrl) ||
                           Boolean(addressingPullRequestUrl)
                         }
                         onChange={(event) =>
@@ -531,7 +607,7 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
                       disabled={
                         isClosed ||
                         Boolean(removingPullRequest) ||
-                        Boolean(updatingMonitoringUrl) ||
+                        isUpdatingMonitoring ||
                         Boolean(addressingPullRequestUrl)
                       }
                       onClick={() => void addressPullRequest(pullRequest)}
@@ -544,7 +620,7 @@ export function PullRequestsSection({ project }: { project: ProjectRecord }) {
                       className="repository-icon-button is-danger"
                       disabled={
                         Boolean(removingPullRequest) ||
-                        Boolean(updatingMonitoringUrl) ||
+                        isUpdatingMonitoring ||
                         Boolean(addressingPullRequestUrl)
                       }
                       onClick={() => void removePullRequest(pullRequest)}

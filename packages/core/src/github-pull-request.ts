@@ -34,6 +34,7 @@ export interface GitHubPullRequestHealth {
   unrepliedCommentCount: number;
   issueFingerprints: readonly string[];
   ciStatus: ProjectPullRequestCiStatus;
+  hasRequiredCiFailure: boolean;
   hasMergeConflict: boolean;
   ciRetryTargets: readonly GitHubCiRetryTarget[];
   approvalStatus: ProjectPullRequestApprovalStatus;
@@ -321,10 +322,11 @@ export async function getGitHubPullRequestHealth(
     healthPayload.statusCheckRollup,
     requiredStatusCheckNames
   );
-  const ciStatus = classifyGitHubPullRequestCiStatus(requiredStatusCheckRollup);
+  const ciStatus = classifyGitHubPullRequestCiStatus(healthPayload.statusCheckRollup);
+  const requiredCiStatus = classifyGitHubPullRequestCiStatus(requiredStatusCheckRollup);
   const ciRetryTargets = getGitHubCiRetryTargets(requiredStatusCheckRollup);
   const ciIssueFingerprints =
-    ciStatus === "failure"
+    requiredCiStatus === "failure"
       ? ciRetryTargets.length > 0
         ? ciRetryTargets.map((target) => `ci:${target.provider}:${target.id}`)
         : ["ci:failure"]
@@ -348,6 +350,7 @@ export async function getGitHubPullRequestHealth(
       ])
     ],
     ciStatus,
+    hasRequiredCiFailure: requiredCiStatus === "failure",
     hasMergeConflict: mergeConflictIssueFingerprints.length > 0,
     ciRetryTargets,
     approvalStatus: approval.status,
