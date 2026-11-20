@@ -1,0 +1,45 @@
+README.md
+  s_75655def2d052c::t_99477c3e8a1e03 103-112
+apps/web/app/api/projects/[projectId]/implementation-sessions/route.ts
+  s_75655def2d052c::t_1e6c6a7d228cd8 58-64
+  s_75655def2d052c::t_940fba78898246 67
+apps/web/app/api/projects/[projectId]/branches/review/route.ts
+  s_75655def2d052c::t_fc2a4b264d264b 64-70
+  s_75655def2d052c::t_940fba78898246 73
+packages/core/src/file-ai-model-settings-store.test.ts
+  s_75655def2d052c::t_940fba78898246 149-182
+packages/core/src/branch.ts
+  s_75655def2d052c::t_d09a7e3ec2e277 31-37
+  s_75655def2d052c::t_940fba78898246 40
+apps/web/app/api/projects/[projectId]/sessions/route.ts
+  s_75655def2d052c::t_940fba78898246 43,46
+packages/core/src/providers.test.ts
+  s_75655def2d052c::t_940fba78898246 3-8,28,32-33,37-65,74-75,82,84
+apps/web/app/ai-session-configuration-fields.tsx
+  s_75655def2d052c::t_ee25fed0917480 47-48
+  s_75655def2d052c::t_99477c3e8a1e03 105-108
+apps/web/app/settings-section.tsx
+  s_75655def2d052c::t_ee25fed0917480 544-545,606-607,617-621,975-976,1021-1026
+apps/web/scripts/track-project-branch.ts
+  s_75655def2d052c::t_940fba78898246 42
+  s_75655def2d052c::t_3f088ee6ad12d5 33-39
+packages/core/src/ai-model-settings.ts
+  s_75655def2d052c::t_99477c3e8a1e03 400-403
+  s_75655def2d052c::t_ee25fed0917480 52-53,63,71,73-85,286-291,295-298,305-306,308-311,316-317,319,374-375,408
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "be5a6e0a1476982c5dd43082cc66739d3248aa1c",
+  "prompts": {},
+  "sessions": {
+    "s_75655def2d052c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1fa7a-d394-79a0-abff-0111fd5e90b0",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Kunmiao Yang <kunmiao.yang@li.me>"
+    }
+  }
+}
