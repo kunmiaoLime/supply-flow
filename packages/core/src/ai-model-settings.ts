@@ -49,7 +49,8 @@ export const reasoningEffortValues = [
   "medium",
   "high",
   "xhigh",
-  "max"
+  "max",
+  "ultra"
 ] as const;
 
 export const ReasoningEffortSchema = z.enum(reasoningEffortValues);
@@ -59,7 +60,7 @@ export type ReasoningEffort = z.infer<typeof ReasoningEffortSchema>;
 export const reasoningEffortsByProvider: Readonly<
   Record<AiProviderId, readonly ReasoningEffort[]>
 > = {
-  codex: ["minimal", "low", "medium", "high", "xhigh"],
+  codex: ["low", "medium", "high", "xhigh", "max"],
   "claude-code": ["low", "medium", "high", "xhigh", "max"]
 };
 
@@ -67,14 +68,21 @@ export const aiModelOptions: readonly {
   label: string;
   model: string;
   providerId: AiProviderId;
+  reasoningEfforts?: readonly ReasoningEffort[];
 }[] = [
-  { label: "GPT-5.6 Sol", model: "openai.gpt-5.6-sol", providerId: "codex" },
-  { label: "GPT-5.6 Terra", model: "openai.gpt-5.6-terra", providerId: "codex" },
-  { label: "GPT-5.6 Luna", model: "openai.gpt-5.6-luna", providerId: "codex" },
-  { label: "GPT-5.3 Codex", model: "gpt-5.3-codex", providerId: "codex" },
-  { label: "GPT-5.2 Codex", model: "gpt-5.2-codex", providerId: "codex" },
-  { label: "GPT-5.1 Codex", model: "gpt-5.1-codex", providerId: "codex" },
-  { label: "GPT-5.1 Codex Mini", model: "gpt-5.1-codex-mini", providerId: "codex" },
+  {
+    label: "GPT-6 Astra",
+    model: "gpt-6-astra",
+    providerId: "codex",
+    reasoningEfforts: [...reasoningEffortsByProvider.codex, "ultra"]
+  },
+  {
+    label: "GPT-6 Sol",
+    model: "gpt-6-sol",
+    providerId: "codex",
+    reasoningEfforts: [...reasoningEffortsByProvider.codex, "ultra"]
+  },
+  { label: "GPT-6 Luna", model: "gpt-6-luna", providerId: "codex" },
   { label: "Claude Opus (latest)", model: "opus", providerId: "claude-code" },
   { label: "Claude Opus 5.5", model: "claude-opus-5-5", providerId: "claude-code" },
   { label: "Claude Opus 5.0", model: "claude-opus-5", providerId: "claude-code" },
@@ -275,31 +283,40 @@ export function resolveAiModelDefault(
   const actionDefault = settings.actions[action];
   const inheritsGlobalProvider = actionDefault.providerId === null;
   const providerId = actionDefault.providerId ?? settings.globalDefault.providerId;
+  const model = inheritsGlobalProvider
+    ? (actionDefault.model ?? settings.globalDefault.model)
+    : actionDefault.model;
+  const reasoningEffort = inheritsGlobalProvider
+    ? (actionDefault.reasoningEffort ?? settings.globalDefault.reasoningEffort)
+    : actionDefault.reasoningEffort;
 
   return {
     providerId,
-    model: inheritsGlobalProvider
-      ? (actionDefault.model ?? settings.globalDefault.model)
-      : actionDefault.model,
-    reasoningEffort: inheritsGlobalProvider
-      ? (actionDefault.reasoningEffort ?? settings.globalDefault.reasoningEffort)
-      : actionDefault.reasoningEffort,
+    model,
+    reasoningEffort: supportsReasoningEffort(providerId, reasoningEffort, model)
+      ? reasoningEffort
+      : null,
     readOnly: actionDefault.readOnly,
     yoloMode: actionDefault.yoloMode
   };
 }
 
 export function reasoningEffortsForProvider(
-  providerId: AiProviderId
+  providerId: AiProviderId,
+  model: string | null = null
 ): readonly ReasoningEffort[] {
-  return reasoningEffortsByProvider[providerId];
+  return (
+    aiModelOptions.find((option) => option.providerId === providerId && option.model === model)
+      ?.reasoningEfforts ?? reasoningEffortsByProvider[providerId]
+  );
 }
 
 export function supportsReasoningEffort(
   providerId: AiProviderId,
-  effort: ReasoningEffort | null
+  effort: ReasoningEffort | null,
+  model: string | null = null
 ): boolean {
-  return effort === null || reasoningEffortsForProvider(providerId).includes(effort);
+  return effort === null || reasoningEffortsForProvider(providerId, model).includes(effort);
 }
 
 function createDefaultSelection(
@@ -354,7 +371,8 @@ function normalizeGlobalDefault(
     providerId: selection.providerId ?? "codex",
     reasoningEffort: supportsReasoningEffort(
       selection.providerId ?? "codex",
-      selection.reasoningEffort
+      selection.reasoningEffort,
+      selection.model
     )
       ? selection.reasoningEffort
       : null
@@ -379,11 +397,15 @@ function normalizeActionSettings(
       ? { ...initialSelection, model: globalDefault.model }
       : initialSelection;
   const providerId = selection.providerId ?? globalDefault.providerId;
+  const model =
+    selection.providerId === null
+      ? (selection.model ?? globalDefault.model)
+      : selection.model;
   const readOnly = settings.readOnly ?? defaults.readOnly;
 
   return {
     ...selection,
-    reasoningEffort: supportsReasoningEffort(providerId, selection.reasoningEffort)
+    reasoningEffort: supportsReasoningEffort(providerId, selection.reasoningEffort, model)
       ? selection.reasoningEffort
       : null,
     readOnly,

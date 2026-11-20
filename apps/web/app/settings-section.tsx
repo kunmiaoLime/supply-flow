@@ -541,7 +541,8 @@ export function SettingsSection({
             model: selection?.model ?? null,
             reasoningEffort: supportsReasoningEffort(
               effectiveProviderId,
-              currentSelection.reasoningEffort
+              currentSelection.reasoningEffort,
+              selection ? selection.model : currentSettings.globalDefault.model
             )
               ? currentSelection.reasoningEffort
               : null
@@ -602,7 +603,8 @@ export function SettingsSection({
         model: selection.model,
         reasoningEffort: supportsReasoningEffort(
           selection.providerId,
-          currentSettings.globalDefault.reasoningEffort
+          currentSettings.globalDefault.reasoningEffort,
+          selection.model
         )
           ? currentSettings.globalDefault.reasoningEffort
           : null
@@ -612,7 +614,11 @@ export function SettingsSection({
         const actionSettings = actions[id];
         if (
           actionSettings.providerId === null &&
-          !supportsReasoningEffort(globalDefault.providerId, actionSettings.reasoningEffort)
+          !supportsReasoningEffort(
+            globalDefault.providerId,
+            actionSettings.reasoningEffort,
+            actionSettings.model ?? globalDefault.model
+          )
         ) {
           actions[id] = { ...actionSettings, reasoningEffort: null };
         }
@@ -966,7 +972,8 @@ export function SettingsSection({
                       >
                         <option value="">Use configured default</option>
                         {reasoningEffortsForProvider(
-                          aiModelSettings.globalDefault.providerId
+                          aiModelSettings.globalDefault.providerId,
+                          aiModelSettings.globalDefault.model
                         ).map((effort) => (
                           <option key={effort} value={effort}>
                             {formatReasoningEffort(effort)}
@@ -1011,7 +1018,12 @@ export function SettingsSection({
                             value={selection.reasoningEffort ?? ""}
                           >
                             <option value="">Use default</option>
-                            {reasoningEffortsForProvider(effectiveProviderId).map((effort) => (
+                            {reasoningEffortsForProvider(
+                              effectiveProviderId,
+                              selection.providerId === null
+                                ? (selection.model ?? aiModelSettings.globalDefault.model)
+                                : selection.model
+                            ).map((effort) => (
                               <option key={effort} value={effort}>
                                 {formatReasoningEffort(effort)}
                               </option>

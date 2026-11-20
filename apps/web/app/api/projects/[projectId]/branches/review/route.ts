@@ -61,10 +61,16 @@ const ReviewSessionConfigurationSchema = z
     yoloMode: z.boolean()
   })
   .superRefine((configuration, context) => {
-    if (!supportsReasoningEffort(configuration.providerId, configuration.reasoningEffort)) {
+    if (
+      !supportsReasoningEffort(
+        configuration.providerId,
+        configuration.reasoningEffort,
+        configuration.model
+      )
+    ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "The reasoning effort is not supported by the selected AI provider.",
+        message: "The reasoning effort is not supported by the selected AI model.",
         path: ["reasoningEffort"]
       });
     }

@@ -40,10 +40,10 @@ const NewSessionInputSchema = z
     resumeSessionId: z.string().regex(/^[A-Za-z0-9_-]+$/).nullable().optional()
   })
   .superRefine((input, context) => {
-    if (!supportsReasoningEffort(input.providerId, input.reasoningEffort)) {
+    if (!supportsReasoningEffort(input.providerId, input.reasoningEffort, input.model)) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "The reasoning effort is not supported by the selected AI provider.",
+        message: "The reasoning effort is not supported by the selected AI model.",
         path: ["reasoningEffort"]
       });
     }

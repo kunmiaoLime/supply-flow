@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { aiModelOptions } from "./ai-model-settings.js";
+import {
+  aiModelOptions,
+  reasoningEffortsForProvider,
+  supportsReasoningEffort
+} from "./ai-model-settings.js";
+import { ProjectBranchPendingReviewSessionConfigurationSchema } from "./branch.js";
 import { findProvider } from "./providers.js";
 
 test("lists versioned Claude model choices", () => {
@@ -20,14 +25,42 @@ test("lists versioned Claude model choices", () => {
   );
 });
 
-test("lists GPT-5.6 Codex model choices", () => {
+test("lists the available OpenAI Codex model choices", () => {
   assert.deepEqual(
     aiModelOptions
       .filter((option) => option.providerId === "codex")
-      .map((option) => option.model)
-      .slice(0, 3),
-    ["openai.gpt-5.6-sol", "openai.gpt-5.6-terra", "openai.gpt-5.6-luna"]
+      .map((option) => option.model),
+    ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna"]
   );
+});
+
+test("limits reasoning efforts to those supported by the selected model", () => {
+  for (const model of ["gpt-6-astra", "gpt-6-sol"]) {
+    assert.deepEqual(reasoningEffortsForProvider("codex", model), [
+      "low", "medium", "high", "xhigh", "max", "ultra"
+    ]);
+    assert.equal(supportsReasoningEffort("codex", "ultra", model), true);
+  }
+  assert.deepEqual(reasoningEffortsForProvider("codex", "gpt-6-luna"), [
+    "low", "medium", "high", "xhigh", "max"
+  ]);
+  assert.equal(supportsReasoningEffort("codex", "ultra", "gpt-6-luna"), false);
+  assert.equal(supportsReasoningEffort("codex", "minimal", "gpt-6-astra"), false);
+  assert.equal(supportsReasoningEffort("claude-code", "ultra", "opus"), false);
+  assert.equal(supportsReasoningEffort("codex", null, "gpt-6-luna"), true);
+
+  const configuration = {
+    provider_id: "codex",
+    model: "gpt-6-astra",
+    reasoning_effort: "ultra",
+    read_only: true,
+    yolo_mode: false
+  };
+  assert.equal(ProjectBranchPendingReviewSessionConfigurationSchema.safeParse(configuration).success, true);
+  assert.equal(ProjectBranchPendingReviewSessionConfigurationSchema.safeParse({
+    ...configuration,
+    model: "gpt-6-luna"
+  }).success, false);
 });
 
 test("configures Codex additional writable directories and YOLO mode", () => {
@@ -38,17 +71,17 @@ test("configures Codex additional writable directories and YOLO mode", () => {
       initialPrompt: "Create project context.",
       additionalWritableDirectories: [" /tmp/project-context "],
       bypassApprovalsAndSandbox: true,
-      model: "openai.gpt-5.6-terra",
-      reasoningEffort: "xhigh"
+      model: "gpt-6-astra",
+      reasoningEffort: "ultra"
     }),
     {
       executable: "codex",
       arguments: [
         "--no-alt-screen",
         "--model",
-        "openai.gpt-5.6-terra",
+        "gpt-6-astra",
         "--config",
-        'model_reasoning_effort="xhigh"',
+        'model_reasoning_effort="ultra"',
         "--add-dir",
         "/tmp/project-context",
         "--dangerously-bypass-approvals-and-sandbox",

@@ -146,6 +146,40 @@ test("returns defaults and persists action-specific AI model settings", async ()
   }
 });
 
+test("normalizes model-specific reasoning and inherited defaults", async () => {
+  const dataDirectory = await mkdtemp(path.join(os.tmpdir(), "supply-flow-ai-models-"));
+  const store = new FileAiModelSettingsStore(dataDirectory);
+  const settings = createDefaultAiModelSettings();
+  settings.globalDefault = {
+    providerId: "codex",
+    model: "gpt-6-astra",
+    reasoningEffort: "ultra"
+  };
+  settings.actions["review-code"] = {
+    ...settings.actions["review-code"],
+    providerId: "codex",
+    model: "gpt-6-luna",
+    reasoningEffort: "ultra"
+  };
+
+  try {
+    const saved = await store.update(settings);
+    assert.equal(saved.globalDefault.reasoningEffort, "ultra");
+    assert.equal(saved.actions["review-code"].reasoningEffort, null);
+    assert.equal(resolveAiModelDefault(saved, "review-code").reasoningEffort, null);
+    assert.equal(resolveAiModelDefault(saved, "implement-code").reasoningEffort, "ultra");
+    assert.deepEqual(await store.get(), saved);
+
+    settings.actions["review-code"].providerId = null;
+    settings.actions["review-code"].reasoningEffort = null;
+    assert.equal(resolveAiModelDefault(settings, "review-code").reasoningEffort, null);
+    settings.globalDefault.model = "gpt-6-luna";
+    assert.equal(AiModelSettingsSchema.parse(settings).globalDefault.reasoningEffort, null);
+  } finally {
+    await rm(dataDirectory, { force: true, recursive: true });
+  }
+});
+
 test("migrates legacy Codex defaults and action selections to provider-aware settings", () => {
   const legacySettings = {
     schemaVersion: 1,

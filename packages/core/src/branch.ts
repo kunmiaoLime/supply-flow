@@ -28,10 +28,16 @@ export const ProjectBranchPendingReviewSessionConfigurationSchema = z
     yolo_mode: z.boolean()
   })
   .superRefine((configuration, context) => {
-    if (!supportsReasoningEffort(configuration.provider_id, configuration.reasoning_effort)) {
+    if (
+      !supportsReasoningEffort(
+        configuration.provider_id,
+        configuration.reasoning_effort,
+        configuration.model
+      )
+    ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "The reasoning effort is not supported by the selected AI provider.",
+        message: "The reasoning effort is not supported by the selected AI model.",
         path: ["reasoning_effort"]
       });
     }

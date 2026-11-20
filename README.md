@@ -100,6 +100,16 @@ when navigating between workspace tabs.
 
 ![AI model defaults and action-specific session configuration](docs/screenshots/ai-model-settings.png)
 
+The Codex picker offers GPT-6 Astra (`gpt-6-astra`), Sol (`gpt-6-sol`), and
+Luna (`gpt-6-luna`) using OpenAI model IDs. All three support Low through Max
+reasoning; Astra and Sol also support Ultra. The session and Settings pickers
+limit reasoning choices to the selected model's supported levels.
+These choices were verified against the local Codex model catalog on
+2026-11-20; account availability can differ from the
+[public Codex model catalog](https://developers.openai.com/codex/models).
+Existing custom model selections and saved sessions retain their model IDs;
+update old Bedrock selections in Settings before starting new sessions.
+
 ![AI interface access status](docs/screenshots/setup-ai-interface.png)
 
 ### 2. Create and prepare a project

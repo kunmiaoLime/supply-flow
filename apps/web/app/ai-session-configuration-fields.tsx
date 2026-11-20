@@ -44,7 +44,8 @@ export function AiSessionConfigurationFields({
       model: selection.model,
       reasoningEffort: supportsReasoningEffort(
         selection.providerId,
-        configuration.reasoningEffort
+        configuration.reasoningEffort,
+        selection.model
       )
         ? configuration.reasoningEffort
         : null
@@ -101,7 +102,10 @@ export function AiSessionConfigurationFields({
         >
           <option value="">Use configured default</option>
           {configuration
-            ? reasoningEffortsForProvider(configuration.providerId).map((effort) => (
+            ? reasoningEffortsForProvider(
+                configuration.providerId,
+                configuration.model
+              ).map((effort) => (
                 <option key={effort} value={effort}>
                   {formatReasoningEffort(effort)}
                 </option>
